@@ -149,7 +149,7 @@ public final class Constants {
 
   public static class ShooterConstants {
     // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 41;
+    public static final int MOTOR_CAN_ID = 60;
     public static final String CAN_BUS = "Drivetrain";
 
     // Gear ratio (motor rotations to shooter wheel rotations)
@@ -183,43 +183,57 @@ public final class Constants {
   }
 
   public static class IntakeConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 42;
-    public static final String CAN_BUS = "Drivetrain";
+    // Motor CAN IDs
+    public static final int UPPER_MOTOR_CAN_ID = 41;
+    public static final int LOWER_MOTOR_CAN_ID = 42;
+    public static final String CAN_BUS = "Superstructure";
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-    // Intake voltage
-    public static final double INTAKE_VOLTAGE = 8.0; // Volts (positive = intake)
+    // Intake percent output (0.0 to 1.0)
+    public static final double INTAKE_PERCENT = 0.45; // 45% speed for intaking
+    public static final double OUTTAKE_PERCENT = -0.5; // 50% speed for outtaking
   }
 
   public static class IntakePivotConstants {
     // Motor CAN ID
     public static final int MOTOR_CAN_ID = 43;
-    public static final String CAN_BUS = "Drivetrain";
+    public static final String CAN_BUS = "Superstructure";
+
+    // Motor inversion (true = clockwise positive)
+    public static final boolean MOTOR_INVERTED = true;
+
+    // Motor encoder offset (in rotations)
+    // Set this to the current position when the mechanism is at its zero/reference position
+    public static final double MOTOR_ROTOR_OFFSET = 0.2;
+
+    // Soft limits (in rotations)
+    public static final double SOFT_LIMIT_REVERSE = 0.0; // Reverse soft limit (minimum position)
+    public static final double SOFT_LIMIT_FORWARD = 28.0; // Forward soft limit (maximum position)
 
     // PID constants
-    public static final double KP = 15.0;
+    public static final double KP = 1.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.0;
     public static final double KV = 0.0;
     public static final double KA = 0.0;
+    public static final double KG = 0.0;
 
     // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 30.0; // rotations per second
-    public static final double ACCELERATION = 60.0; // rotations per second^2
-    public static final double JERK = 600.0; // rotations per second^3
+    public static final double CRUISE_VELOCITY = 100.0; // rotations per second
+    public static final double ACCELERATION = 200.0; // rotations per second^2
+    public static final double JERK = 2000.0; // rotations per second^3
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
     // Position setpoints (in rotations)
-    public static final double RETRACTED_POSITION = 0.0; // Stowed/up position
-    public static final double DEPLOYED_POSITION = 10.0; // Extended/down position for intaking
+    public static final double STOWED_POSITION = 0.0; // Stowed/up position
+    public static final double DEPLOYED_POSITION = 27.6; // Extended/down position for intaking
 
     // Position tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
@@ -227,7 +241,7 @@ public final class Constants {
 
   public static class ConveyorConstants {
     // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 44;
+    public static final int MOTOR_CAN_ID = 45;
     public static final String CAN_BUS = "Drivetrain";
 
     // Current limits
@@ -241,7 +255,7 @@ public final class Constants {
 
   public static class ClimbConstants {
     // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 45;
+    public static final int MOTOR_CAN_ID = 46;
     public static final String CAN_BUS = "rio";
 
     // PID constants

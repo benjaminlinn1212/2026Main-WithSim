@@ -3,7 +3,7 @@ package frc.robot.subsystems.intake;
 /** Simulation implementation of IntakeIO. This provides basic intake simulation without physics. */
 public class IntakeIOSim implements IntakeIO {
 
-  private double appliedVolts = 0.0;
+  private double appliedPercent = 0.0;
 
   public IntakeIOSim() {
     // Simple simulation without physics
@@ -11,18 +11,22 @@ public class IntakeIOSim implements IntakeIO {
 
   @Override
   public void updateInputs(IntakeIOInputs inputs) {
-    inputs.appliedVolts = appliedVolts;
-    // Simulate motor velocity based on voltage
-    inputs.velocityRotPerSec = appliedVolts * 10; // Rough simulation
+    // Upper motor
+    inputs.upperAppliedVolts = appliedPercent * 12.0; // Assume 12V max
+    inputs.upperVelocityRotPerSec = appliedPercent * 80.0; // Rough simulation
+
+    // Lower motor
+    inputs.lowerAppliedVolts = appliedPercent * 12.0;
+    inputs.lowerVelocityRotPerSec = appliedPercent * 80.0;
   }
 
   @Override
-  public void setVoltage(double volts) {
-    this.appliedVolts = volts;
+  public void setPercent(double percent) {
+    this.appliedPercent = percent;
   }
 
   @Override
   public void stop() {
-    this.appliedVolts = 0.0;
+    this.appliedPercent = 0.0;
   }
 }

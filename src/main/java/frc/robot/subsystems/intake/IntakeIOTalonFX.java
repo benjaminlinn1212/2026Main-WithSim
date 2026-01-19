@@ -1,16 +1,20 @@
 package frc.robot.subsystems.intake;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.IntakeConstants;
 
 public class IntakeIOTalonFX implements IntakeIO {
 
-  private final TalonFX motor;
+  private final TalonFX upperMotor;
+  private final TalonFX lowerMotor;
+  private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
 
   public IntakeIOTalonFX() {
-    motor = new TalonFX(IntakeConstants.MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
+    upperMotor = new TalonFX(IntakeConstants.UPPER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
+    lowerMotor = new TalonFX(IntakeConstants.LOWER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.CurrentLimits.StatorCurrentLimit = IntakeConstants.STATOR_CURRENT_LIMIT;
@@ -19,24 +23,32 @@ public class IntakeIOTalonFX implements IntakeIO {
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
     config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
 
-    motor.getConfigurator().apply(config);
+    upperMotor.getConfigurator().apply(config);
+    lowerMotor.getConfigurator().apply(config);
   }
 
   @Override
   public void updateInputs(IntakeIOInputs inputs) {
-    inputs.velocityRotPerSec = motor.getVelocity().getValueAsDouble();
-    inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
-    inputs.currentAmps = motor.getStatorCurrent().getValueAsDouble();
-    inputs.temperatureCelsius = motor.getDeviceTemp().getValueAsDouble();
+    inputs.upperVelocityRotPerSec = upperMotor.getVelocity().getValueAsDouble();
+    inputs.upperAppliedVolts = upperMotor.getMotorVoltage().getValueAsDouble();
+    inputs.upperCurrentAmps = upperMotor.getStatorCurrent().getValueAsDouble();
+    inputs.upperTemperatureCelsius = upperMotor.getDeviceTemp().getValueAsDouble();
+
+    inputs.lowerVelocityRotPerSec = lowerMotor.getVelocity().getValueAsDouble();
+    inputs.lowerAppliedVolts = lowerMotor.getMotorVoltage().getValueAsDouble();
+    inputs.lowerCurrentAmps = lowerMotor.getStatorCurrent().getValueAsDouble();
+    inputs.lowerTemperatureCelsius = lowerMotor.getDeviceTemp().getValueAsDouble();
   }
 
   @Override
-  public void setVoltage(double volts) {
-    motor.setVoltage(volts);
+  public void setPercent(double percent) {
+    upperMotor.setControl(dutyCycleControl.withOutput(percent));
+    lowerMotor.setControl(dutyCycleControl.withOutput(percent));
   }
 
   @Override
   public void stop() {
-    motor.stopMotor();
+    upperMotor.stopMotor();
+    lowerMotor.stopMotor();
   }
 }

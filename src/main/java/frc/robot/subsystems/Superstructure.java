@@ -79,7 +79,7 @@ public class Superstructure extends SubsystemBase {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.STOWED)),
             intake.stop(),
-            intakePivot.retract(), // Retract intake pivot
+            intakePivot.stow(), // Stow intake pivot
             conveyor.stop(),
             Commands.runOnce(() -> shooter.stop()))
         .withName("SuperstructureStow");
@@ -103,7 +103,7 @@ public class Superstructure extends SubsystemBase {
             Commands.runOnce(() -> setState(SuperstructureState.AIMING)),
             Commands.parallel(
                 shooter.spinUpForSpeaker(), // Spin up shooter
-                intakePivot.retract(), // Retract intake pivot
+                intakePivot.stow(), // Stow intake pivot
                 intake.stop(),
                 conveyor.stop()))
         .withName("SuperstructurePrepare");
@@ -156,7 +156,7 @@ public class Superstructure extends SubsystemBase {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.STOWED)),
             intake.stop(),
-            intakePivot.retract(),
+            intakePivot.stow(),
             conveyor.stop(),
             Commands.runOnce(() -> shooter.stop()),
             Commands.runOnce(() -> climb.stopMotor()))

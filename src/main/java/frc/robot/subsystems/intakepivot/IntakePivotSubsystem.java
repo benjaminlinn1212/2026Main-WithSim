@@ -56,16 +56,16 @@ public class IntakePivotSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to retract the intake (raise it up)
+   * Command to stow the intake (raise it up)
    *
-   * @return A command that retracts the intake pivot
+   * @return A command that stows the intake pivot
    */
-  public Command retract() {
+  public Command stow() {
     return runOnce(
             () -> {
-              io.setPosition(IntakePivotConstants.RETRACTED_POSITION);
+              io.setPosition(IntakePivotConstants.STOWED_POSITION);
             })
-        .withName("IntakePivotRetract");
+        .withName("IntakePivotStow");
   }
 
   /** Get current pivot position in rotations */
@@ -84,9 +84,9 @@ public class IntakePivotSubsystem extends SubsystemBase {
     return atPosition(IntakePivotConstants.DEPLOYED_POSITION);
   }
 
-  /** Check if intake is retracted */
-  public boolean isRetracted() {
-    return atPosition(IntakePivotConstants.RETRACTED_POSITION);
+  /** Check if intake is stowed */
+  public boolean isStowed() {
+    return atPosition(IntakePivotConstants.STOWED_POSITION);
   }
 
   /** Immediately stop the pivot motor */

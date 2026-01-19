@@ -1,15 +1,16 @@
 package frc.robot.subsystems.intakepivot;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicVoltage;
+import com.ctre.phoenix6.controls.MotionMagicDutyCycle;
 import com.ctre.phoenix6.hardware.TalonFX;
+import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.IntakePivotConstants;
 
 public class IntakePivotIOTalonFX implements IntakePivotIO {
 
   private final TalonFX motor;
-  private final MotionMagicVoltage positionControl = new MotionMagicVoltage(0);
+  private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0);
 
   public IntakePivotIOTalonFX() {
     motor = new TalonFX(IntakePivotConstants.MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
@@ -23,11 +24,24 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.Slot0.kS = IntakePivotConstants.KS;
     config.Slot0.kV = IntakePivotConstants.KV;
     config.Slot0.kA = IntakePivotConstants.KA;
+    config.Slot0.kG = IntakePivotConstants.KG; // Gravity feedforward
 
     // Motion Magic configuration
     config.MotionMagic.MotionMagicCruiseVelocity = IntakePivotConstants.CRUISE_VELOCITY;
     config.MotionMagic.MotionMagicAcceleration = IntakePivotConstants.ACCELERATION;
     config.MotionMagic.MotionMagicJerk = IntakePivotConstants.JERK;
+
+    // Soft limits configuration
+    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_FORWARD;
+    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
+
+    // Motor inversion (clockwise positive)
+    config.MotorOutput.Inverted =
+        IntakePivotConstants.MOTOR_INVERTED
+            ? InvertedValue.Clockwise_Positive
+            : InvertedValue.CounterClockwise_Positive;
 
     // Current limits
     config.CurrentLimits.StatorCurrentLimit = IntakePivotConstants.STATOR_CURRENT_LIMIT;
@@ -37,8 +51,10 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
 
     config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
 
+    // Set motor encoder offset (adjust the motor's internal sensor reading)
+    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
+
     motor.getConfigurator().apply(config);
-    motor.setPosition(0); // Reset position on startup
   }
 
   @Override

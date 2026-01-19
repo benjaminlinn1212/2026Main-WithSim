@@ -34,11 +34,17 @@ public class IntakeSubsystem extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
 
-    // Log all inputs
-    Logger.recordOutput("Intake/VelocityRotPerSec", inputs.velocityRotPerSec);
-    Logger.recordOutput("Intake/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("Intake/CurrentAmps", inputs.currentAmps);
-    Logger.recordOutput("Intake/TemperatureCelsius", inputs.temperatureCelsius);
+    // Log all inputs for upper motor
+    Logger.recordOutput("Intake/Upper/VelocityRotPerSec", inputs.upperVelocityRotPerSec);
+    Logger.recordOutput("Intake/Upper/AppliedVolts", inputs.upperAppliedVolts);
+    Logger.recordOutput("Intake/Upper/CurrentAmps", inputs.upperCurrentAmps);
+    Logger.recordOutput("Intake/Upper/TemperatureCelsius", inputs.upperTemperatureCelsius);
+
+    // Log all inputs for lower motor
+    Logger.recordOutput("Intake/Lower/VelocityRotPerSec", inputs.lowerVelocityRotPerSec);
+    Logger.recordOutput("Intake/Lower/AppliedVolts", inputs.lowerAppliedVolts);
+    Logger.recordOutput("Intake/Lower/CurrentAmps", inputs.lowerCurrentAmps);
+    Logger.recordOutput("Intake/Lower/TemperatureCelsius", inputs.lowerTemperatureCelsius);
   }
 
   /**
@@ -48,9 +54,23 @@ public class IntakeSubsystem extends SubsystemBase {
    */
   public Command intake() {
     return run(() -> {
-          io.setVoltage(IntakeConstants.INTAKE_VOLTAGE);
+          io.setPercent(IntakeConstants.INTAKE_PERCENT);
         })
+        .finallyDo(() -> io.stop())
         .withName("Intake");
+  }
+
+  /**
+   * Command to run the intake in reverse (outtake)
+   *
+   * @return A command that runs the intake in reverse
+   */
+  public Command outtake() {
+    return run(() -> {
+          io.setPercent(IntakeConstants.OUTTAKE_PERCENT);
+        })
+        .finallyDo(() -> io.stop())
+        .withName("Outtake");
   }
 
   /**

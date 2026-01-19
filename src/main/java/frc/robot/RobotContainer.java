@@ -20,6 +20,8 @@ import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.DriveIOHardware;
 import frc.robot.subsystems.drive.DriveIOSim;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
+import frc.robot.subsystems.intake.IntakeSubsystem;
+import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
@@ -35,6 +37,8 @@ public class RobotContainer {
 
   // Subsystems
   private final DriveSwerveDrivetrain swerveIO;
+  private final IntakeSubsystem intake;
+  private final IntakePivotSubsystem intakePivot;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -103,6 +107,10 @@ public class RobotContainer {
     autoChooser = new LoggedDashboardChooser<>("Auto Choices");
     autoChooser.addDefaultOption("Do Nothing", Commands.none());
 
+    // Initialize subsystems
+    intake = IntakeSubsystem.getInstance();
+    intakePivot = IntakePivotSubsystem.getInstance();
+
     // Configure the button bindings
     configureButtonBindings();
   }
@@ -156,6 +164,13 @@ public class RobotContainer {
                 () -> -controller.getLeftY() * 5.0, // Max 5 m/s
                 () -> -controller.getLeftX() * 5.0));
 
+    // === INTAKE SYSTEM CONTROLS ===
+    // Right bumper: Deploy intake pivot AND run intake rollers
+    controller.rightBumper().onTrue(intakePivot.deploy()).onTrue(intake.intake());
+
+    // Left bumper: Stow intake pivot AND stop intake rollers
+    controller.leftBumper().onTrue(intakePivot.stow()).onTrue(intake.stop());
+
     // Reset pose to (1, 1, 0°) when B button is pressed
     controller
         .b()
@@ -165,8 +180,20 @@ public class RobotContainer {
                     swerveIO)
                 .ignoringDisable(true));
 
-    // Stop drivetrain when X button is pressed
-    controller.x().onTrue(Commands.runOnce(swerveIO::stop, swerveIO));
+    // Emergency stop: X button stops all intake system and drivetrain
+    controller
+        .x()
+        .onTrue(
+            Commands.runOnce(
+                    () -> {
+                      swerveIO.stop();
+                      intake.stopMotor();
+                      intakePivot.stopMotor();
+                    })
+                .withName("EmergencyStop"));
+
+    // Move intake pivot to stow position on emergency stop (X button)
+    controller.x().onTrue(intakePivot.stow());
   }
 
   /**

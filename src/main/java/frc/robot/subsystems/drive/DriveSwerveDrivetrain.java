@@ -12,6 +12,7 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.RobotState;
 
 /**
  * Simple Drive subsystem that wraps DriveIOHardware/DriveIOSim (which extend SwerveDrivetrain).
@@ -19,26 +20,43 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
  */
 public class DriveSwerveDrivetrain extends SubsystemBase {
   private final DriveIOHardware driveIO;
+  private final RobotState robotState;
 
   // SwerveRequest objects for different drive modes
   private final SwerveRequest.FieldCentric fieldCentricDrive = new SwerveRequest.FieldCentric();
   private final SwerveRequest.RobotCentric robotCentricDrive = new SwerveRequest.RobotCentric();
 
-  public DriveSwerveDrivetrain(DriveIOHardware driveIO) {
+  public DriveSwerveDrivetrain(DriveIOHardware driveIO, RobotState robotState) {
     this.driveIO = driveIO;
+    this.robotState = robotState;
   }
 
   @Override
   public void periodic() {
+    // Update chassis speeds in RobotState
+    var speeds = driveIO.getState().Speeds;
+    robotState.updateChassisSpeeds(speeds, speeds); // Field and robot relative are same from CTRE
+
+    // Log robot state
+    robotState.log();
+
     // Log simulated pose if using DriveIOSim
     if (driveIO instanceof DriveIOSim) {
       ((DriveIOSim) driveIO).logSimulatedPose();
     }
   }
 
-  /** Get the current robot pose from odometry. */
+  /** Get the current robot pose from RobotState (matches 254) */
   public Pose2d getPose() {
-    return driveIO.getState().Pose;
+    if (robotState.getLatestFieldToRobot() != null) {
+      return robotState.getLatestFieldToRobot().getValue();
+    }
+    return new Pose2d(); // Fallback
+  }
+
+  /** Get RobotState object for commands */
+  public RobotState getRobotState() {
+    return robotState;
   }
 
   /** Reset the robot's pose. */

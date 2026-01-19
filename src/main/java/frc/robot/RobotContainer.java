@@ -14,6 +14,8 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import frc.robot.commands.DriveAimingAtTarget;
+import frc.robot.commands.DriveToPose;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.DriveIOHardware;
 import frc.robot.subsystems.drive.DriveIOSim;
@@ -28,6 +30,9 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
  * subsystems, commands, and button mappings) should be declared here.
  */
 public class RobotContainer {
+  // Robot state (matches 254)
+  private final RobotState robotState = new RobotState();
+
   // Subsystems
   private final DriveSwerveDrivetrain swerveIO;
 
@@ -56,11 +61,13 @@ public class RobotContainer {
         swerveIO =
             new DriveSwerveDrivetrain(
                 new DriveIOHardware(
+                    robotState,
                     TunerConstants.DrivetrainConstants,
                     TunerConstants.FrontLeft,
                     TunerConstants.FrontRight,
                     TunerConstants.BackLeft,
-                    TunerConstants.BackRight));
+                    TunerConstants.BackRight),
+                robotState);
         break;
 
       case SIM:
@@ -68,11 +75,13 @@ public class RobotContainer {
         swerveIO =
             new DriveSwerveDrivetrain(
                 new DriveIOSim(
+                    robotState,
                     TunerConstants.DrivetrainConstants,
                     TunerConstants.FrontLeft,
                     TunerConstants.FrontRight,
                     TunerConstants.BackLeft,
-                    TunerConstants.BackRight));
+                    TunerConstants.BackRight),
+                robotState);
         break;
 
       default:
@@ -80,11 +89,13 @@ public class RobotContainer {
         swerveIO =
             new DriveSwerveDrivetrain(
                 new DriveIOHardware(
+                    robotState,
                     TunerConstants.DrivetrainConstants,
                     TunerConstants.FrontLeft,
                     TunerConstants.FrontRight,
                     TunerConstants.BackLeft,
-                    TunerConstants.BackRight));
+                    TunerConstants.BackRight),
+                robotState);
         break;
     }
 
@@ -114,7 +125,27 @@ public class RobotContainer {
             },
             swerveIO));
 
-    // Reset pose to 0,0,0 when B button is pressed
+    // Drive to test pose when Y button is held
+    controller.y().whileTrue(new DriveToPose(swerveIO, Constants.FieldPoses.TEST));
+
+    // Auto-aim at speaker while left trigger is held (automatically selects based on alliance)
+    controller
+        .leftTrigger()
+        .whileTrue(
+            new DriveAimingAtTarget(
+                swerveIO,
+                () ->
+                    edu.wpi.first.wpilibj.DriverStation.getAlliance()
+                        .map(
+                            alliance ->
+                                alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue
+                                    ? Constants.FieldPoses.BLUE_AIM_TARGET
+                                    : Constants.FieldPoses.RED_AIM_TARGET)
+                        .orElse(Constants.FieldPoses.BLUE_AIM_TARGET),
+                () -> -controller.getLeftY() * 5.0, // Max 5 m/s
+                () -> -controller.getLeftX() * 5.0));
+
+    // Reset pose to (1, 1, 0°) when B button is pressed
     controller
         .b()
         .onTrue(

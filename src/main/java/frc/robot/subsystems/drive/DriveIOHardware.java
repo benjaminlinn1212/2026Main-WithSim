@@ -14,6 +14,7 @@ import com.ctre.phoenix6.swerve.SwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import edu.wpi.first.math.geometry.Pose2d;
+import frc.robot.RobotState;
 import java.util.function.Consumer;
 
 /**
@@ -22,15 +23,22 @@ import java.util.function.Consumer;
  */
 public class DriveIOHardware extends SwerveDrivetrain<TalonFX, TalonFX, CANcoder> {
 
+  protected RobotState robotState;
   protected Consumer<SwerveDriveState> telemetryConsumer_ =
       swerveDriveState -> {
-        // Base telemetry - subclasses can override
+        // Update RobotState with pose from telemetry
+        if (robotState != null) {
+          robotState.addFieldToRobot(swerveDriveState.Pose);
+        }
       };
 
   public DriveIOHardware(
-      SwerveDrivetrainConstants driveTrainConstants, SwerveModuleConstants<?, ?, ?>... modules) {
+      RobotState robotState,
+      SwerveDrivetrainConstants driveTrainConstants,
+      SwerveModuleConstants<?, ?, ?>... modules) {
     super(TalonFX::new, TalonFX::new, CANcoder::new, driveTrainConstants, 250.0, modules);
 
+    this.robotState = robotState;
     this.getOdometryThread().setThreadPriority(99);
 
     registerTelemetry(telemetryConsumer_);

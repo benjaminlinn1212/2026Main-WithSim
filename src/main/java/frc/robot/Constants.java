@@ -58,7 +58,7 @@ public final class Constants {
 
     // Common field positions for drive-to-pose
     // Adjust these based on your field and desired positions
-    public static final Pose2d TEST = new Pose2d(3.75, 5.3, Rotation2d.fromDegrees(-60));
+    public static final Pose2d TEST = new Pose2d(2.3, 4.5, Rotation2d.fromDegrees(0));
 
     // Auto-aim target positions (e.g., Speaker)
     public static final Translation3d BLUE_AIM_TARGET = new Translation3d(4.625689, 4.040981, 0);
@@ -98,13 +98,13 @@ public final class Constants {
   public static class DriveConstants {
     // Maple-Sim Physics Simulation Configuration
     public static final boolean USE_MAPLE_SIM = true;
-    public static final double ROBOT_WEIGHT_POUNDS = 150.0;
-    public static final double BUMPER_LENGTH_INCHES = 35.625;
-    public static final double BUMPER_WIDTH_INCHES = 35.625;
+    public static final double ROBOT_WEIGHT_KILOGRAMS = 30.0;
+    public static final double BUMPER_LENGTH_INCHES = 32.0;
+    public static final double BUMPER_WIDTH_INCHES = 32.0;
     public static final int DRIVE_MOTOR_COUNT = 1;
     public static final double WHEEL_COEFFICIENT_OF_FRICTION = 1.2;
 
-    public static final double JOYSTICK_DEADBAND = 0.03;
+    public static final double JOYSTICK_DEADBAND = 0.05;
     public static final LinearVelocity JOYSTICK_POV_VELOCITY = MetersPerSecond.of(0.2);
 
     public static final PPHolonomicDriveController PP_HOLONOMIC_DRIVE_CONTROLLER =
@@ -117,21 +117,19 @@ public final class Constants {
             );
 
     public static class DriveToPose {
-      // Whether to use PPLib in the driveToPose() function.
-      public static final boolean USE_PPLIB = false;
       // This constraint is used in the driveToPose() function by PPLib AND PIDControl.
       public static final PathConstraints CONSTRAINTS =
           new PathConstraints(4, 4, 360, 360, 12, false); // 2.2
 
       // These constraints are solely used in the driveToPose() function by PIDControl.
-      public static final double TRANSLATION_KP = 3;
+      public static final double TRANSLATION_KP = 2.0; // Reduced from 5 to reduce oscillation
       public static final double TRANSLATION_KI = 0.0;
-      public static final double TRANSLATION_KD = 0.1;
-      public static final double TRANSLATION_TOLERANCE = 0.02;
-      public static final double STATIC_FRICTION_CONSTANT = 0.02;
+      public static final double TRANSLATION_KD = 0.2; // Increased to dampen oscillation
+      public static final double TRANSLATION_TOLERANCE = 0.05;
+      public static final double STATIC_FRICTION_CONSTANT = 1.2;
       public static final double MAX_VELOCITY = 3.0;
 
-      public static final double ROTATION_KP = 3;
+      public static final double ROTATION_KP = 5;
       public static final double ROTATION_KI = 0.0;
       public static final double ROTATION_KD = 0.1;
       public static final double ROTATION_TOLERANCE = Units.degreesToRadians(1);

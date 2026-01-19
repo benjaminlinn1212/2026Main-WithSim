@@ -18,6 +18,7 @@ import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
 import frc.robot.Constants;
+import frc.robot.RobotState;
 import frc.robot.generated.TunerConstants;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import java.util.function.Consumer;
@@ -37,16 +38,22 @@ public class DriveIOSim extends DriveIOHardware {
   Consumer<SwerveDriveState> simTelemetryConsumer =
       swerveDriveState -> {
         if (Constants.DriveConstants.USE_MAPLE_SIM && mapleSimSwerveDrivetrain != null) {
-          // Inject Maple-Sim's pose into the telemetry
+          // Inject Maple-Sim's pose into the telemetry (matches 254)
           swerveDriveState.Pose =
               mapleSimSwerveDrivetrain.mapleSimDrive.getSimulatedDriveTrainPose();
+        }
+        // Update RobotState with the pose
+        if (robotState != null) {
+          robotState.addFieldToRobot(swerveDriveState.Pose);
         }
         telemetryConsumer_.accept(swerveDriveState);
       };
 
   public DriveIOSim(
-      SwerveDrivetrainConstants driveTrainConstants, SwerveModuleConstants<?, ?, ?>... modules) {
-    super(driveTrainConstants, modules);
+      RobotState robotState,
+      SwerveDrivetrainConstants driveTrainConstants,
+      SwerveModuleConstants<?, ?, ?>... modules) {
+    super(robotState, driveTrainConstants, modules);
 
     // Rewrite the telemetry consumer with a consumer for sim
     registerTelemetry(simTelemetryConsumer);
@@ -59,7 +66,7 @@ public class DriveIOSim extends DriveIOHardware {
       mapleSimSwerveDrivetrain =
           new MapleSimSwerveDrivetrain(
               Units.Seconds.of(kSimLoopPeriod),
-              Units.Pounds.of(Constants.DriveConstants.ROBOT_WEIGHT_POUNDS),
+              Units.Kilograms.of(Constants.DriveConstants.ROBOT_WEIGHT_KILOGRAMS),
               Units.Inches.of(Constants.DriveConstants.BUMPER_WIDTH_INCHES),
               Units.Inches.of(Constants.DriveConstants.BUMPER_LENGTH_INCHES),
               DCMotor.getKrakenX60(Constants.DriveConstants.DRIVE_MOTOR_COUNT),

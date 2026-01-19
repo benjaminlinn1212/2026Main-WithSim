@@ -96,6 +96,13 @@ public final class Constants {
   }
 
   public static class DriveConstants {
+    // Maple-Sim Physics Simulation Configuration
+    public static final boolean USE_MAPLE_SIM = true;
+    public static final double ROBOT_WEIGHT_POUNDS = 150.0;
+    public static final double BUMPER_LENGTH_INCHES = 35.625;
+    public static final double BUMPER_WIDTH_INCHES = 35.625;
+    public static final int DRIVE_MOTOR_COUNT = 1;
+    public static final double WHEEL_COEFFICIENT_OF_FRICTION = 1.2;
 
     public static final double JOYSTICK_DEADBAND = 0.03;
     public static final LinearVelocity JOYSTICK_POV_VELOCITY = MetersPerSecond.of(0.2);

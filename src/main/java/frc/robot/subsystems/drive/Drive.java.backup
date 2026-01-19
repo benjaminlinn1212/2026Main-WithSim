@@ -39,6 +39,7 @@ import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
@@ -46,6 +47,7 @@ import frc.robot.Constants;
 import frc.robot.Constants.Mode;
 import frc.robot.generated.TunerConstants;
 import frc.robot.util.LocalADStarAK;
+import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.DoubleSupplier;
@@ -114,6 +116,11 @@ public class Drive extends SubsystemBase {
   private SwerveDrivePoseEstimator poseEstimator =
       new SwerveDrivePoseEstimator(kinematics, rawGyroRotation, lastModulePositions, Pose2d.kZero);
 
+  // Maple-Sim integration for realistic physics simulation
+  private MapleSimSwerveDrivetrain mapleSimDrive = null;
+  private Notifier mapleSimNotifier = null;
+  private static final double MAPLE_SIM_PERIOD = 0.005; // 5ms
+
   public Drive(
       GyroIO gyroIO,
       ModuleIO flModuleIO,
@@ -125,6 +132,37 @@ public class Drive extends SubsystemBase {
     modules[1] = new Module(frModuleIO, 1, TunerConstants.FrontRight);
     modules[2] = new Module(blModuleIO, 2, TunerConstants.BackLeft);
     modules[3] = new Module(brModuleIO, 3, TunerConstants.BackRight);
+
+    // Initialize Maple-Sim if in simulation mode
+    if (Constants.currentMode == Mode.SIM && Constants.DriveConstants.USE_MAPLE_SIM) {
+      initializeMapleSimDrivetrain();
+
+      // Connect ModuleIOSim instances to Maple-Sim motor controllers
+      if (flModuleIO instanceof ModuleIOSim) {
+        ((ModuleIOSim) flModuleIO)
+            .connectMapleSimControllers(
+                mapleSimDrive.getModule(0).driveMotorController,
+                mapleSimDrive.getModule(0).steerMotorController);
+      }
+      if (frModuleIO instanceof ModuleIOSim) {
+        ((ModuleIOSim) frModuleIO)
+            .connectMapleSimControllers(
+                mapleSimDrive.getModule(1).driveMotorController,
+                mapleSimDrive.getModule(1).steerMotorController);
+      }
+      if (blModuleIO instanceof ModuleIOSim) {
+        ((ModuleIOSim) blModuleIO)
+            .connectMapleSimControllers(
+                mapleSimDrive.getModule(2).driveMotorController,
+                mapleSimDrive.getModule(2).steerMotorController);
+      }
+      if (brModuleIO instanceof ModuleIOSim) {
+        ((ModuleIOSim) brModuleIO)
+            .connectMapleSimControllers(
+                mapleSimDrive.getModule(3).driveMotorController,
+                mapleSimDrive.getModule(3).steerMotorController);
+      }
+    }
 
     // Usage reporting for swerve template
     HAL.report(tResourceType.kResourceType_RobotDrive, tInstances.kRobotDriveSwerve_AdvantageKit);
@@ -168,6 +206,29 @@ public class Drive extends SubsystemBase {
                 (voltage) -> runCharacterization(voltage.in(Volts)), null, this));
   }
 
+  /** Get the Maple-Sim drivetrain instance (for gyro simulation). */
+  public MapleSimSwerveDrivetrain getMapleSimDrive() {
+    return mapleSimDrive;
+  }
+
+  /** Initialize the Maple-Sim drivetrain for realistic physics simulation. */
+  private void initializeMapleSimDrivetrain() {
+    mapleSimDrive =
+        new MapleSimSwerveDrivetrain(
+            Seconds.of(MAPLE_SIM_PERIOD),
+            Pounds.of(Constants.DriveConstants.ROBOT_WEIGHT_POUNDS),
+            Inches.of(Constants.DriveConstants.BUMPER_LENGTH_INCHES),
+            Inches.of(Constants.DriveConstants.BUMPER_WIDTH_INCHES),
+            DCMotor.getKrakenX60Foc(Constants.DriveConstants.DRIVE_MOTOR_COUNT),
+            DCMotor.getKrakenX60Foc(Constants.DriveConstants.DRIVE_MOTOR_COUNT),
+            Constants.DriveConstants.WHEEL_COEFFICIENT_OF_FRICTION,
+            getModuleTranslations());
+
+    // Start the maple-sim update loop
+    mapleSimNotifier = new Notifier(mapleSimDrive::update);
+    mapleSimNotifier.startPeriodic(MAPLE_SIM_PERIOD);
+  }
+
   @Override
   public void periodic() {
     odometryLock.lock(); // Prevents odometry updates while reading data
@@ -195,6 +256,7 @@ public class Drive extends SubsystemBase {
     double[] sampleTimestamps =
         modules[0].getOdometryTimestamps(); // All signals are sampled together
     int sampleCount = sampleTimestamps.length;
+    SwerveModulePosition[] latestModulePositions = lastModulePositions; // Track latest positions
     for (int i = 0; i < sampleCount; i++) {
       // Read wheel positions and deltas from each module
       SwerveModulePosition[] modulePositions = new SwerveModulePosition[4];
@@ -208,6 +270,7 @@ public class Drive extends SubsystemBase {
                 modulePositions[moduleIndex].angle);
         lastModulePositions[moduleIndex] = modulePositions[moduleIndex];
       }
+      latestModulePositions = modulePositions; // Keep track of latest
 
       // Update gyro angle
       if (gyroInputs.connected) {
@@ -221,6 +284,13 @@ public class Drive extends SubsystemBase {
 
       // Apply update
       poseEstimator.updateWithTime(sampleTimestamps[i], rawGyroRotation, modulePositions);
+    }
+
+    // Override pose with Maple-Sim if available (for realistic physics)
+    if (mapleSimDrive != null) {
+      Pose2d simPose = mapleSimDrive.getSimulatedPose();
+      poseEstimator.resetPosition(simPose.getRotation(), latestModulePositions, simPose);
+      Logger.recordOutput("Drive/MapleSimPose", simPose);
     }
 
     // Update gyro alert
@@ -345,6 +415,10 @@ public class Drive extends SubsystemBase {
   /** Resets the current odometry pose. */
   public void setPose(Pose2d pose) {
     poseEstimator.resetPosition(rawGyroRotation, getModulePositions(), pose);
+    // Also update Maple-Sim pose if available
+    if (mapleSimDrive != null) {
+      mapleSimDrive.setSimulatedPose(pose);
+    }
   }
 
   /** Adds a new timestamped vision measurement. */

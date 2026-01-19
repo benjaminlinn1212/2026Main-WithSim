@@ -1,0 +1,95 @@
+// Copyright (c) 2021-2026 Littleton Robotics
+// Adapted from Team 254's 2025 code
+// http://github.com/Mechanical-Advantage
+//
+// Use of this source code is governed by a BSD
+// license that can be found in the LICENSE file
+// at the root directory of this project.
+
+package frc.robot.subsystems.drive;
+
+import com.ctre.phoenix6.swerve.SwerveRequest;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.wpilibj2.command.SubsystemBase;
+
+/**
+ * Simple Drive subsystem that wraps DriveIOHardware/DriveIOSim (which extend SwerveDrivetrain).
+ * This matches Team 254's architecture of using CTRE's SwerveDrivetrain class directly.
+ */
+public class DriveSwerveDrivetrain extends SubsystemBase {
+  private final DriveIOHardware driveIO;
+
+  // SwerveRequest objects for different drive modes
+  private final SwerveRequest.FieldCentric fieldCentricDrive = new SwerveRequest.FieldCentric();
+  private final SwerveRequest.RobotCentric robotCentricDrive = new SwerveRequest.RobotCentric();
+
+  public DriveSwerveDrivetrain(DriveIOHardware driveIO) {
+    this.driveIO = driveIO;
+  }
+
+  @Override
+  public void periodic() {
+    // Log simulated pose if using DriveIOSim
+    if (driveIO instanceof DriveIOSim) {
+      ((DriveIOSim) driveIO).logSimulatedPose();
+    }
+  }
+
+  /** Get the current robot pose from odometry. */
+  public Pose2d getPose() {
+    return driveIO.getState().Pose;
+  }
+
+  /** Reset the robot's pose. */
+  public void setPose(Pose2d pose) {
+    driveIO.resetOdometry(pose);
+  }
+
+  /**
+   * Drive the robot in field-relative mode.
+   *
+   * @param vx Forward velocity in m/s
+   * @param vy Sideways velocity in m/s
+   * @param omega Rotational velocity in rad/s
+   */
+  public void driveFieldRelative(double vx, double vy, double omega) {
+    driveIO.setControl(
+        fieldCentricDrive.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega));
+  }
+
+  /**
+   * Drive the robot in robot-relative mode.
+   *
+   * @param vx Forward velocity in m/s
+   * @param vy Sideways velocity in m/s
+   * @param omega Rotational velocity in rad/s
+   */
+  public void driveRobotRelative(double vx, double vy, double omega) {
+    driveIO.setControl(
+        robotCentricDrive.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega));
+  }
+
+  /** Drive using chassis speeds. */
+  public void runVelocity(ChassisSpeeds chassisSpeeds) {
+    driveRobotRelative(
+        chassisSpeeds.vxMetersPerSecond,
+        chassisSpeeds.vyMetersPerSecond,
+        chassisSpeeds.omegaRadiansPerSecond);
+  }
+
+  /** Apply a custom swerve request. */
+  public void applyRequest(SwerveRequest request) {
+    driveIO.setControl(request);
+  }
+
+  /** Stop the drivetrain. */
+  public void stop() {
+    driveRobotRelative(0, 0, 0);
+  }
+
+  /** Get the underlying DriveIO instance. */
+  public DriveIOHardware getDriveIO() {
+    return driveIO;
+  }
+}

@@ -118,9 +118,20 @@ public class RobotContainer {
     swerveIO.setDefaultCommand(
         Commands.run(
             () -> {
-              double vxMetersPerSec = -controller.getLeftY() * 5.0; // Max 5 m/s
-              double vyMetersPerSec = -controller.getLeftX() * 5.0;
-              double omegaRadPerSec = -controller.getRightX() * Math.PI; // Max PI rad/s
+              // Apply deadband to prevent drift from joystick noise
+              double leftY =
+                  edu.wpi.first.math.MathUtil.applyDeadband(
+                      -controller.getLeftY(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+              double leftX =
+                  edu.wpi.first.math.MathUtil.applyDeadband(
+                      -controller.getLeftX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+              double rightX =
+                  edu.wpi.first.math.MathUtil.applyDeadband(
+                      -controller.getRightX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+
+              double vxMetersPerSec = leftY * 5.0; // Max 5 m/s
+              double vyMetersPerSec = leftX * 5.0;
+              double omegaRadPerSec = rightX * Math.PI; // Max PI rad/s
               swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
             swerveIO));

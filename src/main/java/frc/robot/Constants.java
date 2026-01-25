@@ -284,6 +284,94 @@ public final class Constants {
     public static final double POSITION_TOLERANCE = 1.0; // rotations
   }
 
+  public static class TurretConstants {
+    // Motor CAN IDs
+    public static final int MOTOR_CAN_ID = 50;
+    public static final int CANCODER_CAN_ID = 51;
+    public static final String CAN_BUS = "Superstructure";
+
+    // Gear ratio (motor rotations to turret rotations)
+    public static final double GEAR_RATIO = 100.0; // Example: 100:1 reduction
+
+    // CANCoder configuration
+    public static final double CANCODER_OFFSET = 0.0; // Adjust based on physical alignment
+
+    // Position limits (radians)
+    public static final double MIN_POSITION_RAD = -Math.PI; // -180 degrees
+    public static final double MAX_POSITION_RAD = Math.PI; // 180 degrees
+
+    // PID constants (tuned for position control)
+    public static final double KP = 20.0;
+    public static final double KI = 0.0;
+    public static final double KD = 0.2;
+    public static final double KS = 0.18;
+    public static final double KV = 0.12;
+    public static final double KA = 0.02;
+
+    // Motion Magic constants
+    public static final double CRUISE_VELOCITY = 120.0;
+    public static final double ACCELERATION = 1200.0;
+    public static final double JERK = 9000.0;
+
+    // Current limits
+    public static final double STATOR_CURRENT_LIMIT = 150.0;
+    public static final double SUPPLY_CURRENT_LIMIT = 80.0;
+
+    // Position tolerance for aiming
+    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
+
+    // Latency compensation for aiming (seconds)
+    // Accounts for control loop delay + motor response time
+    // Start low and increase only if you see consistent lag
+    public static final double AIMING_LATENCY_COMPENSATION =
+        0.15; // Increased to 120ms for better tracking
+
+    // Position setpoints (radians)
+    public static final double STOW_POSITION = 0.0; // Forward
+    public static final double SHOOT_BACK_BLUE_POSITION =
+        Math.PI; // Backward (180°) for blue alliance
+    public static final double SHOOT_BACK_RED_POSITION = 0.0; // Forward (0°) for red alliance
+  }
+
+  public static class HoodConstants {
+    // Motor CAN ID
+    public static final int MOTOR_CAN_ID = 52;
+    public static final String CAN_BUS = "Superstructure";
+
+    // Gear ratio (motor rotations to hood rotations)
+    public static final double GEAR_RATIO = 60.0; // Example: 60:1 reduction
+
+    // Position limits (radians from horizontal)
+    public static final double MIN_POSITION_RAD = Units.degreesToRadians(0.0); // Flat
+    public static final double MAX_POSITION_RAD = Units.degreesToRadians(60.0); // Max angle
+
+    // PID constants
+    public static final double KP = 5.0;
+    public static final double KI = 0.0;
+    public static final double KD = 0.1;
+    public static final double KS = 0.1;
+    public static final double KV = 0.12;
+    public static final double KA = 0.01;
+    public static final double KG = 0.2; // Gravity compensation
+
+    // Motion Magic constants
+    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
+    public static final double ACCELERATION = 160.0; // rotations per second^2
+    public static final double JERK = 1600.0; // rotations per second^3
+
+    // Current limits
+    public static final double STATOR_CURRENT_LIMIT = 60.0;
+    public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+
+    // Position tolerance for aiming
+    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(1.0);
+
+    // Position setpoints (radians)
+    public static final double STOW_POSITION = Units.degreesToRadians(20.0); // Safe stow angle
+    public static final double SHOOT_BACK_POSITION = Units.degreesToRadians(45.0); // Mid-field shot
+    public static final double MIN_AIM_ANGLE = Units.degreesToRadians(15.0); // Minimum angle
+  }
+
   /** Ball Vision Constants Configuration for Limelight-based ball detection */
   public static class BallVision {
     // Ball physical properties

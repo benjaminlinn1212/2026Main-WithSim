@@ -14,14 +14,21 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.commands.DriveAimingAtTarget;
 import frc.robot.commands.DriveToPose;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.DriveIOHardware;
 import frc.robot.subsystems.drive.DriveIOSim;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
+import frc.robot.subsystems.hood.HoodIO;
+import frc.robot.subsystems.hood.HoodIOSim;
+import frc.robot.subsystems.hood.HoodIOTalonFX;
+import frc.robot.subsystems.hood.HoodSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
+import frc.robot.subsystems.turret.TurretIO;
+import frc.robot.subsystems.turret.TurretIOSim;
+import frc.robot.subsystems.turret.TurretIOTalonFX;
+import frc.robot.subsystems.turret.TurretSubsystem;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
@@ -39,6 +46,8 @@ public class RobotContainer {
   private final DriveSwerveDrivetrain swerveIO;
   private final IntakeSubsystem intake;
   private final IntakePivotSubsystem intakePivot;
+  private final TurretSubsystem turret;
+  private final HoodSubsystem hood;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -111,6 +120,26 @@ public class RobotContainer {
     intake = IntakeSubsystem.getInstance();
     intakePivot = IntakePivotSubsystem.getInstance();
 
+    // Initialize turret and hood based on mode
+    switch (Constants.currentMode) {
+      case REAL:
+        turret = new TurretSubsystem(new TurretIOTalonFX());
+        hood = new HoodSubsystem(new HoodIOTalonFX());
+        break;
+      case SIM:
+        turret = new TurretSubsystem(new TurretIOSim());
+        hood = new HoodSubsystem(new HoodIOSim());
+        break;
+      default:
+        turret = new TurretSubsystem(new TurretIO() {});
+        hood = new HoodSubsystem(new HoodIO() {});
+        break;
+    }
+
+    // Provide robot pose and chassis speeds to turret for field-relative tracking
+    turret.setRobotPoseSupplier(() -> swerveIO.getPose());
+    turret.setChassisSpeedsSupplier(() -> robotState.getLatestMeasuredFieldRelativeChassisSpeeds());
+
     // Configure the button bindings
     configureButtonBindings();
   }
@@ -147,23 +176,6 @@ public class RobotContainer {
     // Drive to test pose when Y button is held
     controller.y().whileTrue(new DriveToPose(swerveIO, Constants.FieldPoses.TEST));
 
-    // Auto-aim at speaker while left trigger is held (automatically selects based on alliance)
-    controller
-        .leftTrigger()
-        .whileTrue(
-            new DriveAimingAtTarget(
-                swerveIO,
-                () ->
-                    edu.wpi.first.wpilibj.DriverStation.getAlliance()
-                        .map(
-                            alliance ->
-                                alliance == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue
-                                    ? Constants.FieldPoses.BLUE_AIM_TARGET
-                                    : Constants.FieldPoses.RED_AIM_TARGET)
-                        .orElse(Constants.FieldPoses.BLUE_AIM_TARGET),
-                () -> -controller.getLeftY() * 5.0, // Max 5 m/s
-                () -> -controller.getLeftX() * 5.0));
-
     // === INTAKE SYSTEM CONTROLS ===
     // Right bumper: Deploy intake pivot AND run intake rollers
     controller.rightBumper().onTrue(intakePivot.deploy()).onTrue(intake.intake());
@@ -194,6 +206,34 @@ public class RobotContainer {
 
     // Move intake pivot to stow position on emergency stop (X button)
     controller.x().onTrue(intakePivot.stow());
+
+    // === SMART TURRET AIMING ===
+    // Left trigger: Auto-aim turret intelligently
+    // - If at midfield (crossed target X): shootBackFromMidfield
+    // - Else: aimHub at speaker
+    // - Release trigger: stow
+    controller
+        .leftTrigger()
+        .whileTrue(
+            Commands.either(
+                // If robot crossed midfield (past target X), shoot back
+                turret.shootBackFromMidfield(),
+                // Otherwise aim at hub
+                turret.aimHub(),
+                // Condition: check if robot X is past the target X (midfield)
+                () -> {
+                  double robotX = swerveIO.getPose().getX();
+                  var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
+                  if (alliance.isPresent()
+                      && alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Red) {
+                    // Red alliance: past midfield if X < red target X
+                    return robotX < Constants.FieldPoses.RED_AIM_TARGET.getX();
+                  } else {
+                    // Blue alliance: past midfield if X > blue target X
+                    return robotX > Constants.FieldPoses.BLUE_AIM_TARGET.getX();
+                  }
+                }))
+        .onFalse(turret.stow()); // Stow when trigger released
   }
 
   /**

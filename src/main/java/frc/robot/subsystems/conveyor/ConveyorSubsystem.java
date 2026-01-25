@@ -54,7 +54,7 @@ public class ConveyorSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to move game piece to bucket/amp
+   * Command to move game piece to bucket (for ejecting)
    *
    * @return A command that runs conveyor toward bucket
    */

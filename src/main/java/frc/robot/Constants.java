@@ -60,7 +60,7 @@ public final class Constants {
     // Adjust these based on your field and desired positions
     public static final Pose2d TEST = new Pose2d(2.3, 4.5, Rotation2d.fromDegrees(0));
 
-    // Auto-aim target positions (e.g., Speaker)
+    // Auto-aim target positions (e.g., Hub)
     public static final Translation3d BLUE_AIM_TARGET = new Translation3d(4.625689, 4.040981, 0);
     public static final Translation3d RED_AIM_TARGET =
         new Translation3d(16.54175 - 4.625689, 4.040981, 0); // Mirrored across field
@@ -175,8 +175,8 @@ public final class Constants {
 
     // Shooter speed presets (in rotations per second)
     public static final double IDLE_SPEED = 0.0;
-    public static final double SPEAKER_SPEED = 60.0;
-    public static final double AMP_SPEED = 30.0;
+    public static final double HUB_SPEED = 60.0;
+    public static final double PASS_SPEED = 30.0;
 
     // Velocity tolerance (for checking if at speed)
     public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
@@ -250,7 +250,20 @@ public final class Constants {
 
     // Conveyor voltages
     public static final double TO_SHOOTER_VOLTAGE = 6.0; // Volts (positive = toward shooter)
-    public static final double TO_BUCKET_VOLTAGE = -6.0; // Volts (negative = toward bucket/amp)
+    public static final double TO_BUCKET_VOLTAGE = -6.0; // Volts (negative = toward bucket)
+  }
+
+  public static class IndexerConstants {
+    // Motor CAN ID
+    public static final int MOTOR_CAN_ID = 47;
+    public static final String CAN_BUS = "Drivetrain";
+
+    // Current limits
+    public static final double STATOR_CURRENT_LIMIT = 60.0;
+    public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+
+    // Indexer voltages
+    public static final double TO_SHOOTER_VOLTAGE = 8.0; // Volts (toward shooter)
   }
 
   public static class ClimbConstants {
@@ -370,51 +383,6 @@ public final class Constants {
     public static final double STOW_POSITION = Units.degreesToRadians(20.0); // Safe stow angle
     public static final double SHOOT_BACK_POSITION = Units.degreesToRadians(45.0); // Mid-field shot
     public static final double MIN_AIM_ANGLE = Units.degreesToRadians(15.0); // Minimum angle
-  }
-
-  /** Ball Vision Constants Configuration for Limelight-based ball detection */
-  public static class BallVision {
-    // Ball physical properties
-    public static final double BALL_DIAMETER_METERS = 0.15; // 15cm diameter ball
-
-    // Camera calibration
-    public static final double AREA_CALIBRATION_CONSTANT = 10.0; // Adjust based on camera testing
-
-    // Ball detection thresholds
-    public static final double MIN_CONFIDENCE = 0.5; // Minimum confidence to consider a detection
-    public static final double MAX_BALL_DISTANCE = 8.0; // Maximum distance to detect balls (meters)
-  }
-
-  /** Navigation Constants Configuration for ball intake navigation and path planning */
-  public static class NavigationConstants {
-    // Slew rate limits for smooth acceleration
-    public static final double TRANSLATION_RATE_LIMIT = 3.0; // m/s^2
-    public static final double ROTATION_RATE_LIMIT = 5.0; // rad/s^2
-
-    // Search behavior when no balls detected
-    public static final double SEARCH_DRIVE_SPEED = 1.0; // m/s towards field center
-    public static final double SEARCH_HEADING_TOLERANCE =
-        Math.toRadians(30); // Only drive when facing target
-    public static final double FIELD_CENTER_STOP_DISTANCE =
-        1.0; // Stop when within 1m of field center
-
-    // Target persistence (prevents losing ball when out of view)
-    public static final int BALL_PERSISTENCE_CYCLES =
-        25; // Keep driving to last position for 0.5s @ 50Hz
-
-    // Target switching threshold
-    public static final double PRIORITY_SWITCH_THRESHOLD =
-        50.0; // Only switch if new priority is 50+ points better
-    public static final double SAME_BALL_TOLERANCE =
-        0.1; // Distance to consider balls the same (meters)
-
-    // PID blending factors
-    public static final double PID_TRANSLATION_BLEND =
-        0.3; // How much PID correction to blend with APF (30%)
-    public static final double PID_ROTATION_BLEND =
-        0.2; // How much PID correction to blend with APF (20%)
-    public static final double SECONDARY_ATTRACTION_FACTOR =
-        0.3; // Influence of secondary balls (30%)
   }
 
   /**

@@ -33,21 +33,21 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to spin up the shooter to speaker shooting speed
+   * Command to spin up the shooter to hub shooting speed
    *
-   * @return A command that spins the shooter to speaker speed
+   * @return A command that spins the shooter to hub speed
    */
-  public Command spinUpForSpeaker() {
-    return spinUp(ShooterConstants.SPEAKER_SPEED);
+  public Command spinUpForHub() {
+    return spinUp(ShooterConstants.HUB_SPEED);
   }
 
   /**
-   * Command to spin up the shooter to amp shooting speed
+   * Command to spin up the shooter to pass shooting speed
    *
-   * @return A command that spins the shooter to amp speed
+   * @return A command that spins the shooter to pass speed
    */
-  public Command spinUpForAmp() {
-    return spinUp(ShooterConstants.AMP_SPEED);
+  public Command spinUpForPass() {
+    return spinUp(ShooterConstants.PASS_SPEED);
   }
 
   /**
@@ -105,21 +105,21 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Checks if the shooter is ready to shoot at speaker speed
+   * Checks if the shooter is ready to shoot at hub speed
    *
-   * @return True if at speaker speed
+   * @return True if at hub speed
    */
-  public boolean readyForSpeaker() {
-    return atVelocity(ShooterConstants.SPEAKER_SPEED);
+  public boolean readyForHub() {
+    return atVelocity(ShooterConstants.HUB_SPEED);
   }
 
   /**
-   * Checks if the shooter is ready to shoot at amp speed
+   * Checks if the shooter is ready to shoot at pass speed
    *
-   * @return True if at amp speed
+   * @return True if at pass speed
    */
-  public boolean readyForAmp() {
-    return atVelocity(ShooterConstants.AMP_SPEED);
+  public boolean readyForPass() {
+    return atVelocity(ShooterConstants.PASS_SPEED);
   }
 
   /** Stops the shooter motors */
@@ -137,8 +137,8 @@ public class ShooterSubsystem extends SubsystemBase {
     Logger.recordOutput("Shooter/TempCelsius", inputs.tempCelsius);
 
     SmartDashboard.putNumber("Shooter Velocity", inputs.velocityRotPerSec);
-    SmartDashboard.putBoolean("Shooter Ready Speaker", readyForSpeaker());
-    SmartDashboard.putBoolean("Shooter Ready Amp", readyForAmp());
+    SmartDashboard.putBoolean("Shooter Ready Hub", readyForHub());
+    SmartDashboard.putBoolean("Shooter Ready Pass", readyForPass());
   }
 
   /**

@@ -1,5 +1,6 @@
 package frc.robot.subsystems.hood;
 
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -8,21 +9,23 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
  * Hood subsystem that controls the hood angle for shot trajectory adjustment. Supports multiple
- * states: stow, shootBackFromMidfield, and aimHub.
+ * states: stow, shootBackFromNeutralZone, and aimHub.
  */
 public class HoodSubsystem extends SubsystemBase {
   private final HoodIO io;
   private final HoodIO.HoodIOInputs inputs = new HoodIO.HoodIOInputs();
 
   private double positionSetpointRad = Constants.HoodConstants.STOW_POSITION;
+  private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
 
   public enum HoodState {
     STOW,
-    SHOOT_BACK_FROM_MIDFIELD,
+    SHOOT_BACK_FROM_NEUTRAL_ZONE,
     AIM_HUB
   }
 
@@ -30,6 +33,14 @@ public class HoodSubsystem extends SubsystemBase {
 
   public HoodSubsystem(HoodIO io) {
     this.io = io;
+  }
+
+  /**
+   * Set the robot pose supplier for field-relative distance calculation. Call this from
+   * RobotContainer after constructing the drive subsystem.
+   */
+  public void setRobotPoseSupplier(Supplier<Pose2d> poseSupplier) {
+    this.robotPoseSupplier = poseSupplier;
   }
 
   @Override
@@ -59,24 +70,24 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to set hood angle for shooting back from midfield. Uses a fixed angle optimized for
-   * mid-field shots.
+   * Command to set hood angle for shooting back from neutral zone. Uses a fixed angle optimized for
+   * neutral zone shots.
    */
-  public Command shootBackFromMidfield() {
+  public Command shootBackFromNeutralZone() {
     return runOnce(
             () -> {
-              currentState = HoodState.SHOOT_BACK_FROM_MIDFIELD;
+              currentState = HoodState.SHOOT_BACK_FROM_NEUTRAL_ZONE;
             })
         .andThen(
             positionSetpointCommand(() -> Constants.HoodConstants.SHOOT_BACK_POSITION, () -> 0.0))
-        .withName("Hood Shoot Back From Midfield");
+        .withName("Hood Shoot Back From Neutral Zone");
   }
 
   /**
-   * Command to aim hood at the hub (speaker) based on robot pose and distance. Calculates optimal
-   * angle based on distance to target.
+   * Command to aim hood at the hub based on robot pose and distance. Calculates optimal angle based
+   * on distance to target.
    */
-  public Command aimHub(DoubleSupplier robotXSupplier, DoubleSupplier robotYSupplier) {
+  public Command aimHub() {
     return runOnce(
             () -> {
               currentState = HoodState.AIM_HUB;
@@ -84,9 +95,9 @@ public class HoodSubsystem extends SubsystemBase {
         .andThen(
             positionSetpointCommand(
                 () -> {
-                  // Get robot position
-                  Translation2d robotPosition =
-                      new Translation2d(robotXSupplier.getAsDouble(), robotYSupplier.getAsDouble());
+                  // Get robot position from pose supplier
+                  Pose2d robotPose = robotPoseSupplier.get();
+                  Translation2d robotPosition = robotPose.getTranslation();
 
                   // Get target position based on alliance
                   Translation3d targetPosition;

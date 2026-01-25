@@ -42,7 +42,7 @@ public class DriveAimingAtTarget extends Command {
    * Creates a new DriveAimingAtTarget command.
    *
    * @param drive The swerve drivetrain subsystem
-   * @param targetSupplier Supplier for the target position to aim at (e.g., speaker coordinates)
+   * @param targetSupplier Supplier for the target position to aim at (e.g., hub coordinates)
    * @param xSupplier Supplier for X velocity (forward/backward) from joystick
    * @param ySupplier Supplier for Y velocity (left/right) from joystick
    */

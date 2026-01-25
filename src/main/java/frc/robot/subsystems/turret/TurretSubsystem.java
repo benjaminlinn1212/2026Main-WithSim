@@ -16,7 +16,8 @@ import org.littletonrobotics.junction.Logger;
 
 /**
  * Turret subsystem that controls a rotating turret mechanism. Supports multiple states: stow,
- * shootBackFromMidfield, and aimHub. Uses Team 254's wrapping logic for smooth continuous rotation.
+ * shootBackFromNeutralZone, and aimHub. Uses Team 254's wrapping logic for smooth continuous
+ * rotation.
  */
 public class TurretSubsystem extends SubsystemBase {
   private final TurretIO io;
@@ -29,7 +30,7 @@ public class TurretSubsystem extends SubsystemBase {
 
   public enum TurretState {
     STOW,
-    SHOOT_BACK_FROM_MIDFIELD,
+    SHOOT_BACK_FROM_NEUTRAL_ZONE,
     AIM_HUB
   }
 
@@ -89,13 +90,13 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to aim turret for shooting back from midfield. Aims at 0 degrees for blue alliance, 180
-   * degrees for red alliance.
+   * Command to aim turret for shooting back from neutral zone. Aims at 0 degrees for blue alliance,
+   * 180 degrees for red alliance.
    */
-  public Command shootBackFromMidfield() {
+  public Command shootBackFromNeutralZone() {
     return runOnce(
             () -> {
-              currentState = TurretState.SHOOT_BACK_FROM_MIDFIELD;
+              currentState = TurretState.SHOOT_BACK_FROM_NEUTRAL_ZONE;
               updateModeChange();
             })
         .andThen(
@@ -127,12 +128,12 @@ public class TurretSubsystem extends SubsystemBase {
                   setPositionSetpointImpl(wrappedTarget, 0.0);
                   positionSetpointRad = wrappedTarget;
                 }))
-        .withName("Turret Shoot Back From Midfield");
+        .withName("Turret Shoot Back From Neutral Zone");
   }
 
   /**
-   * Command to aim turret at the hub (speaker) based on robot pose. Uses the appropriate aim target
-   * based on alliance color. Continuously tracks target even when robot rotates.
+   * Command to aim turret at the hub based on robot pose. Uses the appropriate aim target based on
+   * alliance color. Continuously tracks target even when robot rotates.
    */
   public Command aimHub() {
     return runOnce(

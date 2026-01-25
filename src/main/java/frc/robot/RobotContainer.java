@@ -140,6 +140,9 @@ public class RobotContainer {
     turret.setRobotPoseSupplier(() -> swerveIO.getPose());
     turret.setChassisSpeedsSupplier(() -> robotState.getLatestMeasuredFieldRelativeChassisSpeeds());
 
+    // Provide robot pose to hood for distance-based aiming
+    hood.setRobotPoseSupplier(() -> swerveIO.getPose());
+
     // Configure the button bindings
     configureButtonBindings();
   }
@@ -209,27 +212,27 @@ public class RobotContainer {
 
     // === SMART TURRET AIMING ===
     // Left trigger: Auto-aim turret intelligently
-    // - If at midfield (crossed target X): shootBackFromMidfield
-    // - Else: aimHub at speaker
+    // - If in neutral zone (crossed target X): shootBackFromNeutralZone
+    // - Else: aimHub at hub
     // - Release trigger: stow
     controller
         .leftTrigger()
         .whileTrue(
             Commands.either(
-                // If robot crossed midfield (past target X), shoot back
-                turret.shootBackFromMidfield(),
+                // If robot crossed into neutral zone (past target X), shoot back
+                turret.shootBackFromNeutralZone(),
                 // Otherwise aim at hub
                 turret.aimHub(),
-                // Condition: check if robot X is past the target X (midfield)
+                // Condition: check if robot X is past the target X (neutral zone)
                 () -> {
                   double robotX = swerveIO.getPose().getX();
                   var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
                   if (alliance.isPresent()
                       && alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Red) {
-                    // Red alliance: past midfield if X < red target X
+                    // Red alliance: past neutral zone if X < red target X
                     return robotX < Constants.FieldPoses.RED_AIM_TARGET.getX();
                   } else {
-                    // Blue alliance: past midfield if X > blue target X
+                    // Blue alliance: past neutral zone if X > blue target X
                     return robotX > Constants.FieldPoses.BLUE_AIM_TARGET.getX();
                   }
                 }))

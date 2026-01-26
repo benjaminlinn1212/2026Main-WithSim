@@ -25,10 +25,9 @@ import frc.robot.subsystems.hood.HoodIOTalonFX;
 import frc.robot.subsystems.hood.HoodSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
-import frc.robot.subsystems.turret.TurretIO;
-import frc.robot.subsystems.turret.TurretIOSim;
-import frc.robot.subsystems.turret.TurretIOTalonFX;
-import frc.robot.subsystems.turret.TurretSubsystem;
+import frc.robot.subsystems.shooter.ShooterSubsystem;
+import frc.robot.subsystems.conveyor.ConveyorSubsystem;
+import frc.robot.subsystems.Superstructure;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
@@ -46,8 +45,10 @@ public class RobotContainer {
   private final DriveSwerveDrivetrain swerveIO;
   private final IntakeSubsystem intake;
   private final IntakePivotSubsystem intakePivot;
-  private final TurretSubsystem turret;
   private final HoodSubsystem hood;
+  private final ShooterSubsystem shooter;
+  private final ConveyorSubsystem conveyor;
+  private final Superstructure superstructure;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -119,29 +120,27 @@ public class RobotContainer {
     // Initialize subsystems
     intake = IntakeSubsystem.getInstance();
     intakePivot = IntakePivotSubsystem.getInstance();
+    conveyor = ConveyorSubsystem.getInstance();
+    shooter = ShooterSubsystem.getInstance();
 
-    // Initialize turret and hood based on mode
+    // Initialize hood based on mode
     switch (Constants.currentMode) {
       case REAL:
-        turret = new TurretSubsystem(new TurretIOTalonFX());
         hood = new HoodSubsystem(new HoodIOTalonFX());
         break;
       case SIM:
-        turret = new TurretSubsystem(new TurretIOSim());
         hood = new HoodSubsystem(new HoodIOSim());
         break;
       default:
-        turret = new TurretSubsystem(new TurretIO() {});
         hood = new HoodSubsystem(new HoodIO() {});
         break;
     }
 
-    // Provide robot pose and chassis speeds to turret for field-relative tracking
-    turret.setRobotPoseSupplier(() -> swerveIO.getPose());
-    turret.setChassisSpeedsSupplier(() -> robotState.getLatestMeasuredFieldRelativeChassisSpeeds());
-
     // Provide robot pose to hood for distance-based aiming
     hood.setRobotPoseSupplier(() -> swerveIO.getPose());
+
+    // Initialize superstructure
+    superstructure = new Superstructure(shooter, hood, intake, intakePivot, conveyor);
 
     // Configure the button bindings
     configureButtonBindings();
@@ -176,67 +175,24 @@ public class RobotContainer {
             },
             swerveIO));
 
-    // Drive to test pose when Y button is held
-    controller.y().whileTrue(new DriveToPose(swerveIO, Constants.FieldPoses.TEST));
+    // === SUPERSTRUCTURE CONTROLS ===
+    // A button: Switch to intake mode
+    controller.a().onTrue(superstructure.intake());
 
-    // === INTAKE SYSTEM CONTROLS ===
-    // Right bumper: Deploy intake pivot AND run intake rollers
-    controller.rightBumper().onTrue(intakePivot.deploy()).onTrue(intake.intake());
+    // X button: Prepare to shoot (spin up shooter, aim hood, stow intake)
+    controller.x().onTrue(superstructure.prepareShoot());
 
-    // Left bumper: Stow intake pivot AND stop intake rollers
-    controller.leftBumper().onTrue(intakePivot.stow()).onTrue(intake.stop());
-
-    // Reset pose to (1, 1, 0°) when B button is pressed
+    // Right trigger: Shoot while held, return to prepare shoot when released
     controller
-        .b()
-        .onTrue(
-            Commands.runOnce(
-                    () -> swerveIO.setPose(new Pose2d(1.0, 1.0, Rotation2d.fromDegrees(0))),
-                    swerveIO)
-                .ignoringDisable(true));
+        .rightTrigger()
+        .whileTrue(superstructure.shoot())
+        .onFalse(superstructure.prepareShoot());
 
-    // Emergency stop: X button stops all intake system and drivetrain
-    controller
-        .x()
-        .onTrue(
-            Commands.runOnce(
-                    () -> {
-                      swerveIO.stop();
-                      intake.stopMotor();
-                      intakePivot.stopMotor();
-                    })
-                .withName("EmergencyStop"));
+    // B button: Emergency stop
+    controller.b().onTrue(superstructure.emergencyStop());
 
-    // Move intake pivot to stow position on emergency stop (X button)
-    controller.x().onTrue(intakePivot.stow());
-
-    // === SMART TURRET AIMING ===
-    // Left trigger: Auto-aim turret intelligently
-    // - If in neutral zone (crossed target X): shootBackFromNeutralZone
-    // - Else: aimHub at hub
-    // - Release trigger: stow
-    controller
-        .leftTrigger()
-        .whileTrue(
-            Commands.either(
-                // If robot crossed into neutral zone (past target X), shoot back
-                turret.shootBackFromNeutralZone(),
-                // Otherwise aim at hub
-                turret.aimHub(),
-                // Condition: check if robot X is past the target X (neutral zone)
-                () -> {
-                  double robotX = swerveIO.getPose().getX();
-                  var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
-                  if (alliance.isPresent()
-                      && alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Red) {
-                    // Red alliance: past neutral zone if X < red target X
-                    return robotX < Constants.FieldPoses.RED_AIM_TARGET.getX();
-                  } else {
-                    // Blue alliance: past neutral zone if X > blue target X
-                    return robotX > Constants.FieldPoses.BLUE_AIM_TARGET.getX();
-                  }
-                }))
-        .onFalse(turret.stow()); // Stow when trigger released
+    // Y button: Stow everything (idle state)
+    controller.y().onTrue(superstructure.idle());
   }
 
   /**

@@ -11,13 +11,8 @@ public class IntakeIOSim implements IntakeIO {
 
   @Override
   public void updateInputs(IntakeIOInputs inputs) {
-    // Upper motor
-    inputs.upperAppliedVolts = appliedPercent * 12.0; // Assume 12V max
-    inputs.upperVelocityRotPerSec = appliedPercent * 80.0; // Rough simulation
-
-    // Lower motor
-    inputs.lowerAppliedVolts = appliedPercent * 12.0;
-    inputs.lowerVelocityRotPerSec = appliedPercent * 80.0;
+    inputs.appliedVolts = appliedPercent * 12.0; // Assume 12V max
+    inputs.velocityRotPerSec = appliedPercent * 80.0; // Rough simulation
   }
 
   @Override

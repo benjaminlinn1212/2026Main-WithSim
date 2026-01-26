@@ -148,8 +148,9 @@ public final class Constants {
   }
 
   public static class ShooterConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 60;
+    // Motor CAN IDs - 2 motors synced, opposite direction
+    public static final int LEADER_MOTOR_CAN_ID = 60;
+    public static final int FOLLOWER_MOTOR_CAN_ID = 61;
     public static final String CAN_BUS = "Drivetrain";
 
     // Gear ratio (motor rotations to shooter wheel rotations)
@@ -183,14 +184,12 @@ public final class Constants {
   }
 
   public static class IntakeConstants {
-    // Motor CAN IDs
-    public static final int UPPER_MOTOR_CAN_ID = 41;
-    public static final int LOWER_MOTOR_CAN_ID = 42;
-    public static final String CAN_BUS = "Superstructure";
+    // Motor CAN ID - Single REV NEO Vortex
+    public static final int MOTOR_CAN_ID = 41;
+    public static final String CAN_BUS = "rio"; // SparkMax uses CAN bus name or empty string
 
-    // Current limits
-    public static final double STATOR_CURRENT_LIMIT = 60.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+    // Current limit (amps)
+    public static final int CURRENT_LIMIT = 40;
 
     // Intake percent output (0.0 to 1.0)
     public static final double INTAKE_PERCENT = 0.45; // 45% speed for intaking
@@ -198,8 +197,9 @@ public final class Constants {
   }
 
   public static class IntakePivotConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 43;
+    // Motor CAN IDs - 2 motors synced, opposite direction
+    public static final int LEADER_MOTOR_CAN_ID = 43;
+    public static final int FOLLOWER_MOTOR_CAN_ID = 44;
     public static final String CAN_BUS = "Superstructure";
 
     // Motor inversion (true = clockwise positive)
@@ -248,102 +248,9 @@ public final class Constants {
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-    // Conveyor voltages
-    public static final double TO_SHOOTER_VOLTAGE = 6.0; // Volts (positive = toward shooter)
-    public static final double TO_BUCKET_VOLTAGE = -6.0; // Volts (negative = toward bucket)
-  }
-
-  public static class IndexerConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 47;
-    public static final String CAN_BUS = "Drivetrain";
-
-    // Current limits
-    public static final double STATOR_CURRENT_LIMIT = 60.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 40.0;
-
-    // Indexer voltages
-    public static final double TO_SHOOTER_VOLTAGE = 8.0; // Volts (toward shooter)
-  }
-
-  public static class ClimbConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 46;
-    public static final String CAN_BUS = "rio";
-
-    // PID constants
-    public static final double KP = 10.0;
-    public static final double KI = 0.0;
-    public static final double KD = 0.0;
-    public static final double KS = 0.0;
-    public static final double KV = 0.0;
-    public static final double KA = 0.0;
-
-    // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 40.0; // rotations per second
-    public static final double ACCELERATION = 80.0; // rotations per second^2
-    public static final double JERK = 800.0; // rotations per second^3
-
-    // Current limits
-    public static final double STATOR_CURRENT_LIMIT = 80.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 60.0;
-
-    // Position setpoints (in rotations)
-    public static final double STOWED_POSITION = 0.0; // Starting position
-    public static final double EXTENDED_POSITION = 50.0; // Fully extended
-    public static final double RETRACTED_POSITION = 5.0; // Pulled up on chain
-
-    // Position tolerance
-    public static final double POSITION_TOLERANCE = 1.0; // rotations
-  }
-
-  public static class TurretConstants {
-    // Motor CAN IDs
-    public static final int MOTOR_CAN_ID = 50;
-    public static final int CANCODER_CAN_ID = 51;
-    public static final String CAN_BUS = "Superstructure";
-
-    // Gear ratio (motor rotations to turret rotations)
-    public static final double GEAR_RATIO = 100.0; // Example: 100:1 reduction
-
-    // CANCoder configuration
-    public static final double CANCODER_OFFSET = 0.0; // Adjust based on physical alignment
-
-    // Position limits (radians)
-    public static final double MIN_POSITION_RAD = -Math.PI; // -180 degrees
-    public static final double MAX_POSITION_RAD = Math.PI; // 180 degrees
-
-    // PID constants (tuned for position control)
-    public static final double KP = 20.0;
-    public static final double KI = 0.0;
-    public static final double KD = 0.2;
-    public static final double KS = 0.18;
-    public static final double KV = 0.12;
-    public static final double KA = 0.02;
-
-    // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 120.0;
-    public static final double ACCELERATION = 1200.0;
-    public static final double JERK = 9000.0;
-
-    // Current limits
-    public static final double STATOR_CURRENT_LIMIT = 150.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 80.0;
-
-    // Position tolerance for aiming
-    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
-
-    // Latency compensation for aiming (seconds)
-    // Accounts for control loop delay + motor response time
-    // Start low and increase only if you see consistent lag
-    public static final double AIMING_LATENCY_COMPENSATION =
-        0.15; // Increased to 120ms for better tracking
-
-    // Position setpoints (radians)
-    public static final double STOW_POSITION = 0.0; // Forward
-    public static final double SHOOT_BACK_BLUE_POSITION =
-        Math.PI; // Backward (180°) for blue alliance
-    public static final double SHOOT_BACK_RED_POSITION = 0.0; // Forward (0°) for red alliance
+    // Conveyor duty cycles (-1.0 to 1.0)
+    public static final double TO_SHOOTER_DUTY_CYCLE = 0.5; // 50% speed toward shooter
+    public static final double TO_BUCKET_DUTY_CYCLE = -0.5; // 50% speed toward bucket
   }
 
   public static class HoodConstants {

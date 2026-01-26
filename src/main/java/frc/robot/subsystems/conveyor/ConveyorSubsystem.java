@@ -48,7 +48,7 @@ public class ConveyorSubsystem extends SubsystemBase {
    */
   public Command goToShooter() {
     return run(() -> {
-          io.setVoltage(ConveyorConstants.TO_SHOOTER_VOLTAGE);
+          io.setDutyCycle(ConveyorConstants.TO_SHOOTER_DUTY_CYCLE);
         })
         .withName("ConveyorToShooter");
   }
@@ -60,7 +60,7 @@ public class ConveyorSubsystem extends SubsystemBase {
    */
   public Command goToBucket() {
     return run(() -> {
-          io.setVoltage(ConveyorConstants.TO_BUCKET_VOLTAGE);
+          io.setDutyCycle(ConveyorConstants.TO_BUCKET_DUTY_CYCLE);
         })
         .withName("ConveyorToBucket");
   }

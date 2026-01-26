@@ -1,6 +1,7 @@
 package frc.robot.subsystems.conveyor;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.ConveyorConstants;
@@ -8,6 +9,7 @@ import frc.robot.Constants.ConveyorConstants;
 public class ConveyorIOTalonFX implements ConveyorIO {
 
   private final TalonFX motor;
+  private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
 
   public ConveyorIOTalonFX() {
     motor = new TalonFX(ConveyorConstants.MOTOR_CAN_ID, ConveyorConstants.CAN_BUS);
@@ -31,8 +33,8 @@ public class ConveyorIOTalonFX implements ConveyorIO {
   }
 
   @Override
-  public void setVoltage(double volts) {
-    motor.setVoltage(volts);
+  public void setDutyCycle(double dutyCycle) {
+    motor.setControl(dutyCycleControl.withOutput(dutyCycle));
   }
 
   @Override

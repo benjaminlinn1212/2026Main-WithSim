@@ -3,61 +3,42 @@ package frc.robot.subsystems;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorSubsystem;
 import frc.robot.subsystems.hood.HoodSubsystem;
-import frc.robot.subsystems.indexer.IndexerSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
-import frc.robot.subsystems.turret.TurretSubsystem;
 import org.littletonrobotics.junction.Logger;
 
 public class Superstructure extends SubsystemBase {
 
   public enum SuperstructureState {
     IDLE,
-    INTAKING,
-    AIMING_HUB_FROM_ALLIANCE_ZONE,
-    SCORING_HUB_FROM_ALLIANCE_ZONE,
-    INTAKE_WHILE_AIMING_FOR_PASS,
-    INTAKE_WHILE_PASSING,
-    INTAKE_WHILE_AIMING_HUB,
-    INTAKE_WHILE_SCORING_HUB,
-    CLIMB_READY,
-    CLIMB_EXTENDING,
-    CLIMB_RETRACTING,
+    INTAKE,
+    PREPARE_SHOOT,
+    SHOOT,
     EMERGENCY
   }
 
   private final ShooterSubsystem shooter;
-  private final TurretSubsystem turret;
   private final HoodSubsystem hood;
   private final IntakeSubsystem intake;
   private final IntakePivotSubsystem intakePivot;
   private final ConveyorSubsystem conveyor;
-  private final IndexerSubsystem indexer;
-  private final ClimbSubsystem climb;
 
   private SuperstructureState currentState = SuperstructureState.IDLE;
 
   public Superstructure(
       ShooterSubsystem shooter,
-      TurretSubsystem turret,
       HoodSubsystem hood,
       IntakeSubsystem intake,
       IntakePivotSubsystem intakePivot,
-      ConveyorSubsystem conveyor,
-      IndexerSubsystem indexer,
-      ClimbSubsystem climb) {
+      ConveyorSubsystem conveyor) {
     this.shooter = shooter;
-    this.turret = turret;
     this.hood = hood;
     this.intake = intake;
     this.intakePivot = intakePivot;
     this.conveyor = conveyor;
-    this.indexer = indexer;
-    this.climb = climb;
   }
 
   @Override
@@ -79,88 +60,41 @@ public class Superstructure extends SubsystemBase {
   public Command idle() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.IDLE)),
-            turret.stow(),
             hood.stow(),
             shooter.stopShooter(),
             intake.stop(),
             intakePivot.stow(),
-            conveyor.stop(),
-            indexer.stop())
+            conveyor.stop())
         .withName("Superstructure_Idle");
   }
 
-  public Command intakeFromGround() {
+  public Command intake() {
     return Commands.parallel(
-            Commands.runOnce(() -> setState(SuperstructureState.INTAKING)),
+            Commands.runOnce(() -> setState(SuperstructureState.INTAKE)),
             intakePivot.deploy(),
             intake.intake(),
-            conveyor.goToShooter())
-        .withName("Superstructure_IntakeGround");
+            conveyor.stop(),
+            shooter.stopShooter(),
+            hood.stow())
+        .withName("Superstructure_Intake");
   }
 
-  public Command aimHubFromAllianceZone() {
+  public Command prepareShoot() {
     return Commands.parallel(
-            Commands.runOnce(() -> setState(SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE)),
-            turret.aimHub(),
-            hood.aimHub(),
-            shooter.spinUpForHub(),
+            Commands.runOnce(() -> setState(SuperstructureState.PREPARE_SHOOT)),
             intakePivot.stow(),
-            intake.stop())
-        .withName("Superstructure_AimHubAllianceZone");
-  }
-
-  public Command scoreHubFromAllianceZone() {
-    return Commands.sequence(
-            Commands.runOnce(() -> setState(SuperstructureState.SCORING_HUB_FROM_ALLIANCE_ZONE)),
-            Commands.waitUntil(shooter::readyForHub),
-            Commands.parallel(conveyor.goToShooter(), indexer.toShooter()))
-        .withName("Superstructure_ScoreHubAllianceZone");
-  }
-
-  public Command aimAndScoreHubFromAllianceZone() {
-    return Commands.sequence(aimHubFromAllianceZone(), scoreHubFromAllianceZone())
-        .withName("Superstructure_AimAndScoreHubAllianceZone");
-  }
-
-  public Command intakeWhileAimingForPass() {
-    return Commands.parallel(
-            Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS)),
-            intakePivot.deploy(),
-            intake.intake(),
-            turret.shootBackFromNeutralZone(),
-            hood.shootBackFromNeutralZone(),
-            shooter.spinUpForPass())
-        .withName("Superstructure_IntakeWhileAimingForPass");
-  }
-
-  public Command intakeWhilePassing() {
-    return Commands.sequence(
-            Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_PASSING)),
-            Commands.waitUntil(shooter::readyForPass),
-            Commands.parallel(
-                intakePivot.deploy(), intake.intake(), conveyor.goToShooter(), indexer.toShooter()))
-        .withName("Superstructure_IntakeWhilePassing");
-  }
-
-  public Command intakeWhileAimingHub() {
-    return Commands.parallel(
-            Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_HUB)),
-            intakePivot.deploy(),
-            intake.intake(),
-            // Aiming at hub
-            turret.aimHub(),
-            hood.aimHub(),
+            intake.stop(),
+            hood.stow(),
             shooter.spinUpForHub())
-        .withName("Superstructure_IntakeWhileAimingHub");
+        .withName("Superstructure_PrepareShoot");
   }
 
-  public Command intakeWhileScoringHub() {
+  public Command shoot() {
     return Commands.sequence(
-            Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_SCORING_HUB)),
+            Commands.runOnce(() -> setState(SuperstructureState.SHOOT)),
             Commands.waitUntil(shooter::readyForHub),
-            Commands.parallel(
-                intakePivot.deploy(), intake.intake(), conveyor.goToShooter(), indexer.toShooter()))
-        .withName("Superstructure_IntakeWhileScoringHub");
+            conveyor.goToShooter())
+        .withName("Superstructure_Shoot");
   }
 
   public Command eject() {
@@ -170,41 +104,6 @@ public class Superstructure extends SubsystemBase {
               setState(SuperstructureState.IDLE);
             })
         .withName("Superstructure_Eject");
-  }
-
-  public Command prepareClimb() {
-    return Commands.sequence(
-            Commands.parallel(
-                Commands.runOnce(() -> setState(SuperstructureState.CLIMB_READY)),
-                turret.stow(),
-                hood.stow(),
-                shooter.stopShooter(),
-                intakePivot.stow(),
-                intake.stop(),
-                conveyor.stop(),
-                indexer.stop()))
-        .withName("Superstructure_PrepareClimb");
-  }
-
-  public Command extendClimb() {
-    return Commands.sequence(
-            Commands.runOnce(() -> setState(SuperstructureState.CLIMB_EXTENDING)), climb.extend())
-        .withName("Superstructure_ExtendClimb");
-  }
-
-  public Command retractClimb() {
-    return Commands.sequence(
-            Commands.runOnce(() -> setState(SuperstructureState.CLIMB_RETRACTING)), climb.retract())
-        .withName("Superstructure_RetractClimb");
-  }
-
-  public Command fullClimbSequence() {
-    return Commands.sequence(
-            prepareClimb(),
-            extendClimb(),
-            Commands.waitSeconds(1.0), // Give time to position under bar
-            retractClimb())
-        .withName("Superstructure_FullClimb");
   }
 
   public Command enableEmergencyOverride() {
@@ -218,26 +117,19 @@ public class Superstructure extends SubsystemBase {
   public Command emergencyStop() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.IDLE)),
-            turret.stow(),
             hood.stow(),
             shooter.stopShooter(),
             intake.stop(),
-            conveyor.stop(),
-            indexer.stop(),
-            Commands.runOnce(() -> climb.stopMotor()))
+            conveyor.stop())
         .withName("Superstructure_EmergencyStop");
   }
 
   public boolean isReadyToShoot() {
-    return shooter.readyForHub()
-        && (currentState == SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE
-            || currentState == SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS
-            || currentState == SuperstructureState.INTAKE_WHILE_AIMING_HUB);
+    return shooter.readyForHub() && currentState == SuperstructureState.PREPARE_SHOOT;
   }
 
   public boolean canIntake() {
-    return currentState != SuperstructureState.CLIMB_EXTENDING
-        && currentState != SuperstructureState.CLIMB_RETRACTING;
+    return true; // No climb, so always can intake
   }
 
   public double getShooterReadiness() {

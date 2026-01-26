@@ -22,7 +22,7 @@ public class IntakeSubsystem extends SubsystemBase {
   public static IntakeSubsystem getInstance() {
     if (instance == null) {
       if (RobotBase.isReal()) {
-        instance = new IntakeSubsystem(new IntakeIOTalonFX());
+        instance = new IntakeSubsystem(new IntakeIOSparkFlex());
       } else {
         instance = new IntakeSubsystem(new IntakeIOSim());
       }
@@ -34,17 +34,11 @@ public class IntakeSubsystem extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
 
-    // Log all inputs for upper motor
-    Logger.recordOutput("Intake/Upper/VelocityRotPerSec", inputs.upperVelocityRotPerSec);
-    Logger.recordOutput("Intake/Upper/AppliedVolts", inputs.upperAppliedVolts);
-    Logger.recordOutput("Intake/Upper/CurrentAmps", inputs.upperCurrentAmps);
-    Logger.recordOutput("Intake/Upper/TemperatureCelsius", inputs.upperTemperatureCelsius);
-
-    // Log all inputs for lower motor
-    Logger.recordOutput("Intake/Lower/VelocityRotPerSec", inputs.lowerVelocityRotPerSec);
-    Logger.recordOutput("Intake/Lower/AppliedVolts", inputs.lowerAppliedVolts);
-    Logger.recordOutput("Intake/Lower/CurrentAmps", inputs.lowerCurrentAmps);
-    Logger.recordOutput("Intake/Lower/TemperatureCelsius", inputs.lowerTemperatureCelsius);
+    // Log all inputs
+    Logger.recordOutput("Intake/VelocityRotPerSec", inputs.velocityRotPerSec);
+    Logger.recordOutput("Intake/AppliedVolts", inputs.appliedVolts);
+    Logger.recordOutput("Intake/CurrentAmps", inputs.currentAmps);
+    Logger.recordOutput("Intake/TemperatureCelsius", inputs.temperatureCelsius);
   }
 
   /**

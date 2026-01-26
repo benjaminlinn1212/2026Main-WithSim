@@ -3,7 +3,8 @@ package frc.robot.subsystems.shooter;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.VelocityVoltage;
+import com.ctre.phoenix6.controls.StrictFollower;
+import com.ctre.phoenix6.controls.VelocityDutyCycle;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -11,41 +12,59 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.ShooterConstants;
 
 public class ShooterIOTalonFX implements ShooterIO {
-  private final TalonFX motor;
+  private final TalonFX leaderMotor;
+  private final TalonFX followerMotor;
 
-  private final VelocityVoltage velocityControl = new VelocityVoltage(0);
+  private final VelocityDutyCycle velocityControl = new VelocityDutyCycle(0);
   private final VoltageOut voltageControl = new VoltageOut(0);
 
   public ShooterIOTalonFX() {
-    motor = new TalonFX(ShooterConstants.MOTOR_CAN_ID, ShooterConstants.CAN_BUS);
+    leaderMotor = new TalonFX(ShooterConstants.LEADER_MOTOR_CAN_ID, ShooterConstants.CAN_BUS);
+    followerMotor = new TalonFX(ShooterConstants.FOLLOWER_MOTOR_CAN_ID, ShooterConstants.CAN_BUS);
 
-    motor.getConfigurator().apply(shooterConfiguration());
+    leaderMotor.getConfigurator().apply(shooterConfiguration());
+    leaderMotor.setNeutralMode(NeutralModeValue.Coast);
 
-    motor.setNeutralMode(NeutralModeValue.Coast);
+    // Configure follower motor
+    TalonFXConfiguration followerConfig = new TalonFXConfiguration();
+    followerConfig.CurrentLimits.StatorCurrentLimit = ShooterConstants.STATOR_CURRENT_LIMIT;
+    followerConfig.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;
+    followerConfig.CurrentLimits.SupplyCurrentLowerTime = ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
+    followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
+    followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
+    followerConfig.MotorOutput.NeutralMode = NeutralModeValue.Coast;
+    // Set follower motor to opposite direction
+    followerConfig.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+
+    followerMotor.getConfigurator().apply(followerConfig);
+
+    // Set follower to follow leader with opposite direction
+    followerMotor.setControl(new StrictFollower(ShooterConstants.LEADER_MOTOR_CAN_ID));
   }
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    inputs.velocityRotPerSec = motor.getVelocity().getValueAsDouble();
-    inputs.positionRot = motor.getPosition().getValueAsDouble();
-    inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
-    inputs.currentAmps = motor.getStatorCurrent().getValueAsDouble();
-    inputs.tempCelsius = motor.getDeviceTemp().getValueAsDouble();
+    inputs.velocityRotPerSec = leaderMotor.getVelocity().getValueAsDouble();
+    inputs.positionRot = leaderMotor.getPosition().getValueAsDouble();
+    inputs.appliedVolts = leaderMotor.getMotorVoltage().getValueAsDouble();
+    inputs.currentAmps = leaderMotor.getStatorCurrent().getValueAsDouble();
+    inputs.tempCelsius = leaderMotor.getDeviceTemp().getValueAsDouble();
   }
 
   @Override
   public void setVelocity(double velocityRotPerSec) {
-    motor.setControl(velocityControl.withVelocity(velocityRotPerSec));
+    leaderMotor.setControl(velocityControl.withVelocity(velocityRotPerSec));
   }
 
   @Override
   public void stop() {
-    motor.stopMotor();
+    leaderMotor.stopMotor();
+    followerMotor.stopMotor();
   }
 
   @Override
   public void setVoltage(double volts) {
-    motor.setControl(voltageControl.withOutput(volts));
+    leaderMotor.setControl(voltageControl.withOutput(volts));
   }
 
   /**

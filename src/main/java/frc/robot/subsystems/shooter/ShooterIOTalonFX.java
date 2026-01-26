@@ -1,21 +1,18 @@
 package frc.robot.subsystems.shooter;
 
-import com.ctre.phoenix6.configs.MotionMagicConfigs;
-import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.StrictFollower;
-import com.ctre.phoenix6.controls.VelocityDutyCycle;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.ShooterConstants;
 
 public class ShooterIOTalonFX implements ShooterIO {
   private final TalonFX leaderMotor;
   private final TalonFX followerMotor;
 
-  private final VelocityDutyCycle velocityControl = new VelocityDutyCycle(0);
+  private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
   private final VoltageOut voltageControl = new VoltageOut(0);
 
   public ShooterIOTalonFX() {
@@ -23,22 +20,26 @@ public class ShooterIOTalonFX implements ShooterIO {
     followerMotor = new TalonFX(ShooterConstants.FOLLOWER_MOTOR_CAN_ID, ShooterConstants.CAN_BUS);
 
     leaderMotor.getConfigurator().apply(shooterConfiguration());
-    leaderMotor.setNeutralMode(NeutralModeValue.Coast);
+    leaderMotor.setNeutralMode(ShooterConstants.NEUTRAL_MODE);
 
     // Configure follower motor
     TalonFXConfiguration followerConfig = new TalonFXConfiguration();
     followerConfig.CurrentLimits.StatorCurrentLimit = ShooterConstants.STATOR_CURRENT_LIMIT;
     followerConfig.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;
-    followerConfig.CurrentLimits.SupplyCurrentLowerTime = ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
+    followerConfig.CurrentLimits.SupplyCurrentLowerTime =
+        ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
     followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
     followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
-    followerConfig.MotorOutput.NeutralMode = NeutralModeValue.Coast;
-    // Set follower motor to opposite direction
-    followerConfig.MotorOutput.Inverted = InvertedValue.Clockwise_Positive;
+    followerConfig.MotorOutput.NeutralMode = ShooterConstants.NEUTRAL_MODE;
+    // Set follower motor inversion from constants
+    followerConfig.MotorOutput.Inverted =
+        ShooterConstants.FOLLOWER_INVERTED
+            ? InvertedValue.Clockwise_Positive
+            : InvertedValue.CounterClockwise_Positive;
 
     followerMotor.getConfigurator().apply(followerConfig);
 
-    // Set follower to follow leader with opposite direction
+    // Set follower to follow leader
     followerMotor.setControl(new StrictFollower(ShooterConstants.LEADER_MOTOR_CAN_ID));
   }
 
@@ -52,8 +53,8 @@ public class ShooterIOTalonFX implements ShooterIO {
   }
 
   @Override
-  public void setVelocity(double velocityRotPerSec) {
-    leaderMotor.setControl(velocityControl.withVelocity(velocityRotPerSec));
+  public void setDutyCycle(double dutyCycle) {
+    leaderMotor.setControl(dutyCycleControl.withOutput(dutyCycle));
   }
 
   @Override
@@ -75,30 +76,16 @@ public class ShooterIOTalonFX implements ShooterIO {
   private TalonFXConfiguration shooterConfiguration() {
     TalonFXConfiguration configuration = new TalonFXConfiguration();
 
-    configuration.Feedback.SensorToMechanismRatio = ShooterConstants.GEAR_RATIO;
-
-    configuration.Slot0 =
-        new Slot0Configs()
-            .withKS(ShooterConstants.KS)
-            .withKV(ShooterConstants.KV)
-            .withKA(ShooterConstants.KA)
-            .withKP(ShooterConstants.KP)
-            .withKI(ShooterConstants.KI)
-            .withKD(ShooterConstants.KD);
-
-    configuration.MotionMagic =
-        new MotionMagicConfigs()
-            .withMotionMagicCruiseVelocity(ShooterConstants.CRUISE_VELOCITY)
-            .withMotionMagicAcceleration(ShooterConstants.ACCELERATION)
-            .withMotionMagicJerk(ShooterConstants.JERK);
-
     configuration.CurrentLimits.StatorCurrentLimit = ShooterConstants.STATOR_CURRENT_LIMIT;
     configuration.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;
     configuration.CurrentLimits.SupplyCurrentLowerTime = ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
     configuration.CurrentLimits.StatorCurrentLimitEnable = true;
     configuration.CurrentLimits.SupplyCurrentLimitEnable = true;
 
-    configuration.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
+    configuration.MotorOutput.Inverted =
+        ShooterConstants.LEADER_INVERTED
+            ? InvertedValue.Clockwise_Positive
+            : InvertedValue.CounterClockwise_Positive;
 
     return configuration;
   }

@@ -4,7 +4,6 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.conveyor.ConveyorSubsystem;
-import frc.robot.subsystems.hood.HoodSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
@@ -21,7 +20,6 @@ public class Superstructure extends SubsystemBase {
   }
 
   private final ShooterSubsystem shooter;
-  private final HoodSubsystem hood;
   private final IntakeSubsystem intake;
   private final IntakePivotSubsystem intakePivot;
   private final ConveyorSubsystem conveyor;
@@ -30,12 +28,10 @@ public class Superstructure extends SubsystemBase {
 
   public Superstructure(
       ShooterSubsystem shooter,
-      HoodSubsystem hood,
       IntakeSubsystem intake,
       IntakePivotSubsystem intakePivot,
       ConveyorSubsystem conveyor) {
     this.shooter = shooter;
-    this.hood = hood;
     this.intake = intake;
     this.intakePivot = intakePivot;
     this.conveyor = conveyor;
@@ -60,7 +56,6 @@ public class Superstructure extends SubsystemBase {
   public Command idle() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.IDLE)),
-            hood.stow(),
             shooter.stopShooter(),
             intake.stop(),
             intakePivot.stow(),
@@ -74,8 +69,7 @@ public class Superstructure extends SubsystemBase {
             intakePivot.deploy(),
             intake.intake(),
             conveyor.stop(),
-            shooter.stopShooter(),
-            hood.stow())
+            shooter.stopShooter())
         .withName("Superstructure_Intake");
   }
 
@@ -84,7 +78,7 @@ public class Superstructure extends SubsystemBase {
             Commands.runOnce(() -> setState(SuperstructureState.PREPARE_SHOOT)),
             intakePivot.stow(),
             intake.stop(),
-            hood.stow(),
+            conveyor.stop(),
             shooter.spinUpForHub())
         .withName("Superstructure_PrepareShoot");
   }
@@ -117,7 +111,6 @@ public class Superstructure extends SubsystemBase {
   public Command emergencyStop() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.IDLE)),
-            hood.stow(),
             shooter.stopShooter(),
             intake.stop(),
             conveyor.stop())

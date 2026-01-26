@@ -9,9 +9,11 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
+import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathConstraints;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
 import edu.wpi.first.math.Matrix;
@@ -149,72 +151,67 @@ public final class Constants {
 
   public static class ShooterConstants {
     // Motor CAN IDs - 2 motors synced, opposite direction
-    public static final int LEADER_MOTOR_CAN_ID = 60;
-    public static final int FOLLOWER_MOTOR_CAN_ID = 61;
-    public static final String CAN_BUS = "Drivetrain";
+    public static final int LEADER_MOTOR_CAN_ID = 40;
+    public static final int FOLLOWER_MOTOR_CAN_ID = 41;
+    public static final String CAN_BUS = "rio";
 
-    // Gear ratio (motor rotations to shooter wheel rotations)
-    public static final double GEAR_RATIO = 3.0;
+    // Motor inversion
+    public static final boolean LEADER_INVERTED = true;
+    public static final boolean FOLLOWER_INVERTED = false;
 
-    // PID and feedforward constants
-    public static final double KS = 0.0;
-    public static final double KV = 0.0;
-    public static final double KA = 0.0;
-    public static final double KP = 1.0;
-    public static final double KI = 0.0;
-    public static final double KD = 0.0;
-
-    // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
-    public static final double ACCELERATION = 160.0; // rotations per second^2
-    public static final double JERK = 1600.0; // rotations per second^3
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
     public static final double SUPPLY_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Shooter speed presets (in rotations per second)
-    public static final double IDLE_SPEED = 0.0;
-    public static final double HUB_SPEED = 60.0;
-    public static final double PASS_SPEED = 30.0;
-
-    // Velocity tolerance (for checking if at speed)
-    public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
+    // Shooter duty cycle presets (-1.0 to 1.0)
+    public static final double IDLE_DUTY_CYCLE = 0.0;
+    public static final double HUB_DUTY_CYCLE = 1.0;
+    public static final double PASS_DUTY_CYCLE = 0.3;
   }
 
   public static class IntakeConstants {
     // Motor CAN ID - Single REV NEO Vortex
-    public static final int MOTOR_CAN_ID = 41;
-    public static final String CAN_BUS = "rio"; // SparkMax uses CAN bus name or empty string
+    public static final int MOTOR_CAN_ID = 42;
+    public static final String CAN_BUS = "rio";
+
+    // Neutral mode
+    public static final IdleMode NEUTRAL_MODE = IdleMode.kCoast;
 
     // Current limit (amps)
     public static final int CURRENT_LIMIT = 40;
 
     // Intake percent output (0.0 to 1.0)
-    public static final double INTAKE_PERCENT = 0.45; // 45% speed for intaking
-    public static final double OUTTAKE_PERCENT = -0.5; // 50% speed for outtaking
+    public static final double INTAKE_PERCENT = -0.3;
+    public static final double OUTTAKE_PERCENT = 0.3;
   }
 
   public static class IntakePivotConstants {
     // Motor CAN IDs - 2 motors synced, opposite direction
     public static final int LEADER_MOTOR_CAN_ID = 43;
     public static final int FOLLOWER_MOTOR_CAN_ID = 44;
-    public static final String CAN_BUS = "Superstructure";
+    public static final String CAN_BUS = "rio";
 
-    // Motor inversion (true = clockwise positive)
-    public static final boolean MOTOR_INVERTED = true;
+    // Motor inversion
+    public static final boolean LEADER_INVERTED = false;
+    public static final boolean FOLLOWER_INVERTED = true; // Opposite of leader
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // Motor encoder offset (in rotations)
     // Set this to the current position when the mechanism is at its zero/reference position
-    public static final double MOTOR_ROTOR_OFFSET = 0.2;
+    public static final double MOTOR_ROTOR_OFFSET = -0.287;
 
     // Soft limits (in rotations)
     public static final double SOFT_LIMIT_REVERSE = 0.0; // Reverse soft limit (minimum position)
     public static final double SOFT_LIMIT_FORWARD = 28.0; // Forward soft limit (maximum position)
 
     // PID constants
-    public static final double KP = 1.0;
+    public static final double KP = 0.05;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.0;
@@ -233,7 +230,7 @@ public final class Constants {
 
     // Position setpoints (in rotations)
     public static final double STOWED_POSITION = 0.0; // Stowed/up position
-    public static final double DEPLOYED_POSITION = 27.6; // Extended/down position for intaking
+    public static final double DEPLOYED_POSITION = 5.4; // Extended/down position for intaking
 
     // Position tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
@@ -242,7 +239,10 @@ public final class Constants {
   public static class ConveyorConstants {
     // Motor CAN ID
     public static final int MOTOR_CAN_ID = 45;
-    public static final String CAN_BUS = "Drivetrain";
+    public static final String CAN_BUS = "rio";
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
@@ -251,112 +251,5 @@ public final class Constants {
     // Conveyor duty cycles (-1.0 to 1.0)
     public static final double TO_SHOOTER_DUTY_CYCLE = 0.5; // 50% speed toward shooter
     public static final double TO_BUCKET_DUTY_CYCLE = -0.5; // 50% speed toward bucket
-  }
-
-  public static class HoodConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 52;
-    public static final String CAN_BUS = "Superstructure";
-
-    // Gear ratio (motor rotations to hood rotations)
-    public static final double GEAR_RATIO = 60.0; // Example: 60:1 reduction
-
-    // Position limits (radians from horizontal)
-    public static final double MIN_POSITION_RAD = Units.degreesToRadians(0.0); // Flat
-    public static final double MAX_POSITION_RAD = Units.degreesToRadians(60.0); // Max angle
-
-    // PID constants
-    public static final double KP = 5.0;
-    public static final double KI = 0.0;
-    public static final double KD = 0.1;
-    public static final double KS = 0.1;
-    public static final double KV = 0.12;
-    public static final double KA = 0.01;
-    public static final double KG = 0.2; // Gravity compensation
-
-    // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
-    public static final double ACCELERATION = 160.0; // rotations per second^2
-    public static final double JERK = 1600.0; // rotations per second^3
-
-    // Current limits
-    public static final double STATOR_CURRENT_LIMIT = 60.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 40.0;
-
-    // Position tolerance for aiming
-    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(1.0);
-
-    // Position setpoints (radians)
-    public static final double STOW_POSITION = Units.degreesToRadians(20.0); // Safe stow angle
-    public static final double SHOOT_BACK_POSITION = Units.degreesToRadians(45.0); // Mid-field shot
-    public static final double MIN_AIM_ANGLE = Units.degreesToRadians(15.0); // Minimum angle
-  }
-
-  /**
-   * APF (Artificial Potential Field) Constants public static final double BALL_DIAMETER_METERS =
-   * 0.15; // 15cm diameter (7.5cm radius)
-   *
-   * <p>// Camera configuration // Example: camera mounted at front of robot, 0.5m forward, 0.3m
-   * high, tilted 20 degrees down public static final Transform3d CAMERA_TO_ROBOT = new Transform3d(
-   * new Translation3d(0.5, 0.0, 0.3), // 0.5m forward, 0.3m high new Rotation3d(0,
-   * Math.toRadians(-20), 0) // 20 degrees down );
-   *
-   * <p>// Detection thresholds public static final double MIN_CONFIDENCE_THRESHOLD = 0.5; //
-   * Minimum detection confidence (0-1) public static final double MAX_DETECTION_DISTANCE = 5.0; //
-   * Maximum distance to detect balls (meters)
-   *
-   * <p>// Area calibration // This constant relates ball area to distance // Tune this based on
-   * real measurements: measure ball area % at known distances // Formula: area_at_1m =
-   * (focal_length * ball_diameter / sensor_size)^2 public static final double
-   * AREA_CALIBRATION_CONSTANT = 10.0; // Adjust based on calibration
-   *
-   * <p>// Ball class IDs (depends on your neural network training) public static final int
-   * RED_BALL_CLASS = 0; public static final int BLUE_BALL_CLASS = 1; }
-   *
-   * <p>/** APF (Artificial Potential Field) Constants Configuration for autonomous ball intake
-   * navigation
-   */
-  /**
-   * APF (Artificial Potential Field) Constants Configuration for weighted ball priority and force
-   * field navigation
-   */
-  public static class APFConstants {
-    // Priority weights
-    public static final double DISTANCE_WEIGHT = 100.0; // Weight for distance-based priority
-    public static final double DISTANCE_DECAY_FACTOR =
-        2.0; // Exponential decay for distance (meters)
-    public static final double CLUSTER_WEIGHT = 50.0; // Bonus per additional ball in cluster
-    public static final double ALLIANCE_BONUS = 30.0; // Bonus for our alliance balls
-    public static final double CONFIDENCE_EXPONENT = 2.0; // Confidence penalty exponent
-
-    // Distance thresholds
-    public static final double FAR_BALL_THRESHOLD =
-        4.0; // Distance where far penalty starts (meters)
-    public static final double FAR_BALL_PENALTY = 20.0; // Penalty per meter beyond threshold
-
-    // Clustering parameters
-    public static final double CLUSTER_RADIUS =
-        0.8; // Maximum distance between balls in cluster (meters)
-    public static final int MIN_CLUSTER_SIZE = 2; // Minimum balls to form a cluster
-
-    // Force field parameters
-    public static final double ATTRACTIVE_GAIN = 1.5; // Gain for attractive force toward target
-    public static final double MAX_ATTRACTIVE_FORCE = 3.0; // Maximum attractive force magnitude
-
-    // Secondary ball attraction (for strategic clustering flow)
-    public static final double SECONDARY_BALL_ATTRACTION =
-        0.8; // Weak attraction from non-target balls
-    public static final double SECONDARY_BALL_DECAY =
-        1.5; // Rapid decay for secondary attractions (meters)
-
-    // Wall repulsion
-    public static final double WALL_REPULSION_DISTANCE =
-        1.0; // Distance from wall where repulsion starts (meters)
-    public static final double WALL_REPULSION_GAIN = 0.5; // Gain for repulsive force from walls
-
-    // Velocity limits
-    public static final double MAX_LINEAR_VELOCITY = 3.0; // Maximum linear velocity (m/s)
-    public static final double MAX_ANGULAR_VELOCITY = 2.0; // Maximum angular velocity (rad/s)
-    public static final double HEADING_GAIN = 3.0; // Proportional gain for heading control
   }
 }

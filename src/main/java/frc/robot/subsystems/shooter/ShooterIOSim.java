@@ -9,26 +9,26 @@ public class ShooterIOSim implements ShooterIO {
   private double positionRot = 0.0;
   private double appliedVolts = 0.0;
 
-  private double targetVelocity = 0.0;
+  private double targetDutyCycle = 0.0;
 
   private static final double ACCELERATION = 100.0; // rot/s^2
-  private static final double VOLTAGE_PER_RPS = 0.12; // Volts per rotation per second
+  private static final double MAX_VELOCITY = 80.0; // Max rotations per second at full duty cycle
 
-  public ShooterIOSim() {
-    System.out.println("ShooterIOSim: Initialized");
-  }
+  public ShooterIOSim() {}
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    // Simulate acceleration towards target velocity
+    // Simulate acceleration towards target velocity based on duty cycle
     double dt = 0.02; // 20ms loop time
+
+    double targetVelocity = targetDutyCycle * MAX_VELOCITY;
 
     // Motor simulation
     double error = targetVelocity - velocityRotPerSec;
     double accel = Math.signum(error) * Math.min(Math.abs(error) / dt, ACCELERATION);
     velocityRotPerSec += accel * dt;
     positionRot += velocityRotPerSec * dt;
-    appliedVolts = velocityRotPerSec * VOLTAGE_PER_RPS;
+    appliedVolts = targetDutyCycle * 12.0; // Simulate battery voltage
 
     inputs.velocityRotPerSec = velocityRotPerSec;
     inputs.positionRot = positionRot;
@@ -38,19 +38,19 @@ public class ShooterIOSim implements ShooterIO {
   }
 
   @Override
-  public void setVelocity(double velocityRotPerSec) {
-    this.targetVelocity = velocityRotPerSec;
+  public void setDutyCycle(double dutyCycle) {
+    this.targetDutyCycle = dutyCycle;
   }
 
   @Override
   public void stop() {
-    targetVelocity = 0.0;
+    targetDutyCycle = 0.0;
   }
 
   @Override
   public void setVoltage(double volts) {
     this.appliedVolts = volts;
-    // Simplified voltage to velocity conversion
-    this.targetVelocity = volts / VOLTAGE_PER_RPS;
+    // Convert voltage to duty cycle
+    this.targetDutyCycle = volts / 12.0;
   }
 }

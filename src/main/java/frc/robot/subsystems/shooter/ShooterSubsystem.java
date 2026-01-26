@@ -1,7 +1,6 @@
 package frc.robot.subsystems.shooter;
 
 import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ShooterConstants;
@@ -20,14 +19,14 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to spin up the shooter to a specific velocity
+   * Command to spin up the shooter to a specific duty cycle
    *
-   * @param velocityRotPerSec The target velocity in rotations per second
-   * @return A command that spins the shooter to the target velocity
+   * @param dutyCycle The target duty cycle (-1.0 to 1.0)
+   * @return A command that spins the shooter to the target duty cycle
    */
-  public Command spinUp(double velocityRotPerSec) {
+  public Command spinUp(double dutyCycle) {
     return run(() -> {
-          setVelocity(velocityRotPerSec);
+          setDutyCycle(dutyCycle);
         })
         .withName("ShooterSpinUp");
   }
@@ -38,7 +37,7 @@ public class ShooterSubsystem extends SubsystemBase {
    * @return A command that spins the shooter to hub speed
    */
   public Command spinUpForHub() {
-    return spinUp(ShooterConstants.HUB_SPEED);
+    return spinUp(ShooterConstants.HUB_DUTY_CYCLE);
   }
 
   /**
@@ -47,7 +46,7 @@ public class ShooterSubsystem extends SubsystemBase {
    * @return A command that spins the shooter to pass speed
    */
   public Command spinUpForPass() {
-    return spinUp(ShooterConstants.PASS_SPEED);
+    return spinUp(ShooterConstants.PASS_DUTY_CYCLE);
   }
 
   /**
@@ -57,7 +56,7 @@ public class ShooterSubsystem extends SubsystemBase {
    */
   public Command idle() {
     return run(() -> {
-          setVelocity(ShooterConstants.IDLE_SPEED);
+          setDutyCycle(ShooterConstants.IDLE_DUTY_CYCLE);
         })
         .withName("ShooterIdle");
   }
@@ -76,12 +75,12 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Sets the velocity of shooter motors
+   * Sets the duty cycle of shooter motors
    *
-   * @param velocityRotPerSec The target velocity in rotations per second
+   * @param dutyCycle The target duty cycle (-1.0 to 1.0)
    */
-  public void setVelocity(double velocityRotPerSec) {
-    io.setVelocity(velocityRotPerSec);
+  public void setDutyCycle(double dutyCycle) {
+    io.setDutyCycle(dutyCycle);
   }
 
   /**
@@ -94,32 +93,21 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Checks if the shooter is at the target velocity
+   * Checks if the shooter is ready to shoot (simplified - always true for duty cycle control)
    *
-   * @param targetVelocity The target velocity in rotations per second
-   * @return True if motor is within tolerance of the target velocity
-   */
-  public boolean atVelocity(double targetVelocity) {
-    return Math.abs(inputs.velocityRotPerSec - targetVelocity)
-        < ShooterConstants.VELOCITY_TOLERANCE;
-  }
-
-  /**
-   * Checks if the shooter is ready to shoot at hub speed
-   *
-   * @return True if at hub speed
+   * @return Always returns true since we're using duty cycle control
    */
   public boolean readyForHub() {
-    return atVelocity(ShooterConstants.HUB_SPEED);
+    return true;
   }
 
   /**
-   * Checks if the shooter is ready to shoot at pass speed
+   * Checks if the shooter is ready to pass (simplified - always true for duty cycle control)
    *
-   * @return True if at pass speed
+   * @return Always returns true since we're using duty cycle control
    */
   public boolean readyForPass() {
-    return atVelocity(ShooterConstants.PASS_SPEED);
+    return true;
   }
 
   /** Stops the shooter motors */
@@ -131,14 +119,7 @@ public class ShooterSubsystem extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
     Logger.recordOutput("Shooter/VelocityRotPerSec", inputs.velocityRotPerSec);
-    Logger.recordOutput("Shooter/PositionRot", inputs.positionRot);
-    Logger.recordOutput("Shooter/AppliedVolts", inputs.appliedVolts);
     Logger.recordOutput("Shooter/CurrentAmps", inputs.currentAmps);
-    Logger.recordOutput("Shooter/TempCelsius", inputs.tempCelsius);
-
-    SmartDashboard.putNumber("Shooter Velocity", inputs.velocityRotPerSec);
-    SmartDashboard.putBoolean("Shooter Ready Hub", readyForHub());
-    SmartDashboard.putBoolean("Shooter Ready Pass", readyForPass());
   }
 
   /**
@@ -150,10 +131,8 @@ public class ShooterSubsystem extends SubsystemBase {
     if (system == null) {
       if (RobotBase.isSimulation()) {
         system = new ShooterSubsystem(new ShooterIOSim());
-        System.out.println("ShooterSubsystem: Using simulation IO");
       } else {
         system = new ShooterSubsystem(new ShooterIOTalonFX());
-        System.out.println("ShooterSubsystem: Using TalonFX hardware IO");
       }
     }
 

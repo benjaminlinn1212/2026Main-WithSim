@@ -5,7 +5,6 @@ import com.ctre.phoenix6.controls.MotionMagicDutyCycle;
 import com.ctre.phoenix6.controls.StrictFollower;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.IntakePivotConstants;
 
 public class IntakePivotIOTalonFX implements IntakePivotIO {
@@ -15,8 +14,10 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
   private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0);
 
   public IntakePivotIOTalonFX() {
-    leaderMotor = new TalonFX(IntakePivotConstants.LEADER_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
-    followerMotor = new TalonFX(IntakePivotConstants.FOLLOWER_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
+    leaderMotor =
+        new TalonFX(IntakePivotConstants.LEADER_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
+    followerMotor =
+        new TalonFX(IntakePivotConstants.FOLLOWER_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 
@@ -40,9 +41,9 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
 
-    // Motor inversion (clockwise positive) for leader
+    // Motor inversion for leader
     config.MotorOutput.Inverted =
-        IntakePivotConstants.MOTOR_INVERTED
+        IntakePivotConstants.LEADER_INVERTED
             ? InvertedValue.Clockwise_Positive
             : InvertedValue.CounterClockwise_Positive;
 
@@ -52,7 +53,7 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.CurrentLimits.SupplyCurrentLimit = IntakePivotConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
 
-    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
 
     // Set motor encoder offset (adjust the motor's internal sensor reading)
     config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
@@ -65,12 +66,12 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
     followerConfig.CurrentLimits.SupplyCurrentLimit = IntakePivotConstants.SUPPLY_CURRENT_LIMIT;
     followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
-    followerConfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;
-    // Set follower motor to opposite direction
-    followerConfig.MotorOutput.Inverted = 
-        IntakePivotConstants.MOTOR_INVERTED 
-            ? InvertedValue.CounterClockwise_Positive
-            : InvertedValue.Clockwise_Positive;
+    followerConfig.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
+    // Set follower motor inversion from constants
+    followerConfig.MotorOutput.Inverted =
+        IntakePivotConstants.FOLLOWER_INVERTED
+            ? InvertedValue.Clockwise_Positive
+            : InvertedValue.CounterClockwise_Positive;
 
     followerMotor.getConfigurator().apply(followerConfig);
 

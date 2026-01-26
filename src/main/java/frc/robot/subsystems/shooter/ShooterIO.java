@@ -15,8 +15,8 @@ public interface ShooterIO {
   /** Updates the set of loggable inputs. */
   public default void updateInputs(ShooterIOInputs inputs) {}
 
-  /** Set the velocity setpoint in rotations per second */
-  public default void setVelocity(double velocityRotPerSec) {}
+  /** Set the duty cycle (-1.0 to 1.0) */
+  public default void setDutyCycle(double dutyCycle) {}
 
   /** Stop the shooter motor */
   public default void stop() {}

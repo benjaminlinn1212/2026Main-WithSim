@@ -7,27 +7,20 @@
 
 package frc.robot;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.commands.DriveToPose;
 import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.Superstructure;
+import frc.robot.subsystems.conveyor.ConveyorSubsystem;
 import frc.robot.subsystems.drive.DriveIOHardware;
 import frc.robot.subsystems.drive.DriveIOSim;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
-import frc.robot.subsystems.hood.HoodIO;
-import frc.robot.subsystems.hood.HoodIOSim;
-import frc.robot.subsystems.hood.HoodIOTalonFX;
-import frc.robot.subsystems.hood.HoodSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
-import frc.robot.subsystems.conveyor.ConveyorSubsystem;
-import frc.robot.subsystems.Superstructure;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
@@ -45,7 +38,6 @@ public class RobotContainer {
   private final DriveSwerveDrivetrain swerveIO;
   private final IntakeSubsystem intake;
   private final IntakePivotSubsystem intakePivot;
-  private final HoodSubsystem hood;
   private final ShooterSubsystem shooter;
   private final ConveyorSubsystem conveyor;
   private final Superstructure superstructure;
@@ -123,24 +115,8 @@ public class RobotContainer {
     conveyor = ConveyorSubsystem.getInstance();
     shooter = ShooterSubsystem.getInstance();
 
-    // Initialize hood based on mode
-    switch (Constants.currentMode) {
-      case REAL:
-        hood = new HoodSubsystem(new HoodIOTalonFX());
-        break;
-      case SIM:
-        hood = new HoodSubsystem(new HoodIOSim());
-        break;
-      default:
-        hood = new HoodSubsystem(new HoodIO() {});
-        break;
-    }
-
-    // Provide robot pose to hood for distance-based aiming
-    hood.setRobotPoseSupplier(() -> swerveIO.getPose());
-
     // Initialize superstructure
-    superstructure = new Superstructure(shooter, hood, intake, intakePivot, conveyor);
+    superstructure = new Superstructure(shooter, intake, intakePivot, conveyor);
 
     // Configure the button bindings
     configureButtonBindings();
@@ -179,7 +155,7 @@ public class RobotContainer {
     // A button: Switch to intake mode
     controller.a().onTrue(superstructure.intake());
 
-    // X button: Prepare to shoot (spin up shooter, aim hood, stow intake)
+    // X button: Prepare to shoot (spin up shooter, stow intake)
     controller.x().onTrue(superstructure.prepareShoot());
 
     // Right trigger: Shoot while held, return to prepare shoot when released
@@ -193,6 +169,17 @@ public class RobotContainer {
 
     // Y button: Stow everything (idle state)
     controller.y().onTrue(superstructure.idle());
+
+    // Back/Menu button: Zero field-relative rotation (reset gyro to forward)
+    controller
+        .back()
+        .onTrue(
+            Commands.runOnce(
+                () ->
+                    swerveIO.setPose(
+                        new edu.wpi.first.math.geometry.Pose2d(
+                            swerveIO.getPose().getTranslation(),
+                            new edu.wpi.first.math.geometry.Rotation2d()))));
   }
 
   /**

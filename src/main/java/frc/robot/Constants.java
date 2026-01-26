@@ -142,9 +142,6 @@ public final class Constants {
       public static final double HEADING_KP = 5.0;
       public static final double HEADING_KI = 0.0;
       public static final double HEADING_KD = 0.1;
-
-      // Feedforward to compensate for changing angle while driving
-      // Higher value = more aggressive prediction of needed rotation
       public static final double HEADING_KV = 0.8;
     }
   }

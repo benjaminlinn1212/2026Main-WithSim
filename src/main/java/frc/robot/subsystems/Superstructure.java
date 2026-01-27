@@ -120,11 +120,6 @@ public class Superstructure extends SubsystemBase {
         .withName("Superstructure_ScoreHubAllianceZone");
   }
 
-  public Command aimAndScoreHubFromAllianceZone() {
-    return Commands.sequence(aimHubFromAllianceZone(), scoreHubFromAllianceZone())
-        .withName("Superstructure_AimAndScoreHubAllianceZone");
-  }
-
   public Command intakeWhileAimingForPass() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS)),
@@ -150,9 +145,10 @@ public class Superstructure extends SubsystemBase {
             Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_HUB)),
             intakePivot.deploy(),
             intake.intake(),
-            // Aiming at hub
-            turret.aimHub(),
-            hood.aimHub(),
+            indexer.stop(),
+            conveyor.stop(),
+            // turret.aimHub(),
+            // hood.aimHub(),
             shooter.spinUpForHub())
         .withName("Superstructure_IntakeWhileAimingHub");
   }
@@ -160,7 +156,7 @@ public class Superstructure extends SubsystemBase {
   public Command intakeWhileScoringHub() {
     return Commands.sequence(
             Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_SCORING_HUB)),
-            Commands.waitUntil(shooter::readyForHub),
+            // Commands.waitUntil(shooter::readyForHub),
             Commands.parallel(
                 intakePivot.deploy(), intake.intake(), conveyor.goToShooter(), indexer.toShooter()))
         .withName("Superstructure_IntakeWhileScoringHub");

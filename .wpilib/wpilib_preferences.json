@@ -1,8 +1,8 @@
 {
-  "enableCppIntellisense": false,
-  "currentLanguage": "java",
-  "projectYear": "2026",
-  "teamNumber": 6328,
-  "skipTests": true,
-  "stopSimulationOnEntry": false
+    "enableCppIntellisense": false,
+    "currentLanguage": "java",
+    "projectYear": "2026",
+    "teamNumber": 10922,
+    "skipTests": true,
+    "stopSimulationOnEntry": false
 }

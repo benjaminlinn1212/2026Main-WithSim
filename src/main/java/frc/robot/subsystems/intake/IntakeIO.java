@@ -20,8 +20,17 @@ public interface IntakeIO {
   /** Updates the set of loggable inputs. */
   public default void updateInputs(IntakeIOInputs inputs) {}
 
+  /** Run upper intake motor at a specific percent output (-1.0 to 1.0). */
+  public default void setUpperPercent(double percent) {}
+
+  /** Run lower intake motor at a specific percent output (-1.0 to 1.0). */
+  public default void setLowerPercent(double percent) {}
+
   /** Run both intake motors at a specific percent output (-1.0 to 1.0). */
-  public default void setPercent(double percent) {}
+  public default void setPercent(double percent) {
+    setUpperPercent(percent);
+    setLowerPercent(percent);
+  }
 
   /** Stop both intake motors. */
   public default void stop() {}

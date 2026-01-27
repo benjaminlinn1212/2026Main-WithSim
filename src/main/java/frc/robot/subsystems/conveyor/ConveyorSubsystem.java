@@ -28,7 +28,7 @@ public class ConveyorSubsystem extends SubsystemBase {
    */
   public Command goToShooter() {
     return run(() -> {
-          io.setVoltage(ConveyorConstants.TO_SHOOTER_VOLTAGE);
+          io.setPercent(ConveyorConstants.TO_SHOOTER_PERCENT);
         })
         .withName("ConveyorToShooter");
   }
@@ -40,7 +40,7 @@ public class ConveyorSubsystem extends SubsystemBase {
    */
   public Command goToBucket() {
     return run(() -> {
-          io.setVoltage(ConveyorConstants.TO_BUCKET_VOLTAGE);
+          io.setPercent(ConveyorConstants.TO_BUCKET_PERCENT);
         })
         .withName("ConveyorToBucket");
   }
@@ -61,5 +61,10 @@ public class ConveyorSubsystem extends SubsystemBase {
   /** Immediately stop the conveyor motor */
   public void stopMotor() {
     io.stop();
+  }
+
+  /** Toggle the conveyor direction */
+  public void toggleDirection() {
+    io.toggleDirection();
   }
 }

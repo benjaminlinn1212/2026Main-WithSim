@@ -233,6 +233,12 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
     // Intake percent output (0.0 to 1.0)
+    public static final double UPPER_INTAKE_PERCENT = 0.45;
+    public static final double LOWER_INTAKE_PERCENT = 0.75;
+    public static final double UPPER_OUTTAKE_PERCENT = -0.5;
+    public static final double LOWER_OUTTAKE_PERCENT = -0.5;
+
+    // Combined (for backward compatibility)
     public static final double INTAKE_PERCENT = 0.45; // 45% speed for intaking
     public static final double OUTTAKE_PERCENT = -0.5; // 50% speed for outtaking
   }
@@ -250,7 +256,7 @@ public final class Constants {
 
     // Motor encoder offset (in rotations)
     // Set this to the current position when the mechanism is at its zero/reference position
-    public static final double MOTOR_ROTOR_OFFSET = 0.2;
+    public static final double MOTOR_ROTOR_OFFSET = 0.048;
 
     // Soft limits (in rotations)
     public static final double SOFT_LIMIT_REVERSE = 0.0; // Reverse soft limit (minimum position)
@@ -288,15 +294,15 @@ public final class Constants {
     public static final String CAN_BUS = "Superstructure";
 
     // Neutral mode
-    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-    // Conveyor voltages
-    public static final double TO_SHOOTER_VOLTAGE = 6.0; // Volts (positive = toward shooter)
-    public static final double TO_BUCKET_VOLTAGE = -6.0; // Volts (negative = toward bucket)
+    // Conveyor duty cycle percentages
+    public static final double TO_SHOOTER_PERCENT = 0.5;
+    public static final double TO_BUCKET_PERCENT = -0.5;
   }
 
   public static class IndexerConstants {
@@ -310,7 +316,7 @@ public final class Constants {
     public static final InvertedValue FOLLOWER_INVERTED = InvertedValue.CounterClockwise_Positive;
 
     // Neutral mode
-    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;

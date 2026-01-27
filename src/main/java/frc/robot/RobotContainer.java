@@ -221,9 +221,8 @@ public class RobotContainer {
             },
             swerveIO));
 
-    // Reset pose to (1, 1, 0°) when B button is pressed
     controller
-        .b()
+        .rightBumper()
         .onTrue(
             Commands.runOnce(
                     () -> swerveIO.setPose(new Pose2d(1.0, 1.0, Rotation2d.fromDegrees(0))),
@@ -261,6 +260,9 @@ public class RobotContainer {
     // === SUPERSTRUCTURE CONTROLS ===
     // A button: Intake from ground
     controller.a().onTrue(superstructure.intakeFromGround());
+
+    // B button: Toggle conveyor direction (does not change state)
+    controller.b().onTrue(Commands.runOnce(() -> conveyor.toggleDirection(), conveyor));
 
     // X button: Aim hub from alliance zone
     controller.x().onTrue(superstructure.aimHubFromAllianceZone());

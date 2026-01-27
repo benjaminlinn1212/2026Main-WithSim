@@ -9,7 +9,8 @@ public class IntakeIOTalonFX implements IntakeIO {
 
   private final TalonFX upperMotor;
   private final TalonFX lowerMotor;
-  private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
+  private final DutyCycleOut upperDutyCycleControl = new DutyCycleOut(0);
+  private final DutyCycleOut lowerDutyCycleControl = new DutyCycleOut(0);
 
   public IntakeIOTalonFX() {
     upperMotor = new TalonFX(IntakeConstants.UPPER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
@@ -40,9 +41,19 @@ public class IntakeIOTalonFX implements IntakeIO {
   }
 
   @Override
+  public void setUpperPercent(double percent) {
+    upperMotor.setControl(upperDutyCycleControl.withOutput(percent));
+  }
+
+  @Override
+  public void setLowerPercent(double percent) {
+    lowerMotor.setControl(lowerDutyCycleControl.withOutput(percent));
+  }
+
+  @Override
   public void setPercent(double percent) {
-    upperMotor.setControl(dutyCycleControl.withOutput(percent));
-    lowerMotor.setControl(dutyCycleControl.withOutput(percent));
+    setUpperPercent(percent);
+    setLowerPercent(percent);
   }
 
   @Override

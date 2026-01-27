@@ -9,7 +9,7 @@ import org.littletonrobotics.junction.Logger;
 public class IntakePivotSubsystem extends SubsystemBase {
 
   private final IntakePivotIO io;
-  private final IntakePivotIO.IntakePivotIOInputs inputs = new IntakePivotIO.IntakePivotIOInputs();
+  private final IntakePivotIOInputsAutoLogged inputs = new IntakePivotIOInputsAutoLogged();
 
   private static IntakePivotSubsystem instance;
 
@@ -33,13 +33,7 @@ public class IntakePivotSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-
-    // Log all inputs
-    Logger.recordOutput("IntakePivot/PositionRotations", inputs.positionRotations);
-    Logger.recordOutput("IntakePivot/VelocityRotPerSec", inputs.velocityRotPerSec);
-    Logger.recordOutput("IntakePivot/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("IntakePivot/CurrentAmps", inputs.currentAmps);
-    Logger.recordOutput("IntakePivot/TemperatureCelsius", inputs.temperatureCelsius);
+    Logger.processInputs("IntakePivot", inputs);
   }
 
   /**
@@ -68,14 +62,14 @@ public class IntakePivotSubsystem extends SubsystemBase {
         .withName("IntakePivotStow");
   }
 
-  /** Get current pivot position in rotations */
+  /** Get current pivot position in rotations (from right motor) */
   public double getPosition() {
-    return inputs.positionRotations;
+    return inputs.rightPositionRotations;
   }
 
   /** Check if pivot is at target position */
   public boolean atPosition(double targetPosition) {
-    return Math.abs(inputs.positionRotations - targetPosition)
+    return Math.abs(inputs.rightPositionRotations - targetPosition)
         < IntakePivotConstants.POSITION_TOLERANCE;
   }
 

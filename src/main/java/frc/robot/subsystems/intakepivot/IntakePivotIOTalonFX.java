@@ -2,23 +2,24 @@ package frc.robot.subsystems.intakepivot;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicDutyCycle;
-import com.ctre.phoenix6.controls.StrictFollower;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import frc.robot.Constants.IntakePivotConstants;
 
 public class IntakePivotIOTalonFX implements IntakePivotIO {
 
-  private final TalonFX leaderMotor;
-  private final TalonFX followerMotor;
-  private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0);
+  private final TalonFX rightPivotMotor;
+  private final TalonFX leftPivotMotor;
+  private final MotionMagicDutyCycle rightPositionControl = new MotionMagicDutyCycle(0);
+  private final MotionMagicDutyCycle leftPositionControl = new MotionMagicDutyCycle(0);
 
   public IntakePivotIOTalonFX() {
-    leaderMotor =
-        new TalonFX(IntakePivotConstants.LEADER_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
-    followerMotor =
-        new TalonFX(IntakePivotConstants.FOLLOWER_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
+    rightPivotMotor =
+        new TalonFX(IntakePivotConstants.RIGHT_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
+    leftPivotMotor =
+        new TalonFX(IntakePivotConstants.LEFT_MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
 
+    // Create base configuration shared by both motors
     TalonFXConfiguration config = new TalonFXConfiguration();
 
     // PID configuration
@@ -41,12 +42,6 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
 
-    // Motor inversion for leader
-    config.MotorOutput.Inverted =
-        IntakePivotConstants.LEADER_INVERTED
-            ? InvertedValue.Clockwise_Positive
-            : InvertedValue.CounterClockwise_Positive;
-
     // Current limits
     config.CurrentLimits.StatorCurrentLimit = IntakePivotConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
@@ -55,52 +50,53 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
 
     config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
 
-    // Set motor encoder offset (adjust the motor's internal sensor reading)
-    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
-
-    leaderMotor.getConfigurator().apply(config);
-
-    // Configure follower motor (opposite direction)
-    TalonFXConfiguration followerConfig = new TalonFXConfiguration();
-    followerConfig.CurrentLimits.StatorCurrentLimit = IntakePivotConstants.STATOR_CURRENT_LIMIT;
-    followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
-    followerConfig.CurrentLimits.SupplyCurrentLimit = IntakePivotConstants.SUPPLY_CURRENT_LIMIT;
-    followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
-    followerConfig.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
-    // Set follower motor inversion from constants
-    followerConfig.MotorOutput.Inverted =
-        IntakePivotConstants.FOLLOWER_INVERTED
+    // Configure right motor with right-specific settings
+    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.RIGHT_MOTOR_ROTOR_OFFSET;
+    config.MotorOutput.Inverted =
+        IntakePivotConstants.RIGHT_INVERTED
             ? InvertedValue.Clockwise_Positive
             : InvertedValue.CounterClockwise_Positive;
+    rightPivotMotor.getConfigurator().apply(config);
 
-    followerMotor.getConfigurator().apply(followerConfig);
-
-    // Set follower to follow leader
-    followerMotor.setControl(new StrictFollower(IntakePivotConstants.LEADER_MOTOR_CAN_ID));
+    // Configure left motor with left-specific settings
+    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.LEFT_MOTOR_ROTOR_OFFSET;
+    config.MotorOutput.Inverted =
+        IntakePivotConstants.LEFT_INVERTED
+            ? InvertedValue.Clockwise_Positive
+            : InvertedValue.CounterClockwise_Positive;
+    leftPivotMotor.getConfigurator().apply(config);
   }
 
   @Override
   public void updateInputs(IntakePivotIOInputs inputs) {
-    inputs.positionRotations = leaderMotor.getPosition().getValueAsDouble();
-    inputs.velocityRotPerSec = leaderMotor.getVelocity().getValueAsDouble();
-    inputs.appliedVolts = leaderMotor.getMotorVoltage().getValueAsDouble();
-    inputs.currentAmps = leaderMotor.getStatorCurrent().getValueAsDouble();
-    inputs.temperatureCelsius = leaderMotor.getDeviceTemp().getValueAsDouble();
+    inputs.rightPositionRotations = rightPivotMotor.getPosition().getValueAsDouble();
+    inputs.rightVelocityRotPerSec = rightPivotMotor.getVelocity().getValueAsDouble();
+    inputs.rightAppliedVolts = rightPivotMotor.getMotorVoltage().getValueAsDouble();
+    inputs.rightCurrentAmps = rightPivotMotor.getStatorCurrent().getValueAsDouble();
+    inputs.rightTemperatureCelsius = rightPivotMotor.getDeviceTemp().getValueAsDouble();
+
+    inputs.leftPositionRotations = leftPivotMotor.getPosition().getValueAsDouble();
+    inputs.leftVelocityRotPerSec = leftPivotMotor.getVelocity().getValueAsDouble();
+    inputs.leftAppliedVolts = leftPivotMotor.getMotorVoltage().getValueAsDouble();
+    inputs.leftCurrentAmps = leftPivotMotor.getStatorCurrent().getValueAsDouble();
+    inputs.leftTemperatureCelsius = leftPivotMotor.getDeviceTemp().getValueAsDouble();
   }
 
   @Override
   public void setPosition(double positionRotations) {
-    leaderMotor.setControl(positionControl.withPosition(positionRotations));
+    rightPivotMotor.setControl(rightPositionControl.withPosition(positionRotations));
+    leftPivotMotor.setControl(leftPositionControl.withPosition(positionRotations));
   }
 
   @Override
   public void setVoltage(double volts) {
-    leaderMotor.setVoltage(volts);
+    rightPivotMotor.setVoltage(volts);
+    leftPivotMotor.setVoltage(volts);
   }
 
   @Override
   public void stop() {
-    leaderMotor.stopMotor();
-    followerMotor.stopMotor();
+    rightPivotMotor.stopMotor();
+    leftPivotMotor.stopMotor();
   }
 }

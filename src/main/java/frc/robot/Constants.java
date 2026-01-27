@@ -188,27 +188,28 @@ public final class Constants {
 
   public static class IntakePivotConstants {
     // Motor CAN IDs - 2 motors synced, opposite direction
-    public static final int LEADER_MOTOR_CAN_ID = 43;
-    public static final int FOLLOWER_MOTOR_CAN_ID = 44;
+    public static final int RIGHT_MOTOR_CAN_ID = 43;
+    public static final int LEFT_MOTOR_CAN_ID = 44;
     public static final String CAN_BUS = "rio";
 
     // Motor inversion
-    public static final boolean LEADER_INVERTED = false;
-    public static final boolean FOLLOWER_INVERTED = true; // Opposite of leader
+    public static final boolean RIGHT_INVERTED = false;
+    public static final boolean LEFT_INVERTED = true; // Opposite of right
 
     // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // Motor encoder offset (in rotations)
-    // Set this to the current position when the mechanism is at its zero/reference position
-    public static final double MOTOR_ROTOR_OFFSET = -0.287;
+    // Motor encoder offsets (in rotations)
+    // Set these to the current position when the mechanism is at its zero/reference position
+    public static final double RIGHT_MOTOR_ROTOR_OFFSET = -0.087;
+    public static final double LEFT_MOTOR_ROTOR_OFFSET = -0.262; // Adjust as needed
 
     // Soft limits (in rotations)
     public static final double SOFT_LIMIT_REVERSE = 0.0; // Reverse soft limit (minimum position)
-    public static final double SOFT_LIMIT_FORWARD = 28.0; // Forward soft limit (maximum position)
+    public static final double SOFT_LIMIT_FORWARD = 5.4; // Forward soft limit (maximum position)
 
     // PID constants
-    public static final double KP = 0.05;
+    public static final double KP = 0.15;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.0;
@@ -227,7 +228,7 @@ public final class Constants {
 
     // Position setpoints (in rotations)
     public static final double STOWED_POSITION = 0.0; // Stowed/up position
-    public static final double DEPLOYED_POSITION = 5.4; // Extended/down position for intaking
+    public static final double DEPLOYED_POSITION = 4.5; // Extended/down position for intaking
 
     // Position tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations

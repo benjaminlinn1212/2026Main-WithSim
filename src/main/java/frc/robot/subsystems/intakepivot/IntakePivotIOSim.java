@@ -7,9 +7,18 @@ public class IntakePivotIOSim implements IntakePivotIO {
 
   @Override
   public void updateInputs(IntakePivotIOInputs inputs) {
-    inputs.positionRotations = positionRotations;
-    inputs.appliedVolts = appliedVolts;
-    inputs.velocityRotPerSec = appliedVolts * 5; // Simplified simulation
+    // Both motors report same values in sim
+    inputs.rightPositionRotations = positionRotations;
+    inputs.rightAppliedVolts = appliedVolts;
+    inputs.rightVelocityRotPerSec = appliedVolts * 5; // Simplified simulation
+    inputs.rightCurrentAmps = Math.abs(appliedVolts) * 2.0;
+    inputs.rightTemperatureCelsius = 25.0;
+
+    inputs.leftPositionRotations = positionRotations;
+    inputs.leftAppliedVolts = appliedVolts;
+    inputs.leftVelocityRotPerSec = appliedVolts * 5; // Simplified simulation
+    inputs.leftCurrentAmps = Math.abs(appliedVolts) * 2.0;
+    inputs.leftTemperatureCelsius = 25.0;
   }
 
   @Override

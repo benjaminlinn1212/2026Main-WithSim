@@ -13,7 +13,7 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
   private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0);
 
   public IntakePivotIOTalonFX() {
-    motor = new TalonFX(IntakePivotConstants.MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
+    motor = new TalonFX(IntakePivotConstants.MOTOR_CAN_ID);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 

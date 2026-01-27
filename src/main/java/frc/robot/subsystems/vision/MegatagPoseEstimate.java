@@ -1,0 +1,41 @@
+// Copyright (c) 2021-2026 Littleton Robotics
+// Adapted from Team 254's 2024 code
+//
+// Use of this source code is governed by a BSD
+// license that can be found in the LICENSE file
+// at the root directory of this project.
+
+package frc.robot.subsystems.vision;
+
+import edu.wpi.first.math.geometry.Pose2d;
+import frc.robot.LimelightHelpers;
+
+public class MegatagPoseEstimate {
+  public Pose2d fieldToCamera;
+  public double timestampSeconds;
+  public double latency;
+  public int[] fiducialIds;
+  public double avgTagArea;
+
+  public MegatagPoseEstimate() {}
+
+  public static MegatagPoseEstimate fromLimelight(LimelightHelpers.PoseEstimate estimate) {
+    MegatagPoseEstimate rv = new MegatagPoseEstimate();
+    rv.fieldToCamera = estimate.pose;
+    rv.timestampSeconds = estimate.timestampSeconds;
+    rv.latency = estimate.latency;
+    rv.avgTagArea = estimate.avgTagArea;
+
+    // Extract fiducial IDs from raw fiducials
+    if (estimate.rawFiducials != null) {
+      rv.fiducialIds = new int[estimate.rawFiducials.length];
+      for (int i = 0; i < estimate.rawFiducials.length; i++) {
+        rv.fiducialIds[i] = estimate.rawFiducials[i].id;
+      }
+    } else {
+      rv.fiducialIds = new int[0];
+    }
+
+    return rv;
+  }
+}

@@ -18,7 +18,7 @@ import org.littletonrobotics.junction.Logger;
  */
 public class HoodSubsystem extends SubsystemBase {
   private final HoodIO io;
-  private final HoodIO.HoodIOInputs inputs = new HoodIO.HoodIOInputs();
+  private final HoodIOInputsAutoLogged inputs = new HoodIOInputsAutoLogged();
 
   private double positionSetpointRad = Constants.HoodConstants.STOW_POSITION;
   private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
@@ -46,14 +46,7 @@ public class HoodSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-
-    // Log all hood inputs
-    Logger.recordOutput("Hood/PositionRad", inputs.positionRad);
-    Logger.recordOutput("Hood/VelocityRadPerSec", inputs.velocityRadPerSec);
-    Logger.recordOutput("Hood/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("Hood/CurrentStatorAmps", inputs.currentStatorAmps);
-    Logger.recordOutput("Hood/CurrentSupplyAmps", inputs.currentSupplyAmps);
-    Logger.recordOutput("Hood/TemperatureCelsius", inputs.temperatureCelsius);
+    Logger.processInputs("Hood", inputs);
 
     Logger.recordOutput("Hood/State", currentState.toString());
     Logger.recordOutput("Hood/SetpointRad", positionSetpointRad);
@@ -115,14 +108,11 @@ public class HoodSubsystem extends SubsystemBase {
                   double distanceToTarget = robotToTarget.getNorm();
 
                   // Calculate hood angle based on distance
-                  // This is a simplified ballistic calculation
-                  // In reality, you'd use a lookup table or more complex physics
-                  // double targetHeight = targetPosition.getZ();
-                  // double launchHeight = 0.5; // Approximate shooter height in meters
-                  // TODO: Use height difference for ballistic calculations
+                  // Using simplified linear interpolation
+                  // For competition: Replace with empirically-tuned lookup table
+                  // or full ballistic trajectory calculation with air resistance
 
-                  // Simple angle calculation (can be improved with ballistics)
-                  // For now, use a linear interpolation based on distance
+                  // Simple angle calculation based on distance
                   double minDistance = 1.0; // meters
                   double maxDistance = 6.0; // meters
 
@@ -139,7 +129,9 @@ public class HoodSubsystem extends SubsystemBase {
 
                   return hoodAngle;
                 },
-                () -> 0.0)) // TODO: Add feedforward for moving shots
+                // No feedforward for stationary shooting
+                // For moving shot compensation, add robot velocity component
+                () -> 0.0))
         .withName("Hood Aim Hub");
   }
 

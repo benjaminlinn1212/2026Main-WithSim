@@ -17,7 +17,7 @@ public class ShooterIOTalonFX implements ShooterIO {
   private final VoltageOut voltageControl = new VoltageOut(0);
 
   public ShooterIOTalonFX() {
-    motor = new TalonFX(ShooterConstants.MOTOR_CAN_ID, ShooterConstants.CAN_BUS);
+    motor = new TalonFX(ShooterConstants.MOTOR_CAN_ID);
 
     motor.getConfigurator().apply(shooterConfiguration());
 

@@ -18,7 +18,7 @@ public class HoodIOTalonFX implements HoodIO {
   private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0.0);
 
   public HoodIOTalonFX() {
-    motor = new TalonFX(Constants.HoodConstants.MOTOR_CAN_ID, Constants.HoodConstants.CAN_BUS);
+    motor = new TalonFX(Constants.HoodConstants.MOTOR_CAN_ID);
 
     // Configure TalonFX
     var motorConfig = new TalonFXConfiguration();

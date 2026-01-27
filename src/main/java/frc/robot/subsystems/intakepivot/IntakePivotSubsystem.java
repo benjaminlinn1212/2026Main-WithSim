@@ -1,6 +1,5 @@
 package frc.robot.subsystems.intakepivot;
 
-import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.IntakePivotConstants;
@@ -9,37 +8,17 @@ import org.littletonrobotics.junction.Logger;
 public class IntakePivotSubsystem extends SubsystemBase {
 
   private final IntakePivotIO io;
-  private final IntakePivotIO.IntakePivotIOInputs inputs = new IntakePivotIO.IntakePivotIOInputs();
-
-  private static IntakePivotSubsystem instance;
+  private final IntakePivotIOInputsAutoLogged inputs = new IntakePivotIOInputsAutoLogged();
 
   /** Constructs an {@link IntakePivotSubsystem} subsystem instance */
-  private IntakePivotSubsystem(IntakePivotIO io) {
+  public IntakePivotSubsystem(IntakePivotIO io) {
     this.io = io;
-  }
-
-  /** Gets the singleton instance of the intake pivot subsystem */
-  public static IntakePivotSubsystem getInstance() {
-    if (instance == null) {
-      if (RobotBase.isReal()) {
-        instance = new IntakePivotSubsystem(new IntakePivotIOTalonFX());
-      } else {
-        instance = new IntakePivotSubsystem(new IntakePivotIOSim());
-      }
-    }
-    return instance;
   }
 
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-
-    // Log all inputs
-    Logger.recordOutput("IntakePivot/PositionRotations", inputs.positionRotations);
-    Logger.recordOutput("IntakePivot/VelocityRotPerSec", inputs.velocityRotPerSec);
-    Logger.recordOutput("IntakePivot/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("IntakePivot/CurrentAmps", inputs.currentAmps);
-    Logger.recordOutput("IntakePivot/TemperatureCelsius", inputs.temperatureCelsius);
+    Logger.processInputs("IntakePivot", inputs);
   }
 
   /**

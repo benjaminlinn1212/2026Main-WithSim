@@ -1,9 +1,12 @@
 package frc.robot.subsystems.indexer;
 
+import org.littletonrobotics.junction.AutoLog;
+
 /** Hardware abstraction interface for the Indexer subsystem */
 public interface IndexerIO {
 
   /** Inputs class for indexer data */
+  @AutoLog
   public static class IndexerIOInputs {
     public double velocityRotPerSec = 0.0;
     public double appliedVolts = 0.0;

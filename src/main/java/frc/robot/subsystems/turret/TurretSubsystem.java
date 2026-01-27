@@ -21,7 +21,7 @@ import org.littletonrobotics.junction.Logger;
  */
 public class TurretSubsystem extends SubsystemBase {
   private final TurretIO io;
-  private final TurretIO.TurretIOInputs inputs = new TurretIO.TurretIOInputs();
+  private final TurretIOInputsAutoLogged inputs = new TurretIOInputsAutoLogged();
 
   private double positionSetpointRad = 0.0;
   private double lastModeChange = 0.0;
@@ -59,15 +59,7 @@ public class TurretSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-
-    // Log all turret inputs
-    Logger.recordOutput("Turret/PositionRad", inputs.positionRad);
-    Logger.recordOutput("Turret/VelocityRadPerSec", inputs.velocityRadPerSec);
-    Logger.recordOutput("Turret/AbsolutePosition", inputs.absolutePosition);
-    Logger.recordOutput("Turret/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("Turret/CurrentStatorAmps", inputs.currentStatorAmps);
-    Logger.recordOutput("Turret/CurrentSupplyAmps", inputs.currentSupplyAmps);
-    Logger.recordOutput("Turret/TemperatureCelsius", inputs.temperatureCelsius);
+    Logger.processInputs("Turret", inputs);
 
     Logger.recordOutput("Turret/State", currentState.toString());
     Logger.recordOutput("Turret/SetpointRad", positionSetpointRad);

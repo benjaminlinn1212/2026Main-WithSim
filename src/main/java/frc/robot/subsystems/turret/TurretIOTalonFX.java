@@ -23,11 +23,10 @@ public class TurretIOTalonFX implements TurretIO {
   private boolean hasZeroed = false;
 
   public TurretIOTalonFX() {
-    motor = new TalonFX(Constants.TurretConstants.MOTOR_CAN_ID, Constants.TurretConstants.CAN_BUS);
-    cancoder =
-        new CANcoder(Constants.TurretConstants.CANCODER_CAN_ID, Constants.TurretConstants.CAN_BUS);
+    motor = new TalonFX(Constants.TurretConstants.MOTOR_CAN_ID);
+    cancoder = new CANcoder(Constants.TurretConstants.CANCODER_CAN_ID);
 
-    // Configure CANCoder
+    // Configure CANcoder
     var cancoderConfig = new CANcoderConfiguration();
     cancoderConfig.MagnetSensor.SensorDirection = SensorDirectionValue.CounterClockwise_Positive;
     cancoderConfig.MagnetSensor.MagnetOffset = Constants.TurretConstants.CANCODER_OFFSET;

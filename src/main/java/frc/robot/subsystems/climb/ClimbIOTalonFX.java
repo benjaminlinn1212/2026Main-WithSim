@@ -12,7 +12,7 @@ public class ClimbIOTalonFX implements ClimbIO {
   private final MotionMagicVoltage positionControl = new MotionMagicVoltage(0);
 
   public ClimbIOTalonFX() {
-    motor = new TalonFX(ClimbConstants.MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
+    motor = new TalonFX(ClimbConstants.MOTOR_CAN_ID);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 

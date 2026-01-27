@@ -1,7 +1,10 @@
 package frc.robot.subsystems.intakepivot;
 
+import org.littletonrobotics.junction.AutoLog;
+
 public interface IntakePivotIO {
 
+  @AutoLog
   public static class IntakePivotIOInputs {
     public double positionRotations = 0.0;
     public double velocityRotPerSec = 0.0;

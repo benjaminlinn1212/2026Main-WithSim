@@ -10,7 +10,7 @@ public class ConveyorIOTalonFX implements ConveyorIO {
   private final TalonFX motor;
 
   public ConveyorIOTalonFX() {
-    motor = new TalonFX(ConveyorConstants.MOTOR_CAN_ID, ConveyorConstants.CAN_BUS);
+    motor = new TalonFX(ConveyorConstants.MOTOR_CAN_ID);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.CurrentLimits.StatorCurrentLimit = ConveyorConstants.STATOR_CURRENT_LIMIT;

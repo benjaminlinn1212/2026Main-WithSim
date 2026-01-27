@@ -10,7 +10,7 @@ public class IndexerIOTalonFX implements IndexerIO {
   private final TalonFX motor;
 
   public IndexerIOTalonFX() {
-    motor = new TalonFX(IndexerConstants.MOTOR_CAN_ID, IndexerConstants.CAN_BUS);
+    motor = new TalonFX(IndexerConstants.MOTOR_CAN_ID);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.CurrentLimits.StatorCurrentLimit = IndexerConstants.STATOR_CURRENT_LIMIT;

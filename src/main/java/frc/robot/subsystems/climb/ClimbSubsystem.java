@@ -1,6 +1,5 @@
 package frc.robot.subsystems.climb;
 
-import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ClimbConstants;
@@ -9,37 +8,17 @@ import org.littletonrobotics.junction.Logger;
 public class ClimbSubsystem extends SubsystemBase {
 
   private final ClimbIO io;
-  private final ClimbIO.ClimbIOInputs inputs = new ClimbIO.ClimbIOInputs();
-
-  private static ClimbSubsystem instance;
+  private final ClimbIOInputsAutoLogged inputs = new ClimbIOInputsAutoLogged();
 
   /** Constructs a {@link ClimbSubsystem} subsystem instance */
-  private ClimbSubsystem(ClimbIO io) {
+  public ClimbSubsystem(ClimbIO io) {
     this.io = io;
-  }
-
-  /** Gets the singleton instance of the climb subsystem */
-  public static ClimbSubsystem getInstance() {
-    if (instance == null) {
-      if (RobotBase.isReal()) {
-        instance = new ClimbSubsystem(new ClimbIOTalonFX());
-      } else {
-        instance = new ClimbSubsystem(new ClimbIOSim());
-      }
-    }
-    return instance;
   }
 
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-
-    // Log all inputs
-    Logger.recordOutput("Climb/PositionRotations", inputs.positionRotations);
-    Logger.recordOutput("Climb/VelocityRotPerSec", inputs.velocityRotPerSec);
-    Logger.recordOutput("Climb/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("Climb/CurrentAmps", inputs.currentAmps);
-    Logger.recordOutput("Climb/TemperatureCelsius", inputs.temperatureCelsius);
+    Logger.processInputs("Climb", inputs);
   }
 
   /**

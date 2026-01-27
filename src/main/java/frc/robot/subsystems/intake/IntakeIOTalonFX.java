@@ -13,8 +13,8 @@ public class IntakeIOTalonFX implements IntakeIO {
   private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
 
   public IntakeIOTalonFX() {
-    upperMotor = new TalonFX(IntakeConstants.UPPER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
-    lowerMotor = new TalonFX(IntakeConstants.LOWER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
+    upperMotor = new TalonFX(IntakeConstants.UPPER_MOTOR_CAN_ID);
+    lowerMotor = new TalonFX(IntakeConstants.LOWER_MOTOR_CAN_ID);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.CurrentLimits.StatorCurrentLimit = IntakeConstants.STATOR_CURRENT_LIMIT;

@@ -1,7 +1,6 @@
 package frc.robot.subsystems.shooter;
 
 import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ShooterConstants;
@@ -10,9 +9,9 @@ import org.littletonrobotics.junction.Logger;
 public class ShooterSubsystem extends SubsystemBase {
 
   private final ShooterIO io;
-  private final ShooterIO.ShooterIOInputs inputs = new ShooterIO.ShooterIOInputs();
+  private final ShooterIOInputsAutoLogged inputs = new ShooterIOInputsAutoLogged();
 
-  private static ShooterSubsystem system;
+  private static ShooterSubsystem instance;
 
   /** Constructs a {@link ShooterSubsystem} subsystem instance */
   private ShooterSubsystem(ShooterIO io) {
@@ -130,15 +129,10 @@ public class ShooterSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-    Logger.recordOutput("Shooter/VelocityRotPerSec", inputs.velocityRotPerSec);
-    Logger.recordOutput("Shooter/PositionRot", inputs.positionRot);
-    Logger.recordOutput("Shooter/AppliedVolts", inputs.appliedVolts);
-    Logger.recordOutput("Shooter/CurrentAmps", inputs.currentAmps);
-    Logger.recordOutput("Shooter/TempCelsius", inputs.tempCelsius);
+    Logger.processInputs("Shooter", inputs);
 
-    SmartDashboard.putNumber("Shooter Velocity", inputs.velocityRotPerSec);
-    SmartDashboard.putBoolean("Shooter Ready Hub", readyForHub());
-    SmartDashboard.putBoolean("Shooter Ready Pass", readyForPass());
+    Logger.recordOutput("Shooter/ReadyForHub", readyForHub());
+    Logger.recordOutput("Shooter/ReadyForPass", readyForPass());
   }
 
   /**
@@ -146,22 +140,17 @@ public class ShooterSubsystem extends SubsystemBase {
    *
    * @return The {@link ShooterSubsystem} subsystem instance
    */
-  public static ShooterSubsystem system() {
-    if (system == null) {
+  public static ShooterSubsystem getInstance() {
+    if (instance == null) {
       if (RobotBase.isSimulation()) {
-        system = new ShooterSubsystem(new ShooterIOSim());
-        System.out.println("ShooterSubsystem: Using simulation IO");
+        instance = new ShooterSubsystem(new ShooterIOSim());
+        Logger.recordOutput("Shooter/IOType", "Simulation");
       } else {
-        system = new ShooterSubsystem(new ShooterIOTalonFX());
-        System.out.println("ShooterSubsystem: Using TalonFX hardware IO");
+        instance = new ShooterSubsystem(new ShooterIOTalonFX());
+        Logger.recordOutput("Shooter/IOType", "TalonFX");
       }
     }
 
-    return system;
-  }
-
-  /** Gets the {@link ShooterSubsystem} subsystem instance (alias for system()) */
-  public static ShooterSubsystem getInstance() {
-    return system();
+    return instance;
   }
 }

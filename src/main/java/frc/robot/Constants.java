@@ -67,6 +67,39 @@ public final class Constants {
   }
 
   public static class Vision {
+    // Limelight names
+    public static final String FRONT_LIMELIGHT_NAME = "limelight-front";
+    public static final String BACK_LIMELIGHT_NAME = "limelight-back";
+    public static final String TURRET_LIMELIGHT_NAME = "limelight-turret";
+
+    // Camera positions relative to robot center (Translation3d: x forward, y left, z up)
+    // Front camera (on drivetrain, front of robot)
+    public static final Transform3d FRONT_CAMERA_TO_ROBOT =
+        new Transform3d(
+            new Translation3d(0.25, 0.0, 0.25), // 25cm forward, 25cm up
+            new Rotation3d(0, Units.degreesToRadians(-20), 0)); // Pitched down 20 degrees
+
+    // Back camera (on drivetrain, back of robot)
+    public static final Transform3d BACK_CAMERA_TO_ROBOT =
+        new Transform3d(
+            new Translation3d(-0.25, 0.0, 0.25), // 25cm backward, 25cm up
+            new Rotation3d(
+                0,
+                Units.degreesToRadians(-20),
+                Units.degreesToRadians(180))); // Pitched down, facing back
+
+    // Turret camera (on turret, offset from turret center)
+    // This is the transform from TURRET CENTER to camera
+    public static final Transform3d TURRET_TO_CAMERA =
+        new Transform3d(
+            new Translation3d(0.15, 0.0, 0.30), // 15cm forward from turret axis, 30cm up
+            new Rotation3d(0, Units.degreesToRadians(-15), 0)); // Pitched down 15 degrees
+
+    // Turret position relative to robot center
+    // This allows us to account for turret not being at robot center
+    public static final Translation2d TURRET_TO_ROBOT_CENTER =
+        new Translation2d(0.0, 0.0); // Adjust if turret is offset
+
     // Limelight Configuration (supports one or multiple cameras)
     public static class LimelightCamera {
       public final String name;
@@ -80,10 +113,8 @@ public final class Constants {
 
     // Add your Limelights here - example with front and back cameras
     public static final LimelightCamera[] LIMELIGHT_CAMERAS = {
-      new LimelightCamera(
-          "limelight-front",
-          new Transform3d(
-              new Translation3d(0.324339, 0, 0.1337), new Rotation3d(0, Math.toRadians(10), 0))),
+      new LimelightCamera(FRONT_LIMELIGHT_NAME, FRONT_CAMERA_TO_ROBOT),
+      new LimelightCamera(BACK_LIMELIGHT_NAME, BACK_CAMERA_TO_ROBOT),
     };
 
     // The layout of the AprilTags on the field
@@ -91,6 +122,7 @@ public final class Constants {
         AprilTagFieldLayout.loadField(AprilTagFields.kDefaultField);
 
     // The standard deviations of our vision estimated poses, which affect correction rate
+    // (X, Y, Theta) - smaller values = trust vision more
     public static final Matrix<N3, N1> SINGLE_TAG_STD_DEVS = VecBuilder.fill(4, 4, 8);
     public static final Matrix<N3, N1> MULTI_TAG_STD_DEVS = VecBuilder.fill(0.5, 0.5, 1);
   }
@@ -385,34 +417,7 @@ public final class Constants {
     public static final double MIN_AIM_ANGLE = Units.degreesToRadians(15.0); // Minimum angle
   }
 
-  /**
-   * APF (Artificial Potential Field) Constants public static final double BALL_DIAMETER_METERS =
-   * 0.15; // 15cm diameter (7.5cm radius)
-   *
-   * <p>// Camera configuration // Example: camera mounted at front of robot, 0.5m forward, 0.3m
-   * high, tilted 20 degrees down public static final Transform3d CAMERA_TO_ROBOT = new Transform3d(
-   * new Translation3d(0.5, 0.0, 0.3), // 0.5m forward, 0.3m high new Rotation3d(0,
-   * Math.toRadians(-20), 0) // 20 degrees down );
-   *
-   * <p>// Detection thresholds public static final double MIN_CONFIDENCE_THRESHOLD = 0.5; //
-   * Minimum detection confidence (0-1) public static final double MAX_DETECTION_DISTANCE = 5.0; //
-   * Maximum distance to detect balls (meters)
-   *
-   * <p>// Area calibration // This constant relates ball area to distance // Tune this based on
-   * real measurements: measure ball area % at known distances // Formula: area_at_1m =
-   * (focal_length * ball_diameter / sensor_size)^2 public static final double
-   * AREA_CALIBRATION_CONSTANT = 10.0; // Adjust based on calibration
-   *
-   * <p>// Ball class IDs (depends on your neural network training) public static final int
-   * RED_BALL_CLASS = 0; public static final int BLUE_BALL_CLASS = 1; }
-   *
-   * <p>/** APF (Artificial Potential Field) Constants Configuration for autonomous ball intake
-   * navigation
-   */
-  /**
-   * APF (Artificial Potential Field) Constants Configuration for weighted ball priority and force
-   * field navigation
-   */
+  /** APF (Artificial Potential Field) Constants for autonomous ball intake navigation */
   public static class APFConstants {
     // Priority weights
     public static final double DISTANCE_WEIGHT = 100.0; // Weight for distance-based priority

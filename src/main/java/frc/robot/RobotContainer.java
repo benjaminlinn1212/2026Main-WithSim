@@ -23,7 +23,13 @@ import frc.robot.subsystems.hood.HoodIO;
 import frc.robot.subsystems.hood.HoodIOSim;
 import frc.robot.subsystems.hood.HoodIOTalonFX;
 import frc.robot.subsystems.hood.HoodSubsystem;
+import frc.robot.subsystems.intake.IntakeIO;
+import frc.robot.subsystems.intake.IntakeIOSim;
+import frc.robot.subsystems.intake.IntakeIOTalonFX;
 import frc.robot.subsystems.intake.IntakeSubsystem;
+import frc.robot.subsystems.intakepivot.IntakePivotIO;
+import frc.robot.subsystems.intakepivot.IntakePivotIOSim;
+import frc.robot.subsystems.intakepivot.IntakePivotIOTalonFX;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.turret.TurretIO;
 import frc.robot.subsystems.turret.TurretIOSim;
@@ -116,21 +122,23 @@ public class RobotContainer {
     autoChooser = new LoggedDashboardChooser<>("Auto Choices");
     autoChooser.addDefaultOption("Do Nothing", Commands.none());
 
-    // Initialize subsystems
-    intake = IntakeSubsystem.getInstance();
-    intakePivot = IntakePivotSubsystem.getInstance();
-
-    // Initialize turret and hood based on mode
+    // Initialize subsystems with constructor injection
     switch (Constants.currentMode) {
       case REAL:
+        intake = new IntakeSubsystem(new IntakeIOTalonFX());
+        intakePivot = new IntakePivotSubsystem(new IntakePivotIOTalonFX());
         turret = new TurretSubsystem(new TurretIOTalonFX());
         hood = new HoodSubsystem(new HoodIOTalonFX());
         break;
       case SIM:
+        intake = new IntakeSubsystem(new IntakeIOSim());
+        intakePivot = new IntakePivotSubsystem(new IntakePivotIOSim());
         turret = new TurretSubsystem(new TurretIOSim());
         hood = new HoodSubsystem(new HoodIOSim());
         break;
       default:
+        intake = new IntakeSubsystem(new IntakeIO() {});
+        intakePivot = new IntakePivotSubsystem(new IntakePivotIO() {});
         turret = new TurretSubsystem(new TurretIO() {});
         hood = new HoodSubsystem(new HoodIO() {});
         break;

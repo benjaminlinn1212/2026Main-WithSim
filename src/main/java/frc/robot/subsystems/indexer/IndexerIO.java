@@ -17,9 +17,9 @@ public interface IndexerIO {
   /** Updates the set of loggable inputs */
   public default void updateInputs(IndexerIOInputs inputs) {}
 
-  /** Run indexer at specified voltage */
-  public default void setVoltage(double volts) {}
+  /** Run indexer at specified duty cycle */
+  public default void setDutyCycle(double dutyCycle) {}
 
-  /** Stop the indexer motor */
+  /** Stop the indexer motors */
   public default void stop() {}
 }

@@ -9,6 +9,8 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
+import com.ctre.phoenix6.signals.InvertedValue;
+import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathConstraints;
@@ -187,6 +189,9 @@ public final class Constants {
     // Gear ratio (motor rotations to shooter wheel rotations)
     public static final double GEAR_RATIO = 3.0;
 
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
+
     // PID and feedforward constants
     public static final double KS = 0.0;
     public static final double KV = 0.0;
@@ -220,6 +225,9 @@ public final class Constants {
     public static final int LOWER_MOTOR_CAN_ID = 42;
     public static final String CAN_BUS = "Superstructure";
 
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
+
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
@@ -235,7 +243,10 @@ public final class Constants {
     public static final String CAN_BUS = "Superstructure";
 
     // Motor inversion (true = clockwise positive)
-    public static final boolean MOTOR_INVERTED = true;
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // Motor encoder offset (in rotations)
     // Set this to the current position when the mechanism is at its zero/reference position
@@ -274,7 +285,10 @@ public final class Constants {
   public static class ConveyorConstants {
     // Motor CAN ID
     public static final int MOTOR_CAN_ID = 45;
-    public static final String CAN_BUS = "Drivetrain";
+    public static final String CAN_BUS = "Superstructure";
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
@@ -286,22 +300,33 @@ public final class Constants {
   }
 
   public static class IndexerConstants {
-    // Motor CAN ID
-    public static final int MOTOR_CAN_ID = 47;
-    public static final String CAN_BUS = "Drivetrain";
+    // Motor CAN IDs
+    public static final int LEADER_MOTOR_CAN_ID = 47;
+    public static final int FOLLOWER_MOTOR_CAN_ID = 48;
+    public static final String CAN_BUS = "Superstructure";
+
+    // Motor inversions
+    public static final InvertedValue LEADER_INVERTED = InvertedValue.Clockwise_Positive;
+    public static final InvertedValue FOLLOWER_INVERTED = InvertedValue.CounterClockwise_Positive;
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-    // Indexer voltages
-    public static final double TO_SHOOTER_VOLTAGE = 8.0; // Volts (toward shooter)
+    // Indexer duty cycle
+    public static final double TO_SHOOTER_DUTY_CYCLE = 0.5;
   }
 
   public static class ClimbConstants {
     // Motor CAN ID
     public static final int MOTOR_CAN_ID = 46;
     public static final String CAN_BUS = "rio";
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // PID constants
     public static final double KP = 10.0;
@@ -337,6 +362,9 @@ public final class Constants {
 
     // Gear ratio (motor rotations to turret rotations)
     public static final double GEAR_RATIO = 100.0; // Example: 100:1 reduction
+
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // CANCoder configuration
     public static final double CANCODER_OFFSET = 0.0; // Adjust based on physical alignment
@@ -386,6 +414,9 @@ public final class Constants {
     // Gear ratio (motor rotations to hood rotations)
     public static final double GEAR_RATIO = 60.0; // Example: 60:1 reduction
 
+    // Neutral mode
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+
     // Position limits (radians from horizontal)
     public static final double MIN_POSITION_RAD = Units.degreesToRadians(0.0); // Flat
     public static final double MAX_POSITION_RAD = Units.degreesToRadians(60.0); // Max angle
@@ -415,46 +446,5 @@ public final class Constants {
     public static final double STOW_POSITION = Units.degreesToRadians(20.0); // Safe stow angle
     public static final double SHOOT_BACK_POSITION = Units.degreesToRadians(45.0); // Mid-field shot
     public static final double MIN_AIM_ANGLE = Units.degreesToRadians(15.0); // Minimum angle
-  }
-
-  /** APF (Artificial Potential Field) Constants for autonomous ball intake navigation */
-  public static class APFConstants {
-    // Priority weights
-    public static final double DISTANCE_WEIGHT = 100.0; // Weight for distance-based priority
-    public static final double DISTANCE_DECAY_FACTOR =
-        2.0; // Exponential decay for distance (meters)
-    public static final double CLUSTER_WEIGHT = 50.0; // Bonus per additional ball in cluster
-    public static final double ALLIANCE_BONUS = 30.0; // Bonus for our alliance balls
-    public static final double CONFIDENCE_EXPONENT = 2.0; // Confidence penalty exponent
-
-    // Distance thresholds
-    public static final double FAR_BALL_THRESHOLD =
-        4.0; // Distance where far penalty starts (meters)
-    public static final double FAR_BALL_PENALTY = 20.0; // Penalty per meter beyond threshold
-
-    // Clustering parameters
-    public static final double CLUSTER_RADIUS =
-        0.8; // Maximum distance between balls in cluster (meters)
-    public static final int MIN_CLUSTER_SIZE = 2; // Minimum balls to form a cluster
-
-    // Force field parameters
-    public static final double ATTRACTIVE_GAIN = 1.5; // Gain for attractive force toward target
-    public static final double MAX_ATTRACTIVE_FORCE = 3.0; // Maximum attractive force magnitude
-
-    // Secondary ball attraction (for strategic clustering flow)
-    public static final double SECONDARY_BALL_ATTRACTION =
-        0.8; // Weak attraction from non-target balls
-    public static final double SECONDARY_BALL_DECAY =
-        1.5; // Rapid decay for secondary attractions (meters)
-
-    // Wall repulsion
-    public static final double WALL_REPULSION_DISTANCE =
-        1.0; // Distance from wall where repulsion starts (meters)
-    public static final double WALL_REPULSION_GAIN = 0.5; // Gain for repulsive force from walls
-
-    // Velocity limits
-    public static final double MAX_LINEAR_VELOCITY = 3.0; // Maximum linear velocity (m/s)
-    public static final double MAX_ANGULAR_VELOCITY = 2.0; // Maximum angular velocity (rad/s)
-    public static final double HEADING_GAIN = 3.0; // Proportional gain for heading control
   }
 }

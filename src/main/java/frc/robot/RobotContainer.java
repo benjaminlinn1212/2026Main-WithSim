@@ -14,8 +14,16 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.commands.DriveToPose;
 import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.Superstructure;
+import frc.robot.subsystems.climb.ClimbIO;
+import frc.robot.subsystems.climb.ClimbIOSim;
+import frc.robot.subsystems.climb.ClimbIOTalonFX;
+import frc.robot.subsystems.climb.ClimbSubsystem;
+import frc.robot.subsystems.conveyor.ConveyorIO;
+import frc.robot.subsystems.conveyor.ConveyorIOSim;
+import frc.robot.subsystems.conveyor.ConveyorIOTalonFX;
+import frc.robot.subsystems.conveyor.ConveyorSubsystem;
 import frc.robot.subsystems.drive.DriveIOHardware;
 import frc.robot.subsystems.drive.DriveIOSim;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
@@ -23,6 +31,10 @@ import frc.robot.subsystems.hood.HoodIO;
 import frc.robot.subsystems.hood.HoodIOSim;
 import frc.robot.subsystems.hood.HoodIOTalonFX;
 import frc.robot.subsystems.hood.HoodSubsystem;
+import frc.robot.subsystems.indexer.IndexerIO;
+import frc.robot.subsystems.indexer.IndexerIOSim;
+import frc.robot.subsystems.indexer.IndexerIOTalonFX;
+import frc.robot.subsystems.indexer.IndexerSubsystem;
 import frc.robot.subsystems.intake.IntakeIO;
 import frc.robot.subsystems.intake.IntakeIOSim;
 import frc.robot.subsystems.intake.IntakeIOTalonFX;
@@ -31,6 +43,10 @@ import frc.robot.subsystems.intakepivot.IntakePivotIO;
 import frc.robot.subsystems.intakepivot.IntakePivotIOSim;
 import frc.robot.subsystems.intakepivot.IntakePivotIOTalonFX;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
+import frc.robot.subsystems.shooter.ShooterIO;
+import frc.robot.subsystems.shooter.ShooterIOSim;
+import frc.robot.subsystems.shooter.ShooterIOTalonFX;
+import frc.robot.subsystems.shooter.ShooterSubsystem;
 import frc.robot.subsystems.turret.TurretIO;
 import frc.robot.subsystems.turret.TurretIOSim;
 import frc.robot.subsystems.turret.TurretIOTalonFX;
@@ -54,6 +70,11 @@ public class RobotContainer {
   private final IntakePivotSubsystem intakePivot;
   private final TurretSubsystem turret;
   private final HoodSubsystem hood;
+  private final ShooterSubsystem shooter;
+  private final ConveyorSubsystem conveyor;
+  private final IndexerSubsystem indexer;
+  private final ClimbSubsystem climb;
+  private final Superstructure superstructure;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -129,20 +150,36 @@ public class RobotContainer {
         intakePivot = new IntakePivotSubsystem(new IntakePivotIOTalonFX());
         turret = new TurretSubsystem(new TurretIOTalonFX());
         hood = new HoodSubsystem(new HoodIOTalonFX());
+        shooter = new ShooterSubsystem(new ShooterIOTalonFX());
+        conveyor = new ConveyorSubsystem(new ConveyorIOTalonFX());
+        indexer = new IndexerSubsystem(new IndexerIOTalonFX());
+        climb = new ClimbSubsystem(new ClimbIOTalonFX());
         break;
       case SIM:
         intake = new IntakeSubsystem(new IntakeIOSim());
         intakePivot = new IntakePivotSubsystem(new IntakePivotIOSim());
         turret = new TurretSubsystem(new TurretIOSim());
         hood = new HoodSubsystem(new HoodIOSim());
+        shooter = new ShooterSubsystem(new ShooterIOSim());
+        conveyor = new ConveyorSubsystem(new ConveyorIOSim());
+        indexer = new IndexerSubsystem(new IndexerIOSim());
+        climb = new ClimbSubsystem(new ClimbIOSim());
         break;
       default:
         intake = new IntakeSubsystem(new IntakeIO() {});
         intakePivot = new IntakePivotSubsystem(new IntakePivotIO() {});
         turret = new TurretSubsystem(new TurretIO() {});
         hood = new HoodSubsystem(new HoodIO() {});
+        shooter = new ShooterSubsystem(new ShooterIO() {});
+        conveyor = new ConveyorSubsystem(new ConveyorIO() {});
+        indexer = new IndexerSubsystem(new IndexerIO() {});
+        climb = new ClimbSubsystem(new ClimbIO() {});
         break;
     }
+
+    // Instantiate Superstructure with all subsystems
+    superstructure =
+        new Superstructure(shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb);
 
     // Provide robot pose and chassis speeds to turret for field-relative tracking
     turret.setRobotPoseSupplier(() -> swerveIO.getPose());
@@ -184,16 +221,6 @@ public class RobotContainer {
             },
             swerveIO));
 
-    // Drive to test pose when Y button is held
-    controller.y().whileTrue(new DriveToPose(swerveIO, Constants.FieldPoses.TEST));
-
-    // === INTAKE SYSTEM CONTROLS ===
-    // Right bumper: Deploy intake pivot AND run intake rollers
-    controller.rightBumper().onTrue(intakePivot.deploy()).onTrue(intake.intake());
-
-    // Left bumper: Stow intake pivot AND stop intake rollers
-    controller.leftBumper().onTrue(intakePivot.stow()).onTrue(intake.stop());
-
     // Reset pose to (1, 1, 0°) when B button is pressed
     controller
         .b()
@@ -202,21 +229,6 @@ public class RobotContainer {
                     () -> swerveIO.setPose(new Pose2d(1.0, 1.0, Rotation2d.fromDegrees(0))),
                     swerveIO)
                 .ignoringDisable(true));
-
-    // Emergency stop: X button stops all intake system and drivetrain
-    controller
-        .x()
-        .onTrue(
-            Commands.runOnce(
-                    () -> {
-                      swerveIO.stop();
-                      intake.stopMotor();
-                      intakePivot.stopMotor();
-                    })
-                .withName("EmergencyStop"));
-
-    // Move intake pivot to stow position on emergency stop (X button)
-    controller.x().onTrue(intakePivot.stow());
 
     // === SMART TURRET AIMING ===
     // Left trigger: Auto-aim turret intelligently
@@ -245,6 +257,22 @@ public class RobotContainer {
                   }
                 }))
         .onFalse(turret.stow()); // Stow when trigger released
+
+    // === SUPERSTRUCTURE CONTROLS ===
+    // A button: Intake from ground
+    controller.a().onTrue(superstructure.intakeFromGround());
+
+    // X button: Aim hub from alliance zone
+    controller.x().onTrue(superstructure.aimHubFromAllianceZone());
+
+    // Y button: Idle (stow everything)
+    controller.y().onTrue(superstructure.idle());
+
+    // Right trigger: Score hub (while held) then aim hub (when released)
+    controller
+        .rightTrigger()
+        .whileTrue(superstructure.scoreHubFromAllianceZone())
+        .onFalse(superstructure.aimHubFromAllianceZone());
   }
 
   /**

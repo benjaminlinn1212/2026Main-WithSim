@@ -6,7 +6,6 @@ import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.signals.SensorDirectionValue;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.util.Units;
@@ -23,8 +22,9 @@ public class TurretIOTalonFX implements TurretIO {
   private boolean hasZeroed = false;
 
   public TurretIOTalonFX() {
-    motor = new TalonFX(Constants.TurretConstants.MOTOR_CAN_ID);
-    cancoder = new CANcoder(Constants.TurretConstants.CANCODER_CAN_ID);
+    motor = new TalonFX(Constants.TurretConstants.MOTOR_CAN_ID, Constants.TurretConstants.CAN_BUS);
+    cancoder =
+        new CANcoder(Constants.TurretConstants.CANCODER_CAN_ID, Constants.TurretConstants.CAN_BUS);
 
     // Configure CANcoder
     var cancoderConfig = new CANcoderConfiguration();
@@ -34,7 +34,7 @@ public class TurretIOTalonFX implements TurretIO {
 
     // Configure TalonFX
     var motorConfig = new TalonFXConfiguration();
-    motorConfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    motorConfig.MotorOutput.NeutralMode = Constants.TurretConstants.NEUTRAL_MODE;
 
     // Software limits
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;

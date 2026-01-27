@@ -3,7 +3,6 @@ package frc.robot.subsystems.intake;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.IntakeConstants;
 
 public class IntakeIOTalonFX implements IntakeIO {
@@ -13,15 +12,15 @@ public class IntakeIOTalonFX implements IntakeIO {
   private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
 
   public IntakeIOTalonFX() {
-    upperMotor = new TalonFX(IntakeConstants.UPPER_MOTOR_CAN_ID);
-    lowerMotor = new TalonFX(IntakeConstants.LOWER_MOTOR_CAN_ID);
+    upperMotor = new TalonFX(IntakeConstants.UPPER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
+    lowerMotor = new TalonFX(IntakeConstants.LOWER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
     config.CurrentLimits.StatorCurrentLimit = IntakeConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = IntakeConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
-    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.MotorOutput.NeutralMode = IntakeConstants.NEUTRAL_MODE;
 
     upperMotor.getConfigurator().apply(config);
     lowerMotor.getConfigurator().apply(config);

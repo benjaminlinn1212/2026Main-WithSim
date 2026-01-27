@@ -1,42 +1,62 @@
 package frc.robot.subsystems.indexer;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.StrictFollower;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.IndexerConstants;
 
 public class IndexerIOTalonFX implements IndexerIO {
 
-  private final TalonFX motor;
+  private final TalonFX leaderMotor;
+  private final TalonFX followerMotor;
+  private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0.0);
 
   public IndexerIOTalonFX() {
-    motor = new TalonFX(IndexerConstants.MOTOR_CAN_ID);
+    leaderMotor = new TalonFX(IndexerConstants.LEADER_MOTOR_CAN_ID, IndexerConstants.CAN_BUS);
+    followerMotor = new TalonFX(IndexerConstants.FOLLOWER_MOTOR_CAN_ID, IndexerConstants.CAN_BUS);
 
-    TalonFXConfiguration config = new TalonFXConfiguration();
-    config.CurrentLimits.StatorCurrentLimit = IndexerConstants.STATOR_CURRENT_LIMIT;
-    config.CurrentLimits.StatorCurrentLimitEnable = true;
-    config.CurrentLimits.SupplyCurrentLimit = IndexerConstants.SUPPLY_CURRENT_LIMIT;
-    config.CurrentLimits.SupplyCurrentLimitEnable = true;
-    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    // Configure leader motor
+    TalonFXConfiguration leaderConfig = new TalonFXConfiguration();
+    leaderConfig.CurrentLimits.StatorCurrentLimit = IndexerConstants.STATOR_CURRENT_LIMIT;
+    leaderConfig.CurrentLimits.StatorCurrentLimitEnable = true;
+    leaderConfig.CurrentLimits.SupplyCurrentLimit = IndexerConstants.SUPPLY_CURRENT_LIMIT;
+    leaderConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
+    leaderConfig.MotorOutput.NeutralMode = IndexerConstants.NEUTRAL_MODE;
+    leaderConfig.MotorOutput.Inverted = IndexerConstants.LEADER_INVERTED;
 
-    motor.getConfigurator().apply(config);
+    leaderMotor.getConfigurator().apply(leaderConfig);
+
+    // Configure follower motor
+    TalonFXConfiguration followerConfig = new TalonFXConfiguration();
+    followerConfig.CurrentLimits.StatorCurrentLimit = IndexerConstants.STATOR_CURRENT_LIMIT;
+    followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
+    followerConfig.CurrentLimits.SupplyCurrentLimit = IndexerConstants.SUPPLY_CURRENT_LIMIT;
+    followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
+    followerConfig.MotorOutput.NeutralMode = IndexerConstants.NEUTRAL_MODE;
+    followerConfig.MotorOutput.Inverted = IndexerConstants.FOLLOWER_INVERTED;
+
+    followerMotor.getConfigurator().apply(followerConfig);
+
+    // Set follower to follow leader with StrictFollower
+    followerMotor.setControl(new StrictFollower(IndexerConstants.LEADER_MOTOR_CAN_ID));
   }
 
   @Override
   public void updateInputs(IndexerIOInputs inputs) {
-    inputs.velocityRotPerSec = motor.getVelocity().getValueAsDouble();
-    inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
-    inputs.currentAmps = motor.getStatorCurrent().getValueAsDouble();
-    inputs.temperatureCelsius = motor.getDeviceTemp().getValueAsDouble();
+    inputs.velocityRotPerSec = leaderMotor.getVelocity().getValueAsDouble();
+    inputs.appliedVolts = leaderMotor.getMotorVoltage().getValueAsDouble();
+    inputs.currentAmps = leaderMotor.getStatorCurrent().getValueAsDouble();
+    inputs.temperatureCelsius = leaderMotor.getDeviceTemp().getValueAsDouble();
   }
 
   @Override
-  public void setVoltage(double volts) {
-    motor.setVoltage(volts);
+  public void setDutyCycle(double dutyCycle) {
+    leaderMotor.setControl(dutyCycleControl.withOutput(dutyCycle));
   }
 
   @Override
   public void stop() {
-    motor.stopMotor();
+    leaderMotor.stopMotor();
   }
 }

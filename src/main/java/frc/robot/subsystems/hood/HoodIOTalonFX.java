@@ -5,7 +5,6 @@ import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.GravityTypeValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.util.Units;
 import frc.robot.Constants;
@@ -18,11 +17,11 @@ public class HoodIOTalonFX implements HoodIO {
   private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0.0);
 
   public HoodIOTalonFX() {
-    motor = new TalonFX(Constants.HoodConstants.MOTOR_CAN_ID);
+    motor = new TalonFX(Constants.HoodConstants.MOTOR_CAN_ID, Constants.HoodConstants.CAN_BUS);
 
     // Configure TalonFX
     var motorConfig = new TalonFXConfiguration();
-    motorConfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    motorConfig.MotorOutput.NeutralMode = Constants.HoodConstants.NEUTRAL_MODE;
 
     // Software limits
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;

@@ -3,7 +3,6 @@ package frc.robot.subsystems.climb;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.ClimbConstants;
 
 public class ClimbIOTalonFX implements ClimbIO {
@@ -12,7 +11,7 @@ public class ClimbIOTalonFX implements ClimbIO {
   private final MotionMagicVoltage positionControl = new MotionMagicVoltage(0);
 
   public ClimbIOTalonFX() {
-    motor = new TalonFX(ClimbConstants.MOTOR_CAN_ID);
+    motor = new TalonFX(ClimbConstants.MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 
@@ -35,7 +34,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     config.CurrentLimits.SupplyCurrentLimit = ClimbConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
 
-    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.MotorOutput.NeutralMode = ClimbConstants.NEUTRAL_MODE;
 
     motor.getConfigurator().apply(config);
     motor.setPosition(0); // Reset position on startup

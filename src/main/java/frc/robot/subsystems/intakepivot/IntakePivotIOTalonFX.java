@@ -3,8 +3,6 @@ package frc.robot.subsystems.intakepivot;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicDutyCycle;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.IntakePivotConstants;
 
 public class IntakePivotIOTalonFX implements IntakePivotIO {
@@ -13,7 +11,7 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
   private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0);
 
   public IntakePivotIOTalonFX() {
-    motor = new TalonFX(IntakePivotConstants.MOTOR_CAN_ID);
+    motor = new TalonFX(IntakePivotConstants.MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 
@@ -37,11 +35,8 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
 
-    // Motor inversion (clockwise positive)
-    config.MotorOutput.Inverted =
-        IntakePivotConstants.MOTOR_INVERTED
-            ? InvertedValue.Clockwise_Positive
-            : InvertedValue.CounterClockwise_Positive;
+    // Motor inversion
+    config.MotorOutput.Inverted = IntakePivotConstants.MOTOR_INVERTED;
 
     // Current limits
     config.CurrentLimits.StatorCurrentLimit = IntakePivotConstants.STATOR_CURRENT_LIMIT;
@@ -49,7 +44,7 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.CurrentLimits.SupplyCurrentLimit = IntakePivotConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
 
-    config.MotorOutput.NeutralMode = NeutralModeValue.Brake;
+    config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
 
     // Set motor encoder offset (adjust the motor's internal sensor reading)
     config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;

@@ -1,6 +1,5 @@
 package frc.robot.subsystems.shooter;
 
-import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ShooterConstants;
@@ -11,10 +10,8 @@ public class ShooterSubsystem extends SubsystemBase {
   private final ShooterIO io;
   private final ShooterIOInputsAutoLogged inputs = new ShooterIOInputsAutoLogged();
 
-  private static ShooterSubsystem instance;
-
   /** Constructs a {@link ShooterSubsystem} subsystem instance */
-  private ShooterSubsystem(ShooterIO io) {
+  public ShooterSubsystem(ShooterIO io) {
     this.io = io;
   }
 
@@ -133,24 +130,5 @@ public class ShooterSubsystem extends SubsystemBase {
 
     Logger.recordOutput("Shooter/ReadyForHub", readyForHub());
     Logger.recordOutput("Shooter/ReadyForPass", readyForPass());
-  }
-
-  /**
-   * Gets the {@link ShooterSubsystem} subsystem instance
-   *
-   * @return The {@link ShooterSubsystem} subsystem instance
-   */
-  public static ShooterSubsystem getInstance() {
-    if (instance == null) {
-      if (RobotBase.isSimulation()) {
-        instance = new ShooterSubsystem(new ShooterIOSim());
-        Logger.recordOutput("Shooter/IOType", "Simulation");
-      } else {
-        instance = new ShooterSubsystem(new ShooterIOTalonFX());
-        Logger.recordOutput("Shooter/IOType", "TalonFX");
-      }
-    }
-
-    return instance;
   }
 }

@@ -2,22 +2,24 @@ package frc.robot.subsystems.indexer;
 
 public class IndexerIOSim implements IndexerIO {
 
-  private double appliedVolts = 0.0;
+  private double appliedDutyCycle = 0.0;
 
   @Override
   public void updateInputs(IndexerIOInputs inputs) {
-    inputs.appliedVolts = appliedVolts;
-    // Simplified simulation - just track applied voltage
-    inputs.velocityRotPerSec = appliedVolts * 10; // Rough simulation
+    // Simplified simulation - duty cycle to voltage approximation
+    inputs.appliedVolts = appliedDutyCycle * 12.0; // Assume 12V supply
+    inputs.velocityRotPerSec = appliedDutyCycle * 120.0; // Rough simulation
+    inputs.currentAmps = Math.abs(appliedDutyCycle) * 10.0;
+    inputs.temperatureCelsius = 25.0;
   }
 
   @Override
-  public void setVoltage(double volts) {
-    this.appliedVolts = volts;
+  public void setDutyCycle(double dutyCycle) {
+    this.appliedDutyCycle = dutyCycle;
   }
 
   @Override
   public void stop() {
-    this.appliedVolts = 0.0;
+    this.appliedDutyCycle = 0.0;
   }
 }

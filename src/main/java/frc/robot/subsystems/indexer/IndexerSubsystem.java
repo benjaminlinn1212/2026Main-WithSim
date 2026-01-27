@@ -28,7 +28,7 @@ public class IndexerSubsystem extends SubsystemBase {
    */
   public Command toShooter() {
     return run(() -> {
-          io.setVoltage(IndexerConstants.TO_SHOOTER_VOLTAGE);
+          io.setDutyCycle(IndexerConstants.TO_SHOOTER_DUTY_CYCLE);
         })
         .withName("IndexerToShooter");
   }

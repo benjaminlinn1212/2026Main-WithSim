@@ -7,7 +7,6 @@ import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
-import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.Constants.ShooterConstants;
 
 public class ShooterIOTalonFX implements ShooterIO {
@@ -17,11 +16,11 @@ public class ShooterIOTalonFX implements ShooterIO {
   private final VoltageOut voltageControl = new VoltageOut(0);
 
   public ShooterIOTalonFX() {
-    motor = new TalonFX(ShooterConstants.MOTOR_CAN_ID);
+    motor = new TalonFX(ShooterConstants.MOTOR_CAN_ID, ShooterConstants.CAN_BUS);
 
     motor.getConfigurator().apply(shooterConfiguration());
 
-    motor.setNeutralMode(NeutralModeValue.Coast);
+    motor.setNeutralMode(ShooterConstants.NEUTRAL_MODE);
   }
 
   @Override

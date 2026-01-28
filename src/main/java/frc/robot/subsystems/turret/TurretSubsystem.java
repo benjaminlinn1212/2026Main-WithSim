@@ -5,6 +5,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -65,7 +66,7 @@ public class TurretSubsystem extends SubsystemBase {
     Logger.recordOutput("Turret/SetpointRad", positionSetpointRad);
 
     // Calculate and log position error
-    double errorRad = positionSetpointRad - inputs.positionRad;
+    double errorRad = positionSetpointRad - Units.rotationsToRadians(inputs.positionRot);
     Logger.recordOutput("Turret/ErrorRad", errorRad);
     Logger.recordOutput("Turret/ErrorDeg", Math.toDegrees(errorRad));
   }
@@ -126,6 +127,14 @@ public class TurretSubsystem extends SubsystemBase {
   /**
    * Command to aim turret at the hub based on robot pose. Uses the appropriate aim target based on
    * alliance color. Continuously tracks target even when robot rotates.
+   *
+   * <p>IMPORTANT: Accounts for turret offset from robot center. When the turret is not at the
+   * robot's center, the aiming angle must be calculated from the turret's actual field position,
+   * not the robot's center position.
+   *
+   * <p>Calculation steps: 1. Get robot center position and heading 2. Transform turret offset
+   * through robot rotation to get turret's field position 3. Calculate angle from turret position
+   * to target (not from robot center) 4. Convert field-relative angle to turret-relative angle
    */
   public Command aimHub() {
     return runOnce(
@@ -139,6 +148,14 @@ public class TurretSubsystem extends SubsystemBase {
                   // Get robot pose
                   Pose2d robotPose = robotPoseSupplier.get();
                   Translation2d robotPosition = robotPose.getTranslation();
+                  Rotation2d robotHeading = robotPose.getRotation();
+
+                  // Calculate turret's actual field position by transforming offset through robot
+                  // rotation
+                  Translation2d turretOffset =
+                      Constants.TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
+                  Translation2d turretOffsetRotated = turretOffset.rotateBy(robotHeading);
+                  Translation2d turretPosition = robotPosition.plus(turretOffsetRotated);
 
                   // Get target position based on alliance
                   Translation3d targetPosition;
@@ -149,15 +166,14 @@ public class TurretSubsystem extends SubsystemBase {
                     targetPosition = Constants.FieldPoses.BLUE_AIM_TARGET;
                   }
 
-                  // Calculate angle to target (field-relative)
-                  Translation2d robotToTarget =
+                  // Calculate angle to target (field-relative) from TURRET position
+                  Translation2d turretToTarget =
                       new Translation2d(targetPosition.getX(), targetPosition.getY())
-                          .minus(robotPosition);
-                  Rotation2d angleToTargetFieldRelative = robotToTarget.getAngle();
+                          .minus(turretPosition);
+                  Rotation2d angleToTargetFieldRelative = turretToTarget.getAngle();
 
                   // Convert to turret-relative angle by subtracting robot heading
                   // Turret angle = field angle to target - robot heading
-                  Rotation2d robotHeading = robotPose.getRotation();
                   Rotation2d turretAngle = angleToTargetFieldRelative.minus(robotHeading);
 
                   // Calculate feedforward velocity to compensate for robot motion
@@ -167,7 +183,7 @@ public class TurretSubsystem extends SubsystemBase {
                   double rotationAngularVel = -chassisSpeeds.omegaRadiansPerSecond;
 
                   // Component 2: Translation around target (changes angle to target)
-                  double distanceToTarget = robotToTarget.getNorm();
+                  double distanceToTarget = turretToTarget.getNorm();
                   double translationAngularVel = 0.0;
 
                   if (distanceToTarget > 0.01) { // Avoid division by zero
@@ -198,6 +214,8 @@ public class TurretSubsystem extends SubsystemBase {
                   double wrappedTarget = adjustSetpointForWrap(predictedTargetRad);
 
                   // Log aiming details for tuning
+                  Logger.recordOutput("Turret/Aiming/RobotPosition", robotPosition);
+                  Logger.recordOutput("Turret/Aiming/TurretPosition", turretPosition);
                   Logger.recordOutput("Turret/Aiming/TargetAngleRad", targetRad);
                   Logger.recordOutput("Turret/Aiming/PredictedAngleRad", predictedTargetRad);
                   Logger.recordOutput("Turret/Aiming/RotationAngularVel", rotationAngularVel);
@@ -265,6 +283,7 @@ public class TurretSubsystem extends SubsystemBase {
     // Choose the path that:
     // 1. Is shorter
     // 2. Doesn't exceed physical limits
+    // Limits are now in radians directly
     double minLimit = Constants.TurretConstants.MIN_POSITION_RAD;
     double maxLimit = Constants.TurretConstants.MAX_POSITION_RAD;
 
@@ -297,7 +316,9 @@ public class TurretSubsystem extends SubsystemBase {
   private void setPositionSetpointImpl(double radiansFromCenter, double radPerSecond) {
     Logger.recordOutput("Turret/SetPositionSetpoint/radiansFromCenter", radiansFromCenter);
     Logger.recordOutput("Turret/SetPositionSetpoint/radPerSecond", radPerSecond);
-    io.setPositionSetpoint(radiansFromCenter, radPerSecond);
+    // Convert radians to rotations for hardware interface
+    io.setPositionSetpoint(
+        Units.radiansToRotations(radiansFromCenter), Units.radiansToRotations(radPerSecond));
   }
 
   private void updateModeChange() {
@@ -305,7 +326,7 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   public double getCurrentPosition() {
-    return inputs.positionRad;
+    return Units.rotationsToRadians(inputs.positionRot);
   }
 
   public double getSetpoint() {
@@ -319,7 +340,7 @@ public class TurretSubsystem extends SubsystemBase {
   /** Checks if turret is at the desired setpoint within tolerance. */
   public boolean atSetpoint() {
     return Math.abs(getCurrentPosition() - positionSetpointRad)
-        < Constants.TurretConstants.AIMING_TOLERANCE_RAD;
+        < Constants.TurretConstants.AIMING_TOLERANCE_ROT;
   }
 
   /** Command for open-loop duty cycle control (for testing). */

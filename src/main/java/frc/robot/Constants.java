@@ -63,7 +63,9 @@ public final class Constants {
     public static final Pose2d TEST = new Pose2d(2.3, 4.5, Rotation2d.fromDegrees(0));
 
     // Auto-aim target positions (e.g., Hub)
-    public static final Translation3d BLUE_AIM_TARGET = new Translation3d(4.625689, 4.040981, 0);
+    public static final Translation3d BLUE_AIM_TARGET =
+        // new Translation3d(4.625689, 4.040981, 0);
+        new Translation3d(1, 1, 0);
     public static final Translation3d RED_AIM_TARGET =
         new Translation3d(16.54175 - 4.625689, 4.040981, 0); // Mirrored across field
   }
@@ -184,7 +186,7 @@ public final class Constants {
   public static class ShooterConstants {
     // Motor CAN ID
     public static final int MOTOR_CAN_ID = 60;
-    public static final String CAN_BUS = "Drivetrain";
+    public static final String CAN_BUS = "Superstructure";
 
     // Gear ratio (motor rotations to shooter wheel rotations)
     public static final double GEAR_RATIO = 3.0;
@@ -323,13 +325,13 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
     // Indexer duty cycle
-    public static final double TO_SHOOTER_DUTY_CYCLE = 0.5;
+    public static final double TO_SHOOTER_DUTY_CYCLE = 0.8;
   }
 
   public static class ClimbConstants {
     // Motor CAN ID
     public static final int MOTOR_CAN_ID = 46;
-    public static final String CAN_BUS = "rio";
+    public static final String CAN_BUS = "Superstructure";
 
     // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
@@ -361,34 +363,45 @@ public final class Constants {
   }
 
   public static class TurretConstants {
-    // Motor CAN IDs
-    public static final int MOTOR_CAN_ID = 50;
-    public static final int CANCODER_CAN_ID = 51;
+    // Motor CAN ID
+    public static final int MOTOR_CAN_ID = 44;
     public static final String CAN_BUS = "Superstructure";
 
+    // Turret position offset from robot center (meters)
+    // Positive X = forward from robot center, Positive Y = left from robot center
+    // This is CRITICAL for accurate aiming when the turret is not at the robot's center.
+    // To measure: With robot at origin facing +X, measure turret's X and Y coordinates.
+    // Example: If turret is 0.2m forward and 0.1m left of robot center:
+    //   new Translation2d(0.2, 0.1)
+    public static final Translation2d TURRET_OFFSET_FROM_ROBOT_CENTER =
+        new Translation2d(0.1909, 0.0);
+
     // Gear ratio (motor rotations to turret rotations)
-    public static final double GEAR_RATIO = 100.0; // Example: 100:1 reduction
+    public static final double GEAR_RATIO = 26.812;
+
+    // Motor inversion (positive = counter-clockwise when viewed from above)
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
 
     // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // CANCoder configuration
-    public static final double CANCODER_OFFSET = 0.0; // Adjust based on physical alignment
+    // Rotor offset for zeroing (motor rotations - this stays in rotations as it's a motor property)
+    public static final double ROTOR_OFFSET = -0.03;
 
-    // Position limits (radians)
-    public static final double MIN_POSITION_RAD = -Math.PI; // -180 degrees
-    public static final double MAX_POSITION_RAD = Math.PI; // 180 degrees
+    // Position limits (RADIANS - mechanism angle limits)
+    public static final double MIN_POSITION_RAD = Units.rotationsToRadians(-0.5); // -π radians
+    public static final double MAX_POSITION_RAD = Units.rotationsToRadians(0.5); // +π radians
 
     // PID constants (tuned for position control)
-    public static final double KP = 20.0;
+    public static final double KP = 1.0;
     public static final double KI = 0.0;
-    public static final double KD = 0.2;
-    public static final double KS = 0.18;
-    public static final double KV = 0.12;
-    public static final double KA = 0.02;
+    public static final double KD = 0.0;
+    public static final double KS = 0.0;
+    public static final double KV = 0.0;
+    public static final double KA = 0.0;
 
     // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 120.0;
+    public static final double CRUISE_VELOCITY = 100.0;
     public static final double ACCELERATION = 1200.0;
     public static final double JERK = 9000.0;
 
@@ -396,20 +409,18 @@ public final class Constants {
     public static final double STATOR_CURRENT_LIMIT = 150.0;
     public static final double SUPPLY_CURRENT_LIMIT = 80.0;
 
-    // Position tolerance for aiming
-    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
+    // Position tolerance for aiming (rotations)
+    public static final double AIMING_TOLERANCE_ROT = Units.degreesToRadians(2.0) / (2 * Math.PI);
 
     // Latency compensation for aiming (seconds)
     // Accounts for control loop delay + motor response time
     // Start low and increase only if you see consistent lag
-    public static final double AIMING_LATENCY_COMPENSATION =
-        0.15; // Increased to 120ms for better tracking
+    public static final double AIMING_LATENCY_COMPENSATION = 0.1;
 
-    // Position setpoints (radians)
-    public static final double STOW_POSITION = 0.0; // Forward
-    public static final double SHOOT_BACK_BLUE_POSITION =
-        Math.PI; // Backward (180°) for blue alliance
-    public static final double SHOOT_BACK_RED_POSITION = 0.0; // Forward (0°) for red alliance
+    // Position setpoints (RADIANS for subsystem use)
+    public static final double STOW_POSITION = 0.0; // Forward (radians)
+    public static final double SHOOT_BACK_BLUE_POSITION = Math.PI; // 180 degrees (radians)
+    public static final double SHOOT_BACK_RED_POSITION = 0.0; // Forward (radians)
   }
 
   public static class HoodConstants {

@@ -2,6 +2,7 @@ package frc.robot.subsystems.turret;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.system.plant.DCMotor;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
 import frc.robot.Constants;
 
@@ -23,8 +24,8 @@ public class TurretIOSim implements TurretIO {
             Constants.TurretConstants.GEAR_RATIO, // Gear ratio
             0.5, // Moment of inertia (kg*m^2) - adjust based on actual mechanism
             0.2, // Arm length (meters) - for simulation purposes
-            Constants.TurretConstants.MIN_POSITION_RAD, // Min angle
-            Constants.TurretConstants.MAX_POSITION_RAD, // Max angle
+            Constants.TurretConstants.MIN_POSITION_RAD, // Min angle (radians)
+            Constants.TurretConstants.MAX_POSITION_RAD, // Max angle (radians)
             false, // Simulate gravity (false for turret, true for arm)
             0.0); // Starting angle
   }
@@ -44,9 +45,9 @@ public class TurretIOSim implements TurretIO {
     sim.setInputVoltage(appliedVolts);
     sim.update(0.02); // 20ms update period
 
-    // Read simulated values
-    inputs.positionRad = sim.getAngleRads();
-    inputs.velocityRadPerSec = sim.getVelocityRadPerSec();
+    // Read simulated values (convert from radians to rotations)
+    inputs.positionRot = Units.radiansToRotations(sim.getAngleRads());
+    inputs.velocityRotPerSec = Units.radiansToRotations(sim.getVelocityRadPerSec());
     inputs.absolutePosition = sim.getAngleRads();
     inputs.appliedVolts = appliedVolts;
     inputs.currentStatorAmps = Math.abs(sim.getCurrentDrawAmps());
@@ -55,14 +56,15 @@ public class TurretIOSim implements TurretIO {
   }
 
   @Override
-  public void setPositionSetpoint(double radiansFromCenter, double radPerSecond) {
+  public void setPositionSetpoint(double rotationsFromCenter, double rotPerSecond) {
     closedLoop = true;
+    // Convert rotations to radians for internal sim calculations
     positionSetpointRad =
         MathUtil.clamp(
-            radiansFromCenter,
+            Units.rotationsToRadians(rotationsFromCenter),
             Constants.TurretConstants.MIN_POSITION_RAD,
             Constants.TurretConstants.MAX_POSITION_RAD);
-    velocitySetpointRadPerSec = radPerSecond;
+    velocitySetpointRadPerSec = Units.rotationsToRadians(rotPerSecond);
   }
 
   @Override

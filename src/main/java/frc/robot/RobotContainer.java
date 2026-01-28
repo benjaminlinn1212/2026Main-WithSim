@@ -225,8 +225,7 @@ public class RobotContainer {
         .rightBumper()
         .onTrue(
             Commands.runOnce(
-                    () -> swerveIO.setPose(new Pose2d(1.0, 1.0, Rotation2d.fromDegrees(0))),
-                    swerveIO)
+                    () -> swerveIO.setPose(new Pose2d(0, 0, Rotation2d.fromDegrees(0))), swerveIO)
                 .ignoringDisable(true));
 
     // === SMART TURRET AIMING ===

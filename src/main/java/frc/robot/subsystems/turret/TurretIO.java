@@ -6,8 +6,8 @@ public interface TurretIO {
 
   @AutoLog
   public static class TurretIOInputs {
-    public double positionRad = 0.0;
-    public double velocityRadPerSec = 0.0;
+    public double positionRot = 0.0;
+    public double velocityRotPerSec = 0.0;
     public double absolutePosition = 0.0;
     public double appliedVolts = 0.0;
     public double currentStatorAmps = 0.0;
@@ -18,8 +18,8 @@ public interface TurretIO {
   /** Updates the set of loggable inputs. */
   public default void updateInputs(TurretIOInputs inputs) {}
 
-  /** Set the turret position setpoint in radians with feedforward velocity */
-  public default void setPositionSetpoint(double positionRad, double ffVelocity) {}
+  /** Set the turret position setpoint in rotations with feedforward velocity */
+  public default void setPositionSetpoint(double positionRot, double ffVelocity) {}
 
   /** Set open loop duty cycle (-1.0 to 1.0) for manual control */
   public default void setOpenLoopDutyCycle(double dutyCycle) {}

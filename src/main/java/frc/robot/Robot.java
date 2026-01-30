@@ -143,6 +143,11 @@ public class Robot extends LoggedRobot {
   /** This function is called once when the robot is first started up. */
   @Override
   public void simulationInit() {
+    // Set starting pose for simulation (0.5m, 0.5m, 0°)
+    robotContainer.setSwerveStartingPose(
+        new edu.wpi.first.math.geometry.Pose2d(
+            0.5, 0.5, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0)));
+
     // Place game pieces on the field for simulation
     if (Constants.DriveConstants.USE_MAPLE_SIM) {
       SimulatedArena.getInstance().placeGamePiecesOnField();

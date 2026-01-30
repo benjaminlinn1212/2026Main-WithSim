@@ -19,7 +19,7 @@ public class HoodIOSim implements HoodIO {
     // starting angle
     sim =
         new SingleJointedArmSim(
-            DCMotor.getFalcon500(1), // Motor
+            DCMotor.getFalcon500Foc(1), // Falcon 500 FOC (similar to X44)
             Constants.HoodConstants.GEAR_RATIO, // Gear ratio
             0.3, // Moment of inertia (kg*m^2) - adjust based on actual mechanism
             0.3, // Arm length (meters) - approximate hood length

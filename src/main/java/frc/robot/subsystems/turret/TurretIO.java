@@ -18,8 +18,8 @@ public interface TurretIO {
   /** Updates the set of loggable inputs. */
   public default void updateInputs(TurretIOInputs inputs) {}
 
-  /** Set the turret position setpoint in rotations with feedforward velocity */
-  public default void setPositionSetpoint(double positionRot, double ffVelocity) {}
+  /** Set the turret position setpoint in rotations with feedforward voltage */
+  public default void setPositionSetpoint(double positionRot, double feedforwardVolts) {}
 
   /** Set open loop duty cycle (-1.0 to 1.0) for manual control */
   public default void setOpenLoopDutyCycle(double dutyCycle) {}

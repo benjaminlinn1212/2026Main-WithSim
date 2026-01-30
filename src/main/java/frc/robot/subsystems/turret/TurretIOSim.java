@@ -20,14 +20,14 @@ public class TurretIOSim implements TurretIO {
     // starting angle
     sim =
         new SingleJointedArmSim(
-            DCMotor.getFalcon500(1), // Motor
-            Constants.TurretConstants.GEAR_RATIO, // Gear ratio
-            0.5, // Moment of inertia (kg*m^2) - adjust based on actual mechanism
-            0.2, // Arm length (meters) - for simulation purposes
-            Constants.TurretConstants.MIN_POSITION_RAD, // Min angle (radians)
-            Constants.TurretConstants.MAX_POSITION_RAD, // Max angle (radians)
-            false, // Simulate gravity (false for turret, true for arm)
-            0.0); // Starting angle
+            DCMotor.getKrakenX60(1),
+            Constants.TurretConstants.GEAR_RATIO,
+            0.06,
+            0.15,
+            Constants.TurretConstants.MIN_POSITION_RAD,
+            Constants.TurretConstants.MAX_POSITION_RAD,
+            false,
+            0.0);
   }
 
   @Override
@@ -56,7 +56,7 @@ public class TurretIOSim implements TurretIO {
   }
 
   @Override
-  public void setPositionSetpoint(double rotationsFromCenter, double rotPerSecond) {
+  public void setPositionSetpoint(double rotationsFromCenter, double feedforwardVolts) {
     closedLoop = true;
     // Convert rotations to radians for internal sim calculations
     positionSetpointRad =
@@ -64,7 +64,9 @@ public class TurretIOSim implements TurretIO {
             Units.rotationsToRadians(rotationsFromCenter),
             Constants.TurretConstants.MIN_POSITION_RAD,
             Constants.TurretConstants.MAX_POSITION_RAD);
-    velocitySetpointRadPerSec = Units.rotationsToRadians(rotPerSecond);
+    // In sim, we can derive feedforward velocity from voltage if needed
+    // For now, just use the position setpoint (sim doesn't need perfect FF)
+    velocitySetpointRadPerSec = 0.0;
   }
 
   @Override

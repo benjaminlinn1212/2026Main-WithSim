@@ -216,7 +216,7 @@ public class RobotContainer {
 
               double vxMetersPerSec = leftY * 5.0; // Max 5 m/s
               double vyMetersPerSec = leftX * 5.0;
-              double omegaRadPerSec = rightX * Math.PI; // Max PI rad/s
+              double omegaRadPerSec = rightX * Math.PI * 2;
               swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
             swerveIO));
@@ -274,6 +274,15 @@ public class RobotContainer {
         .rightTrigger()
         .whileTrue(superstructure.scoreHubFromAllianceZone())
         .onFalse(superstructure.aimHubFromAllianceZone());
+  }
+
+  /**
+   * Sets the starting pose for the swerve drive (used in simulation).
+   *
+   * @param pose The starting pose
+   */
+  public void setSwerveStartingPose(edu.wpi.first.math.geometry.Pose2d pose) {
+    swerveIO.setPose(pose);
   }
 
   /**

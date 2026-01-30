@@ -65,8 +65,15 @@ public class TurretSubsystem extends SubsystemBase {
     Logger.recordOutput("Turret/State", currentState.toString());
     Logger.recordOutput("Turret/SetpointRad", positionSetpointRad);
 
+    // Calculate turret absolute field heading (robot heading + turret position)
+    double turretPositionRad = Units.rotationsToRadians(inputs.positionRot);
+    double robotHeadingRad = robotPoseSupplier.get().getRotation().getRadians();
+    double turretFieldHeadingRad = robotHeadingRad + turretPositionRad;
+    Logger.recordOutput("Turret/FieldHeadingRad", turretFieldHeadingRad);
+    Logger.recordOutput("Turret/FieldHeadingDeg", Math.toDegrees(turretFieldHeadingRad));
+
     // Calculate and log position error
-    double errorRad = positionSetpointRad - Units.rotationsToRadians(inputs.positionRot);
+    double errorRad = positionSetpointRad - turretPositionRad;
     Logger.recordOutput("Turret/ErrorRad", errorRad);
     Logger.recordOutput("Turret/ErrorDeg", Math.toDegrees(errorRad));
   }
@@ -213,36 +220,37 @@ public class TurretSubsystem extends SubsystemBase {
                   // Apply wrapping logic to predicted target
                   double wrappedTarget = adjustSetpointForWrap(predictedTargetRad);
 
-                  // Log aiming details for tuning
-                  Logger.recordOutput("Turret/Aiming/RobotPosition", robotPosition);
-                  Logger.recordOutput("Turret/Aiming/TurretPosition", turretPosition);
-                  Logger.recordOutput("Turret/Aiming/TargetAngleRad", targetRad);
-                  Logger.recordOutput("Turret/Aiming/PredictedAngleRad", predictedTargetRad);
-                  Logger.recordOutput("Turret/Aiming/RotationAngularVel", rotationAngularVel);
-                  Logger.recordOutput("Turret/Aiming/TranslationAngularVel", translationAngularVel);
-                  Logger.recordOutput("Turret/Aiming/TotalAngularVel", totalAngularVel);
-                  Logger.recordOutput("Turret/Aiming/FeedforwardVel", totalAngularVel);
+                  // Log key aiming data
                   Logger.recordOutput("Turret/Aiming/DistanceToTarget", distanceToTarget);
+                  Logger.recordOutput("Turret/Aiming/FeedforwardVel", totalAngularVel);
 
-                  // Use total angular velocity as feedforward
-                  setPositionSetpointImpl(wrappedTarget, totalAngularVel);
+                  // Convert velocity feedforward to Volts
+                  // Motion Magic already handles KV for the profile, but we need extra
+                  // feedforward to compensate for robot motion (rotation + translation)
+                  // Formula: Volts = (rad/s) * (V/(rot/s)) * (motor_rot/mech_rot)
+                  double feedforwardVolts =
+                      totalAngularVel
+                          * Constants.TurretConstants.KV
+                          * Constants.TurretConstants.GEAR_RATIO;
+
+                  setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
                   positionSetpointRad = wrappedTarget;
                 }))
         .withName("Turret Aim Hub");
   }
 
   /**
-   * Command to set turret position with feedforward velocity. Implements Team 254's wrapping logic
+   * Command to set turret position with feedforward voltage. Implements Team 254's wrapping logic
    * for smooth continuous rotation.
    */
   public Command positionSetpointCommand(
-      DoubleSupplier radiansFromCenter, DoubleSupplier ffVelocity) {
-    return positionSetpointUntilUnwrapped(radiansFromCenter, ffVelocity)
+      DoubleSupplier radiansFromCenter, DoubleSupplier feedforwardVolts) {
+    return positionSetpointUntilUnwrapped(radiansFromCenter, feedforwardVolts)
         .andThen(
             run(
                 () -> {
                   double setpoint = adjustSetpointForWrap(radiansFromCenter.getAsDouble());
-                  setPositionSetpointImpl(setpoint, ffVelocity.getAsDouble());
+                  setPositionSetpointImpl(setpoint, feedforwardVolts.getAsDouble());
                   positionSetpointRad = setpoint;
                 }))
         .withName("Turret Position Setpoint");
@@ -250,11 +258,12 @@ public class TurretSubsystem extends SubsystemBase {
 
   /** Runs position control until the turret is "unwrapped" (not crossing the wrap point). */
   private Command positionSetpointUntilUnwrapped(
-      DoubleSupplier radiansFromCenter, DoubleSupplier ffVelocity) {
+      DoubleSupplier radiansFromCenter, DoubleSupplier feedforwardVolts) {
     return run(() -> {
           double setpoint = radiansFromCenter.getAsDouble();
           // Don't use feedforward until unwrapped to prevent oscillation
-          setPositionSetpointImpl(setpoint, isUnwrapped(setpoint) ? ffVelocity.getAsDouble() : 0.0);
+          setPositionSetpointImpl(
+              setpoint, isUnwrapped(setpoint) ? feedforwardVolts.getAsDouble() : 0.0);
           positionSetpointRad = setpoint;
         })
         .until(() -> isUnwrapped(radiansFromCenter.getAsDouble()));
@@ -313,12 +322,10 @@ public class TurretSubsystem extends SubsystemBase {
         || Math.abs(getCurrentPosition() - setpoint) < Math.toRadians(10.0);
   }
 
-  private void setPositionSetpointImpl(double radiansFromCenter, double radPerSecond) {
-    Logger.recordOutput("Turret/SetPositionSetpoint/radiansFromCenter", radiansFromCenter);
-    Logger.recordOutput("Turret/SetPositionSetpoint/radPerSecond", radPerSecond);
+  private void setPositionSetpointImpl(double radiansFromCenter, double feedforwardVolts) {
     // Convert radians to rotations for hardware interface
-    io.setPositionSetpoint(
-        Units.radiansToRotations(radiansFromCenter), Units.radiansToRotations(radPerSecond));
+    // feedforwardVolts is already in volts, pass directly
+    io.setPositionSetpoint(Units.radiansToRotations(radiansFromCenter), feedforwardVolts);
   }
 
   private void updateModeChange() {

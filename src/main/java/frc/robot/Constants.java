@@ -392,18 +392,18 @@ public final class Constants {
     public static final double MIN_POSITION_RAD = Units.rotationsToRadians(-0.5); // -π radians
     public static final double MAX_POSITION_RAD = Units.rotationsToRadians(0.5); // +π radians
 
-    // PID constants (tuned for position control)
-    public static final double KP = 1.0;
+    // PID constants (tuned for MotionMagicVoltage mode)
+    public static final double KP = 10.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
-    public static final double KS = 0.0;
-    public static final double KV = 0.0;
+    public static final double KS = 0.25;
+    public static final double KV = 0.12;
     public static final double KA = 0.0;
 
-    // Motion Magic constants
-    public static final double CRUISE_VELOCITY = 100.0;
-    public static final double ACCELERATION = 1200.0;
-    public static final double JERK = 9000.0;
+    // Motion Magic constants (in motor rotations/sec, after gear ratio)
+    public static final double CRUISE_VELOCITY = 100.0; // Motor rotations/sec
+    public static final double ACCELERATION = 1200.0; // Motor rotations/sec²
+    public static final double JERK = 9000.0; // Motor rotations/sec³
 
     // Current limits
     public static final double STATOR_CURRENT_LIMIT = 150.0;
@@ -412,10 +412,9 @@ public final class Constants {
     // Position tolerance for aiming (rotations)
     public static final double AIMING_TOLERANCE_ROT = Units.degreesToRadians(2.0) / (2 * Math.PI);
 
-    // Latency compensation for aiming (seconds)
-    // Accounts for control loop delay + motor response time
-    // Start low and increase only if you see consistent lag
-    public static final double AIMING_LATENCY_COMPENSATION = 0.1;
+    // Latency compensation - predicts target position ahead to account for control delays
+    // Increased since feedforward is disabled (only using prediction now)
+    public static final double AIMING_LATENCY_COMPENSATION = 0.025; // 25ms
 
     // Position setpoints (RADIANS for subsystem use)
     public static final double STOW_POSITION = 0.0; // Forward (radians)

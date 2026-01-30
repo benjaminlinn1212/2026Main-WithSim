@@ -2,7 +2,7 @@ package frc.robot.subsystems.turret;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
-import com.ctre.phoenix6.controls.MotionMagicDutyCycle;
+import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.util.Units;
@@ -12,7 +12,7 @@ import frc.robot.Constants;
 public class TurretIOTalonFX implements TurretIO {
   private final TalonFX motor;
 
-  private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0.0).withSlot(0);
+  private final MotionMagicVoltage positionControl = new MotionMagicVoltage(0.0).withSlot(0);
   private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0.0);
 
   public TurretIOTalonFX() {
@@ -92,9 +92,8 @@ public class TurretIOTalonFX implements TurretIO {
   }
 
   @Override
-  public void setPositionSetpoint(double rotationsFromCenter, double rotPerSecond) {
+  public void setPositionSetpoint(double rotationsFromCenter, double feedforwardVolts) {
     // Clamp setpoint to limits (in mechanism rotations)
-    // Clamp to limits (convert radians back to rotations for hardware interface)
     double clampedRotations =
         MathUtil.clamp(
             rotationsFromCenter,
@@ -105,15 +104,9 @@ public class TurretIOTalonFX implements TurretIO {
     // 1 mech rotation = 26.812 motor rotations
     double motorRotations = clampedRotations * Constants.TurretConstants.GEAR_RATIO;
 
-    // Log the conversion chain for debugging
-    org.littletonrobotics.junction.Logger.recordOutput(
-        "Turret/Hardware/InputMechRot", rotationsFromCenter);
-    org.littletonrobotics.junction.Logger.recordOutput(
-        "Turret/Hardware/ClampedMechRot", clampedRotations);
-    org.littletonrobotics.junction.Logger.recordOutput(
-        "Turret/Hardware/OutputMotorRot", motorRotations);
-
-    motor.setControl(positionControl.withPosition(motorRotations));
+    // feedforwardVolts is already in Volts - use directly in MotionMagicVoltage
+    motor.setControl(
+        positionControl.withPosition(motorRotations).withFeedForward(feedforwardVolts));
   }
 
   @Override

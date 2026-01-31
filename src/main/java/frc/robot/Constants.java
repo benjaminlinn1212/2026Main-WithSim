@@ -18,8 +18,6 @@ import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -53,21 +51,12 @@ public final class Constants {
   public static class FieldPoses {
     public static final double FIELD_LENGTH = 16.54; // meters
     public static final double FIELD_WIDTH = 8.07; // meters
-
-    // Field center point (for ball search fallback)
     public static final Translation2d FIELD_CENTER =
         new Translation2d(FIELD_LENGTH / 2.0, FIELD_WIDTH / 2.0);
-
-    // Common field positions for drive-to-pose
-    // Adjust these based on your field and desired positions
-    public static final Pose2d TEST = new Pose2d(2.3, 4.5, Rotation2d.fromDegrees(0));
-
-    // Auto-aim target positions (e.g., Hub)
-    public static final Translation3d BLUE_AIM_TARGET =
-        // new Translation3d(4.625689, 4.040981, 0);
-        new Translation3d(1, 1, 0);
-    public static final Translation3d RED_AIM_TARGET =
-        new Translation3d(16.54175 - 4.625689, 4.040981, 0); // Mirrored across field
+    public static final Translation3d BLUE_HUB_TRANSLATION3D =
+        new Translation3d(4.625689, 4.040981, 0);
+    public static final Translation3d RED_HUB_POSE_TRANSLATION3D =
+        new Translation3d(16.54175 - 4.625689, 4.040981, 0);
   }
 
   public static class Vision {
@@ -411,10 +400,6 @@ public final class Constants {
 
     // Position tolerance for aiming (rotations)
     public static final double AIMING_TOLERANCE_ROT = Units.degreesToRadians(2.0) / (2 * Math.PI);
-
-    // Latency compensation - predicts target position ahead to account for control delays
-    // Increased since feedforward is disabled (only using prediction now)
-    public static final double AIMING_LATENCY_COMPENSATION = 0.025; // 25ms
 
     // Position setpoints (RADIANS for subsystem use)
     public static final double STOW_POSITION = 0.0; // Forward (radians)

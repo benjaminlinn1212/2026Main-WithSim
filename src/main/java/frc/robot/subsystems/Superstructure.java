@@ -102,7 +102,7 @@ public class Superstructure extends SubsystemBase {
   public Command aimHubFromAllianceZone() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE)),
-            turret.aimHub(),
+            turret.aiming(),
             hood.aimHub(),
             shooter.spinUpForHub(),
             intakePivot.stow(),
@@ -125,8 +125,8 @@ public class Superstructure extends SubsystemBase {
             Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS)),
             intakePivot.deploy(),
             intake.intake(),
-            turret.shootBackFromNeutralZone(),
-            hood.shootBackFromNeutralZone(),
+            turret.aiming(),
+            hood.aimHub(),
             shooter.spinUpForPass())
         .withName("Superstructure_IntakeWhileAimingForPass");
   }

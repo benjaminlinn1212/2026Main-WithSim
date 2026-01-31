@@ -235,32 +235,9 @@ public class RobotContainer {
                 .ignoringDisable(true));
 
     // === SMART TURRET AIMING ===
-    // Left trigger: Auto-aim turret intelligently
-    // - If in neutral zone (crossed target X): shootBackFromNeutralZone
-    // - Else: aimHub at hub
-    // - Release trigger: stow
-    controller
-        .leftTrigger()
-        .whileTrue(
-            Commands.either(
-                // If robot crossed into neutral zone (past target X), shoot back
-                turret.shootBackFromNeutralZone(),
-                // Otherwise aim at hub
-                turret.aimHub(),
-                // Condition: check if robot X is past the target X (neutral zone)
-                () -> {
-                  double robotX = swerveIO.getPose().getX();
-                  var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
-                  if (alliance.isPresent()
-                      && alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Red) {
-                    // Red alliance: past neutral zone if X < red target X
-                    return robotX < Constants.FieldPoses.RED_AIM_TARGET.getX();
-                  } else {
-                    // Blue alliance: past neutral zone if X > blue target X
-                    return robotX > Constants.FieldPoses.BLUE_AIM_TARGET.getX();
-                  }
-                }))
-        .onFalse(turret.stow()); // Stow when trigger released
+    // Left trigger: Auto-aim turret at hub (or alliance wall if in neutral zone)
+    // ShooterSetpoint handles smart target selection internally
+    controller.leftTrigger().whileTrue(turret.aiming()).onFalse(turret.stow());
 
     // === SUPERSTRUCTURE CONTROLS ===
     // A button: Intake from ground

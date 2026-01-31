@@ -9,6 +9,8 @@ import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
 import edu.wpi.first.math.interpolation.InterpolatingTreeMap;
 import edu.wpi.first.math.interpolation.InverseInterpolator;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import frc.robot.Constants;
 import frc.robot.RobotState;
 import java.util.Optional;
@@ -170,11 +172,11 @@ public class ShooterSetpoint {
   // ===== Static Factory Methods (254-style suppliers) =====
 
   /**
-   * Create a supplier that calculates speaker shot setpoints. Uses current project's turret offset
+   * Create a supplier that calculates hub shot setpoints. Uses current project's turret offset
    * accounting.
    */
   public static Supplier<ShooterSetpoint> speakerSetpointSupplier(RobotState robotState) {
-    return () -> calculateSpeakerShot(robotState);
+    return () -> calculateShot(robotState);
   }
 
   /** Get the most recently calculated setpoint (for efficiency). */
@@ -192,11 +194,62 @@ public class ShooterSetpoint {
   // ===== Calculation Methods (6328-style physics with current project's turret logic) =====
 
   /**
-   * Calculate shooter setpoint for speaker shots using: - 6328's interpolation maps and motion
-   * compensation - Current project's turret offset accounting - Physics-based trajectory
-   * calculation
+   * Determines if robot is in neutral zone (between the two hub targets). Returns true if robot
+   * should shoot back towards alliance wall instead of at hub.
    */
-  private static ShooterSetpoint calculateSpeakerShot(RobotState robotState) {
+  private static boolean isInNeutralZone(Pose2d robotPose, Translation3d target) {
+    double robotX = robotPose.getX();
+    double blueTargetX = Constants.FieldPoses.BLUE_HUB_TRANSLATION3D.getX();
+    double redTargetX = Constants.FieldPoses.RED_HUB_POSE_TRANSLATION3D.getX();
+
+    // Robot is in neutral zone if it's between the two hub targets
+    return robotX > blueTargetX && robotX < redTargetX;
+  }
+
+  /**
+   * Get the appropriate target based on alliance and robot position. Returns hub target normally,
+   * or alliance wall direction if in neutral zone.
+   */
+  private static Translation3d getSmartTarget(Pose2d robotPose) {
+    // Get alliance from DriverStation
+    Optional<Alliance> alliance = DriverStation.getAlliance();
+    boolean isBlueAlliance =
+        alliance.isEmpty() || alliance.get() == Alliance.Blue; // Default to blue if no alliance
+
+    Translation3d hubTarget =
+        isBlueAlliance
+            ? Constants.FieldPoses.BLUE_HUB_TRANSLATION3D
+            : Constants.FieldPoses.RED_HUB_POSE_TRANSLATION3D;
+
+    // Check if in neutral zone
+    if (isInNeutralZone(robotPose, hubTarget)) {
+      // Shoot back towards alliance wall
+      if (isBlueAlliance) {
+        // Blue: shoot towards X=0 (blue wall)
+        return new Translation3d(0, robotPose.getY(), hubTarget.getZ());
+      } else {
+        // Red: shoot towards X=field_length (red wall)
+        return new Translation3d(
+            Constants.FieldPoses.FIELD_LENGTH, robotPose.getY(), hubTarget.getZ());
+      }
+    }
+
+    // Normal hub shot
+    return hubTarget;
+  }
+
+  /**
+   * Calculate shooter setpoint for hub shots using: - 6328's interpolation maps and motion
+   * compensation - Current project's turret offset accounting - Physics-based trajectory
+   * calculation - Smart target selection (hub or neutral zone shoot-back)
+   */
+  private static ShooterSetpoint calculateShot(RobotState robotState) {
+    // Check if robot state is available
+    if (robotState.getLatestFieldToRobot() == null) {
+      // Return invalid setpoint if no pose data available yet
+      return new ShooterSetpoint(0, 0, 0, 0, 0, false);
+    }
+
     // Get current robot state
     Pose2d robotPose = robotState.getLatestFieldToRobot().getValue();
     ChassisSpeeds robotVelocity = robotState.getLatestMeasuredFieldRelativeChassisSpeeds();
@@ -217,10 +270,30 @@ public class ShooterSetpoint {
     Translation2d turretOffsetRotated = turretOffset.rotateBy(robotHeading);
     Translation2d turretPosition = robotPosition.plus(turretOffsetRotated);
 
-    // Get target position (speaker)
-    // TODO: Add alliance-aware target selection
-    Translation3d target = Constants.FieldPoses.BLUE_AIM_TARGET;
+    // Get target position with smart selection (hub or neutral zone shoot-back)
+    Translation3d target = getSmartTarget(robotPose);
 
+    // Check if we're in neutral zone shooting back at alliance wall
+    boolean isNeutralZoneShot = isInNeutralZone(robotPose, target);
+
+    if (isNeutralZoneShot) {
+      // Simple neutral zone shot - just point at alliance wall, no motion compensation needed
+      Translation2d turretToTarget =
+          new Translation2d(target.getX(), target.getY()).minus(turretPosition);
+
+      // Calculate turret angle (field-relative angle to wall)
+      Rotation2d turretAngleFieldRelative = turretToTarget.getAngle();
+      Rotation2d turretAngle = turretAngleFieldRelative.minus(robotHeading);
+
+      // Fixed settings for neutral zone shots - just yeet it back
+      double hoodAngle = Math.toRadians(45.0); // 45 degree lob
+      double shooterSpeed = 50.0; // Medium speed
+
+      // No feedforward needed for simple wall shot
+      return new ShooterSetpoint(shooterSpeed, turretAngle.getRadians(), 0.0, hoodAngle, 0.0, true);
+    }
+
+    // Normal hub shot with full motion compensation
     // Calculate distance from turret to target
     Translation2d turretToTarget =
         new Translation2d(target.getX(), target.getY()).minus(turretPosition);

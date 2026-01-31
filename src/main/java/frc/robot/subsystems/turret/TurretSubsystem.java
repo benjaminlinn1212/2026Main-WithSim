@@ -1,10 +1,7 @@
 package frc.robot.subsystems.turret;
 
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -14,11 +11,11 @@ import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Turret subsystem that controls a rotating turret mechanism. Supports multiple states: stow,
- * shootBackFromNeutralZone, and aimHub. Uses Team 254's wrapping logic for smooth continuous
- * rotation.
+ * Turret subsystem that controls a rotating turret mechanism. Supports two states: STOW and AIMING.
+ * Uses Team 254's wrapping logic for smooth continuous rotation.
  *
- * <p>Now uses ShooterSetpoint utility for aim calculations, eliminating duplicate logic.
+ * <p>Uses ShooterSetpoint utility for aim calculations, which handles smart target selection
+ * including neutral zone detection and alliance-aware aiming.
  */
 public class TurretSubsystem extends SubsystemBase {
   private final TurretIO io;
@@ -34,8 +31,7 @@ public class TurretSubsystem extends SubsystemBase {
 
   public enum TurretState {
     STOW,
-    SHOOT_BACK_FROM_NEUTRAL_ZONE,
-    AIM_HUB
+    AIMING
   }
 
   private TurretState currentState = TurretState.STOW;
@@ -93,58 +89,16 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to aim turret for shooting back from neutral zone. Aims at 0 degrees for blue alliance,
-   * 180 degrees for red alliance.
-   */
-  public Command shootBackFromNeutralZone() {
-    return runOnce(
-            () -> {
-              currentState = TurretState.SHOOT_BACK_FROM_NEUTRAL_ZONE;
-              updateModeChange();
-            })
-        .andThen(
-            run(
-                () -> {
-                  // Get robot pose
-                  Pose2d robotPose = robotPoseSupplier.get();
-                  Rotation2d robotHeading = robotPose.getRotation();
-
-                  // Determine field-relative direction to face alliance wall
-                  Rotation2d fieldDirection;
-                  var alliance = DriverStation.getAlliance();
-                  if (alliance.isPresent() && alliance.get() == Alliance.Red) {
-                    // Red: face toward red wall (X+ direction, 0°)
-                    fieldDirection = Rotation2d.fromDegrees(0);
-                  } else {
-                    // Blue: face toward blue wall (X- direction, 180°)
-                    fieldDirection = Rotation2d.fromDegrees(180);
-                  }
-
-                  // Convert field direction to turret-relative angle
-                  Rotation2d turretAngle = fieldDirection.minus(robotHeading);
-
-                  // Get the target angle and apply wrapping logic for shortest path
-                  double targetRad = turretAngle.getRadians();
-                  double wrappedTarget = adjustSetpointForWrap(targetRad);
-
-                  // Set position with wrapping support
-                  setPositionSetpointImpl(wrappedTarget, 0.0);
-                  positionSetpointRad = wrappedTarget;
-                }))
-        .withName("Turret Shoot Back From Neutral Zone");
-  }
-
-  /**
-   * Command to aim turret at the hub using ShooterSetpoint calculations. This replaces the old
-   * duplicate logic with the unified ShooterSetpoint utility.
+   * Command to aim turret using ShooterSetpoint calculations. ShooterSetpoint now handles smart
+   * targeting logic including neutral zone detection and alliance-aware aiming.
    *
-   * <p>Benefits: - Coordinated aiming with hood and shooter - Physics-based trajectory calculation
-   * - Motion compensation with robot velocity - No duplicate calculation logic
+   * <p>Benefits: - Coordinated aiming with hood and shooter - Motion compensation with robot
+   * velocity - Smart target selection (hub or alliance wall) - No duplicate calculation logic
    */
-  public Command aimHub() {
+  public Command aiming() {
     return runOnce(
             () -> {
-              currentState = TurretState.AIM_HUB;
+              currentState = TurretState.AIMING;
               updateModeChange();
             })
         .andThen(

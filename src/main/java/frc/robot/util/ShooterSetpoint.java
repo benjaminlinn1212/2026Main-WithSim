@@ -15,6 +15,7 @@ import frc.robot.Constants;
 import frc.robot.RobotState;
 import java.util.Optional;
 import java.util.function.Supplier;
+import org.littletonrobotics.junction.Logger;
 
 /**
  * ShooterSetpoint represents a complete shooting solution combining: - 6328's physics-based
@@ -34,15 +35,17 @@ public class ShooterSetpoint {
       new InterpolatingDoubleTreeMap();
 
   // Shot calculation parameters
-  private static double minDistance = 1.0; // meters
-  private static double maxDistance = 6.0; // meters
-  private static double phaseDelay = 0.03; // seconds - prediction lookahead
+  private static double minDistance = Constants.Aiming.MIN_SHOT_DISTANCE; // meters
+  private static double maxDistance = Constants.Aiming.MAX_SHOT_DISTANCE; // meters
+  private static double phaseDelay = Constants.Aiming.PHASE_DELAY; // seconds - prediction lookahead
 
   // Filters for feedforward velocity calculation (6328-style)
   private static Rotation2d lastTurretAngle = null;
   private static double lastHoodAngle = Double.NaN;
-  private static final LinearFilter turretAngleFilter = LinearFilter.movingAverage(10);
-  private static final LinearFilter hoodAngleFilter = LinearFilter.movingAverage(10);
+  private static final LinearFilter turretAngleFilter =
+      LinearFilter.movingAverage(Constants.Aiming.FEEDFORWARD_FILTER_TAPS);
+  private static final LinearFilter hoodAngleFilter =
+      LinearFilter.movingAverage(Constants.Aiming.FEEDFORWARD_FILTER_TAPS);
 
   // Override for testing
   public static Optional<Double> overrideShooterRPS = Optional.empty();
@@ -58,6 +61,7 @@ public class ShooterSetpoint {
   private final double hoodRadians;
   private final double hoodFeedforwardRadPerSec;
   private final boolean isValid;
+  private final boolean isNeutralShoot; // True if shooting back at alliance wall from neutral zone
 
   // ===== Static Initialization Block (6328-style interpolation maps) =====
   static {
@@ -106,6 +110,7 @@ public class ShooterSetpoint {
    * @param hoodRadians Hood angle (radians)
    * @param hoodFeedforwardRadPerSec Hood angular velocity feedforward (rad/s)
    * @param isValid Whether this setpoint is physically achievable
+   * @param isNeutralShoot Whether this is a neutral zone shoot-back shot
    */
   public ShooterSetpoint(
       double shooterRPS,
@@ -113,7 +118,8 @@ public class ShooterSetpoint {
       double turretFeedforwardRadPerSec,
       double hoodRadians,
       double hoodFeedforwardRadPerSec,
-      boolean isValid) {
+      boolean isValid,
+      boolean isNeutralShoot) {
     this.shooterRPS = shooterRPS;
     this.shooterStage1RPS = 14.4; // Default stage 1 speed (adjust as needed)
     this.turretRadiansFromCenter = turretRadiansFromCenter;
@@ -121,9 +127,10 @@ public class ShooterSetpoint {
     this.hoodRadians = hoodRadians;
     this.hoodFeedforwardRadPerSec = hoodFeedforwardRadPerSec;
     this.isValid = isValid;
+    this.isNeutralShoot = isNeutralShoot;
   }
 
-  /** Create a shooter setpoint assuming it's valid. */
+  /** Create a shooter setpoint assuming it's valid and not a neutral shot. */
   public ShooterSetpoint(
       double shooterRPS,
       double turretRadiansFromCenter,
@@ -136,7 +143,26 @@ public class ShooterSetpoint {
         turretFeedforwardRadPerSec,
         hoodRadians,
         hoodFeedforwardRadPerSec,
-        true);
+        true,
+        false);
+  }
+
+  /** Create a shooter setpoint with validity flag, assuming not neutral shot. */
+  public ShooterSetpoint(
+      double shooterRPS,
+      double turretRadiansFromCenter,
+      double turretFeedforwardRadPerSec,
+      double hoodRadians,
+      double hoodFeedforwardRadPerSec,
+      boolean isValid) {
+    this(
+        shooterRPS,
+        turretRadiansFromCenter,
+        turretFeedforwardRadPerSec,
+        hoodRadians,
+        hoodFeedforwardRadPerSec,
+        isValid,
+        false);
   }
 
   // ===== Getters (254-style) =====
@@ -167,6 +193,10 @@ public class ShooterSetpoint {
 
   public boolean getIsValid() {
     return isValid;
+  }
+
+  public boolean getIsNeutralShoot() {
+    return isNeutralShoot;
   }
 
   // ===== Static Factory Methods (254-style suppliers) =====
@@ -286,11 +316,16 @@ public class ShooterSetpoint {
       Rotation2d turretAngle = turretAngleFieldRelative.minus(robotHeading);
 
       // Fixed settings for neutral zone shots - just yeet it back
-      double hoodAngle = Math.toRadians(45.0); // 45 degree lob
-      double shooterSpeed = 50.0; // Medium speed
+      double hoodAngle = Math.toRadians(Constants.Aiming.NEUTRAL_ZONE_HOOD_ANGLE_DEG);
+      double shooterSpeed = Constants.ShooterConstants.NEUTRAL_ZONE_SPEED;
+
+      // Log neutral zone shot values
+      Logger.recordOutput("ShooterSetpoint/NeutralZone/Speed", shooterSpeed);
+      Logger.recordOutput("ShooterSetpoint/NeutralZone/HoodAngleDeg", Math.toDegrees(hoodAngle));
 
       // No feedforward needed for simple wall shot
-      return new ShooterSetpoint(shooterSpeed, turretAngle.getRadians(), 0.0, hoodAngle, 0.0, true);
+      return new ShooterSetpoint(
+          shooterSpeed, turretAngle.getRadians(), 0.0, hoodAngle, 0.0, true, true);
     }
 
     // Normal hub shot with full motion compensation
@@ -350,6 +385,11 @@ public class ShooterSetpoint {
 
     // Get shooter speed from interpolation map (6328-style)
     double shooterSpeed = shotFlywheelSpeedMap.get(lookaheadDistance);
+
+    // Log normal hub shot values
+    Logger.recordOutput("ShooterSetpoint/NormalShot/Speed", shooterSpeed);
+    Logger.recordOutput("ShooterSetpoint/NormalShot/Distance", lookaheadDistance);
+    Logger.recordOutput("ShooterSetpoint/NormalShot/HoodAngleDeg", Math.toDegrees(hoodAngle));
 
     // Apply override if set
     if (overrideShooterRPS.isPresent()) {

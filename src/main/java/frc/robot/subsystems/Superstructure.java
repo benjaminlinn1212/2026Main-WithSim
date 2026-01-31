@@ -104,7 +104,7 @@ public class Superstructure extends SubsystemBase {
             Commands.runOnce(() -> setState(SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE)),
             turret.aiming(),
             hood.aimHub(),
-            shooter.spinUpForHub(),
+            shooter.spinUp(),
             intakePivot.stow(),
             intake.stop(),
             conveyor.stop(),
@@ -127,14 +127,14 @@ public class Superstructure extends SubsystemBase {
             intake.intake(),
             turret.aiming(),
             hood.aimHub(),
-            shooter.spinUpForPass())
+            shooter.spinUp())
         .withName("Superstructure_IntakeWhileAimingForPass");
   }
 
   public Command intakeWhilePassing() {
     return Commands.sequence(
             Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_PASSING)),
-            Commands.waitUntil(shooter::readyForPass),
+            Commands.waitUntil(shooter::isReady),
             Commands.parallel(
                 intakePivot.deploy(), intake.intake(), conveyor.goToShooter(), indexer.toShooter()))
         .withName("Superstructure_IntakeWhilePassing");
@@ -149,7 +149,7 @@ public class Superstructure extends SubsystemBase {
             conveyor.stop(),
             // turret.aimHub(),
             // hood.aimHub(),
-            shooter.spinUpForHub())
+            shooter.spinUp())
         .withName("Superstructure_IntakeWhileAimingHub");
   }
 
@@ -228,7 +228,7 @@ public class Superstructure extends SubsystemBase {
   }
 
   public boolean isReadyToShoot() {
-    return shooter.readyForHub()
+    return shooter.isReady()
         && (currentState == SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE
             || currentState == SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS
             || currentState == SuperstructureState.INTAKE_WHILE_AIMING_HUB);
@@ -240,6 +240,6 @@ public class Superstructure extends SubsystemBase {
   }
 
   public double getShooterReadiness() {
-    return shooter.readyForHub() ? 1.0 : 0.5;
+    return shooter.isReady() ? 1.0 : 0.5;
   }
 }

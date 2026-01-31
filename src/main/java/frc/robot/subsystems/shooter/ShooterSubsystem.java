@@ -20,6 +20,9 @@ public class ShooterSubsystem extends SubsystemBase {
   private Supplier<ShooterSetpoint> setpointSupplier =
       () -> new ShooterSetpoint(0, 0, 0, 0, 0, false);
 
+  // Track current velocity setpoint for logging
+  private double velocitySetpointRPS = 0.0;
+
   /** Constructs a {@link ShooterSubsystem} subsystem instance */
   public ShooterSubsystem(ShooterIO io) {
     this.io = io;
@@ -34,60 +37,17 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to spin up the shooter to a specific velocity
-   *
-   * @param velocityRotPerSec The target velocity in rotations per second
-   * @return A command that spins the shooter to the target velocity
-   */
-  public Command spinUp(double velocityRotPerSec) {
-    return run(() -> {
-          setVelocity(velocityRotPerSec);
-        })
-        .withName("ShooterSpinUp");
-  }
-
-  /**
-   * Command to spin up the shooter to hub shooting speed
-   *
-   * @return A command that spins the shooter to hub speed
-   */
-  public Command spinUpForHub() {
-    return spinUp(ShooterConstants.HUB_SPEED);
-  }
-
-  /**
    * Command to spin up the shooter using ShooterSetpoint calculations. This uses the coordinated
-   * setpoint for optimal shooting.
+   * setpoint for optimal shooting (hub or neutral zone).
    *
    * @return A command that spins the shooter to the calculated speed
    */
-  public Command spinUpForAim() {
+  public Command spinUp() {
     return run(() -> {
           ShooterSetpoint setpoint = setpointSupplier.get();
           setVelocity(setpoint.getShooterRPS());
         })
-        .withName("ShooterSpinUpForAim");
-  }
-
-  /**
-   * Command to spin up the shooter to pass shooting speed
-   *
-   * @return A command that spins the shooter to pass speed
-   */
-  public Command spinUpForPass() {
-    return spinUp(ShooterConstants.PASS_SPEED);
-  }
-
-  /**
-   * Command to idle the shooter at a low speed
-   *
-   * @return A command that idles the shooter
-   */
-  public Command idle() {
-    return run(() -> {
-          setVelocity(ShooterConstants.IDLE_SPEED);
-        })
-        .withName("ShooterIdle");
+        .withName("ShooterSpinUp");
   }
 
   /**
@@ -109,6 +69,7 @@ public class ShooterSubsystem extends SubsystemBase {
    * @param velocityRotPerSec The target velocity in rotations per second
    */
   public void setVelocity(double velocityRotPerSec) {
+    velocitySetpointRPS = velocityRotPerSec;
     io.setVelocity(velocityRotPerSec);
   }
 
@@ -133,29 +94,11 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /**
-   * Checks if the shooter is ready to shoot at hub speed
-   *
-   * @return True if at hub speed
-   */
-  public boolean readyForHub() {
-    return atVelocity(ShooterConstants.HUB_SPEED);
-  }
-
-  /**
-   * Checks if the shooter is ready to shoot at pass speed
-   *
-   * @return True if at pass speed
-   */
-  public boolean readyForPass() {
-    return atVelocity(ShooterConstants.PASS_SPEED);
-  }
-
-  /**
    * Checks if the shooter is at the setpoint velocity from ShooterSetpoint.
    *
    * @return True if at the calculated setpoint velocity
    */
-  public boolean readyForAim() {
+  public boolean isReady() {
     ShooterSetpoint setpoint = setpointSupplier.get();
     return atVelocity(setpoint.getShooterRPS()) && setpoint.getIsValid();
   }
@@ -170,8 +113,7 @@ public class ShooterSubsystem extends SubsystemBase {
     io.updateInputs(inputs);
     Logger.processInputs("Shooter", inputs);
 
-    Logger.recordOutput("Shooter/ReadyForHub", readyForHub());
-    Logger.recordOutput("Shooter/ReadyForPass", readyForPass());
-    Logger.recordOutput("Shooter/ReadyForAim", readyForAim());
+    Logger.recordOutput("Shooter/VelocitySetpointRPS", velocitySetpointRPS);
+    Logger.recordOutput("Shooter/IsReady", isReady());
   }
 }

@@ -231,17 +231,9 @@ public class RobotContainer {
         .rightBumper()
         .onTrue(
             Commands.runOnce(
-                    () -> swerveIO.setPose(new Pose2d(0, 0, Rotation2d.fromDegrees(0))), swerveIO)
+                    () -> swerveIO.setPose(new Pose2d(8.0, 4.0, Rotation2d.fromDegrees(0))),
+                    swerveIO)
                 .ignoringDisable(true));
-
-    // === SMART TURRET AIMING ===
-    // Left trigger: Auto-aim turret at hub (or alliance wall if in neutral zone)
-    // ShooterSetpoint handles smart target selection internally
-    controller.leftTrigger().whileTrue(turret.aiming()).onFalse(turret.stow());
-
-    // === SUPERSTRUCTURE CONTROLS ===
-    // A button: Intake from ground
-    controller.a().onTrue(superstructure.intakeFromGround());
 
     // B button: Toggle conveyor direction (does not change state)
     controller.b().onTrue(Commands.runOnce(() -> conveyor.toggleDirection(), conveyor));

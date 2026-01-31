@@ -9,10 +9,11 @@ import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Hood subsystem that controls the hood angle for shot trajectory adjustment. Supports multiple
- * states: stow, shootBackFromNeutralZone, and aimHub.
+ * Hood subsystem that controls the hood angle for shot trajectory adjustment. Supports two states:
+ * stow and aimHub.
  *
- * <p>Now uses ShooterSetpoint utility for aim calculations, eliminating duplicate logic.
+ * <p>Uses ShooterSetpoint utility for aim calculations, which handles smart target selection
+ * including neutral zone detection.
  */
 public class HoodSubsystem extends SubsystemBase {
   private final HoodIO io;
@@ -26,7 +27,6 @@ public class HoodSubsystem extends SubsystemBase {
 
   public enum HoodState {
     STOW,
-    SHOOT_BACK_FROM_NEUTRAL_ZONE,
     AIM_HUB
   }
 
@@ -64,22 +64,8 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to set hood angle for shooting back from neutral zone. Uses a fixed angle optimized for
-   * neutral zone shots.
-   */
-  public Command shootBackFromNeutralZone() {
-    return runOnce(
-            () -> {
-              currentState = HoodState.SHOOT_BACK_FROM_NEUTRAL_ZONE;
-            })
-        .andThen(
-            positionSetpointCommand(() -> Constants.HoodConstants.SHOOT_BACK_POSITION, () -> 0.0))
-        .withName("Hood Shoot Back From Neutral Zone");
-  }
-
-  /**
-   * Command to aim hood at the hub using ShooterSetpoint calculations. This replaces the old
-   * duplicate logic with the unified ShooterSetpoint utility.
+   * Command to aim hood using ShooterSetpoint calculations. ShooterSetpoint handles smart target
+   * selection including neutral zone detection.
    *
    * <p>Benefits: - Coordinated aiming with turret and shooter - Physics-based trajectory
    * calculation - Distance-based angle interpolation - No duplicate calculation logic

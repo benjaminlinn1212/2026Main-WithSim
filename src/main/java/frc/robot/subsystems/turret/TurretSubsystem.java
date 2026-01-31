@@ -114,15 +114,18 @@ public class TurretSubsystem extends SubsystemBase {
                   // Apply wrapping logic to target
                   double wrappedTarget = adjustSetpointForWrap(targetRad);
 
-                  // Log setpoint validity
+                  // Log setpoint validity and shot type
                   Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.getIsValid());
+                  Logger.recordOutput("Turret/Aiming/IsNeutralShoot", setpoint.getIsNeutralShoot());
 
                   // Convert feedforward velocity to volts for motor control
-                  // Formula: Volts = (rad/s) * (V/(rot/s)) * (motor_rot/mech_rot)
+                  // Formula: Volts = (rad/s) * (V/(rot/s)) / (mech_rot/motor_rot)
+                  // Since GEAR_RATIO is now mechanism_rotations per motor_rotation,
+                  // we divide by GEAR_RATIO to get motor rotations per second
                   double feedforwardVolts =
                       feedforwardRadPerSec
                           * Constants.TurretConstants.KV
-                          * Constants.TurretConstants.GEAR_RATIO;
+                          / Constants.TurretConstants.GEAR_RATIO;
 
                   setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
                   positionSetpointRad = wrappedTarget;

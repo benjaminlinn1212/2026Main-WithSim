@@ -6,7 +6,6 @@ import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.InvertedValue;
 import frc.robot.Constants.ShooterConstants;
 
 public class ShooterIOTalonFX implements ShooterIO {
@@ -55,7 +54,9 @@ public class ShooterIOTalonFX implements ShooterIO {
   private TalonFXConfiguration shooterConfiguration() {
     TalonFXConfiguration configuration = new TalonFXConfiguration();
 
-    configuration.Feedback.SensorToMechanismRatio = ShooterConstants.GEAR_RATIO;
+    // SensorToMechanismRatio in Phoenix 6 = sensor rotations per mechanism rotation
+    // Our GEAR_RATIO is mechanism per motor, so we need the reciprocal
+    configuration.Feedback.SensorToMechanismRatio = 1.0 / ShooterConstants.GEAR_RATIO;
 
     configuration.Slot0 =
         new Slot0Configs()
@@ -78,7 +79,7 @@ public class ShooterIOTalonFX implements ShooterIO {
     configuration.CurrentLimits.StatorCurrentLimitEnable = true;
     configuration.CurrentLimits.SupplyCurrentLimitEnable = true;
 
-    configuration.MotorOutput.Inverted = InvertedValue.CounterClockwise_Positive;
+    configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;
 
     return configuration;
   }

@@ -2,15 +2,13 @@ package frc.robot.subsystems.turret;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.util.ShooterSetpoint;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
@@ -19,6 +17,8 @@ import org.littletonrobotics.junction.Logger;
  * Turret subsystem that controls a rotating turret mechanism. Supports multiple states: stow,
  * shootBackFromNeutralZone, and aimHub. Uses Team 254's wrapping logic for smooth continuous
  * rotation.
+ *
+ * <p>Now uses ShooterSetpoint utility for aim calculations, eliminating duplicate logic.
  */
 public class TurretSubsystem extends SubsystemBase {
   private final TurretIO io;
@@ -27,7 +27,10 @@ public class TurretSubsystem extends SubsystemBase {
   private double positionSetpointRad = 0.0;
   private double lastModeChange = 0.0;
   private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
-  private Supplier<ChassisSpeeds> chassisSpeedsSupplier = () -> new ChassisSpeeds();
+
+  // ShooterSetpoint supplier for coordinated aiming
+  private Supplier<ShooterSetpoint> setpointSupplier =
+      () -> new ShooterSetpoint(0, 0, 0, 0, 0, false);
 
   public enum TurretState {
     STOW,
@@ -50,11 +53,11 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   /**
-   * Set the chassis speeds supplier for velocity feedforward compensation. Call this from
-   * RobotContainer after constructing the drive subsystem.
+   * Set the shooter setpoint supplier for coordinated aiming. Call this from RobotContainer to
+   * connect all aiming subsystems through ShooterSetpoint.
    */
-  public void setChassisSpeedsSupplier(Supplier<ChassisSpeeds> speedsSupplier) {
-    this.chassisSpeedsSupplier = speedsSupplier;
+  public void setShooterSetpointSupplier(Supplier<ShooterSetpoint> supplier) {
+    this.setpointSupplier = supplier;
   }
 
   @Override
@@ -132,16 +135,11 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to aim turret at the hub based on robot pose. Uses the appropriate aim target based on
-   * alliance color. Continuously tracks target even when robot rotates.
+   * Command to aim turret at the hub using ShooterSetpoint calculations. This replaces the old
+   * duplicate logic with the unified ShooterSetpoint utility.
    *
-   * <p>IMPORTANT: Accounts for turret offset from robot center. When the turret is not at the
-   * robot's center, the aiming angle must be calculated from the turret's actual field position,
-   * not the robot's center position.
-   *
-   * <p>Calculation steps: 1. Get robot center position and heading 2. Transform turret offset
-   * through robot rotation to get turret's field position 3. Calculate angle from turret position
-   * to target (not from robot center) 4. Convert field-relative angle to turret-relative angle
+   * <p>Benefits: - Coordinated aiming with hood and shooter - Physics-based trajectory calculation
+   * - Motion compensation with robot velocity - No duplicate calculation logic
    */
   public Command aimHub() {
     return runOnce(
@@ -152,84 +150,23 @@ public class TurretSubsystem extends SubsystemBase {
         .andThen(
             run(
                 () -> {
-                  // Get robot pose
-                  Pose2d robotPose = robotPoseSupplier.get();
-                  Translation2d robotPosition = robotPose.getTranslation();
-                  Rotation2d robotHeading = robotPose.getRotation();
+                  // Get setpoint from ShooterSetpoint utility
+                  ShooterSetpoint setpoint = setpointSupplier.get();
 
-                  // Calculate turret's actual field position by transforming offset through robot
-                  // rotation
-                  Translation2d turretOffset =
-                      Constants.TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
-                  Translation2d turretOffsetRotated = turretOffset.rotateBy(robotHeading);
-                  Translation2d turretPosition = robotPosition.plus(turretOffsetRotated);
+                  // Extract turret angle and feedforward from setpoint
+                  double targetRad = setpoint.getTurretRadiansFromCenter();
+                  double feedforwardRadPerSec = setpoint.getTurretFeedforward();
 
-                  // Get target position based on alliance
-                  Translation3d targetPosition;
-                  var alliance = DriverStation.getAlliance();
-                  if (alliance.isPresent() && alliance.get() == Alliance.Red) {
-                    targetPosition = Constants.FieldPoses.RED_AIM_TARGET;
-                  } else {
-                    targetPosition = Constants.FieldPoses.BLUE_AIM_TARGET;
-                  }
+                  // Apply wrapping logic to target
+                  double wrappedTarget = adjustSetpointForWrap(targetRad);
 
-                  // Calculate angle to target (field-relative) from TURRET position
-                  Translation2d turretToTarget =
-                      new Translation2d(targetPosition.getX(), targetPosition.getY())
-                          .minus(turretPosition);
-                  Rotation2d angleToTargetFieldRelative = turretToTarget.getAngle();
+                  // Log setpoint validity
+                  Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.getIsValid());
 
-                  // Convert to turret-relative angle by subtracting robot heading
-                  // Turret angle = field angle to target - robot heading
-                  Rotation2d turretAngle = angleToTargetFieldRelative.minus(robotHeading);
-
-                  // Calculate feedforward velocity to compensate for robot motion
-                  ChassisSpeeds chassisSpeeds = chassisSpeedsSupplier.get();
-
-                  // Component 1: Robot rotation (turret must counter-rotate)
-                  double rotationAngularVel = -chassisSpeeds.omegaRadiansPerSecond;
-
-                  // Component 2: Translation around target (changes angle to target)
-                  double distanceToTarget = turretToTarget.getNorm();
-                  double translationAngularVel = 0.0;
-
-                  if (distanceToTarget > 0.01) { // Avoid division by zero
-                    // Get velocity in field frame
-                    double vxField = chassisSpeeds.vxMetersPerSecond;
-                    double vyField = chassisSpeeds.vyMetersPerSecond;
-
-                    // Project velocity onto perpendicular direction to target
-                    // Perpendicular direction is 90° from angle to target
-                    double perpAngle = angleToTargetFieldRelative.getRadians() + Math.PI / 2.0;
-                    double vPerpendicular =
-                        vxField * Math.cos(perpAngle) + vyField * Math.sin(perpAngle);
-
-                    // Angular rate of change of target angle due to translation
-                    translationAngularVel = vPerpendicular / distanceToTarget;
-                  }
-
-                  // Total angular velocity of target angle
-                  double totalAngularVel = rotationAngularVel + translationAngularVel;
-
-                  // Predict future angle to compensate for latency (lookahead)
-                  // Assume ~50ms total system latency (controls + motor response)
-                  double latencySeconds = Constants.TurretConstants.AIMING_LATENCY_COMPENSATION;
-                  double targetRad = turretAngle.getRadians();
-                  double predictedTargetRad = targetRad + (totalAngularVel * latencySeconds);
-
-                  // Apply wrapping logic to predicted target
-                  double wrappedTarget = adjustSetpointForWrap(predictedTargetRad);
-
-                  // Log key aiming data
-                  Logger.recordOutput("Turret/Aiming/DistanceToTarget", distanceToTarget);
-                  Logger.recordOutput("Turret/Aiming/FeedforwardVel", totalAngularVel);
-
-                  // Convert velocity feedforward to Volts
-                  // Motion Magic already handles KV for the profile, but we need extra
-                  // feedforward to compensate for robot motion (rotation + translation)
+                  // Convert feedforward velocity to volts for motor control
                   // Formula: Volts = (rad/s) * (V/(rot/s)) * (motor_rot/mech_rot)
                   double feedforwardVolts =
-                      totalAngularVel
+                      feedforwardRadPerSec
                           * Constants.TurretConstants.KV
                           * Constants.TurretConstants.GEAR_RATIO;
 

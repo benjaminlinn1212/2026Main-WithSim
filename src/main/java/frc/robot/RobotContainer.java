@@ -51,6 +51,7 @@ import frc.robot.subsystems.turret.TurretIO;
 import frc.robot.subsystems.turret.TurretIOSim;
 import frc.robot.subsystems.turret.TurretIOTalonFX;
 import frc.robot.subsystems.turret.TurretSubsystem;
+import frc.robot.util.ShooterSetpoint;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
@@ -181,12 +182,17 @@ public class RobotContainer {
     superstructure =
         new Superstructure(shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb);
 
-    // Provide robot pose and chassis speeds to turret for field-relative tracking
-    turret.setRobotPoseSupplier(() -> swerveIO.getPose());
-    turret.setChassisSpeedsSupplier(() -> robotState.getLatestMeasuredFieldRelativeChassisSpeeds());
+    // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
+    // Create a ShooterSetpoint supplier that uses robotState for calculations
+    var shooterSetpointSupplier = ShooterSetpoint.speakerSetpointSupplier(robotState);
 
-    // Provide robot pose to hood for distance-based aiming
-    hood.setRobotPoseSupplier(() -> swerveIO.getPose());
+    // Connect all aiming subsystems to use the same ShooterSetpoint
+    turret.setShooterSetpointSupplier(shooterSetpointSupplier);
+    hood.setShooterSetpointSupplier(shooterSetpointSupplier);
+    shooter.setShooterSetpointSupplier(shooterSetpointSupplier);
+
+    // Provide robot pose for turret's field-relative tracking
+    turret.setRobotPoseSupplier(() -> swerveIO.getPose());
 
     // Configure the button bindings
     configureButtonBindings();

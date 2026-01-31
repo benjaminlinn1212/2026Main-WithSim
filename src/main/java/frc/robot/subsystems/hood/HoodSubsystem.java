@@ -1,13 +1,9 @@
 package frc.robot.subsystems.hood;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.util.ShooterSetpoint;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
@@ -15,13 +11,18 @@ import org.littletonrobotics.junction.Logger;
 /**
  * Hood subsystem that controls the hood angle for shot trajectory adjustment. Supports multiple
  * states: stow, shootBackFromNeutralZone, and aimHub.
+ *
+ * <p>Now uses ShooterSetpoint utility for aim calculations, eliminating duplicate logic.
  */
 public class HoodSubsystem extends SubsystemBase {
   private final HoodIO io;
   private final HoodIOInputsAutoLogged inputs = new HoodIOInputsAutoLogged();
 
   private double positionSetpointRad = Constants.HoodConstants.STOW_POSITION;
-  private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
+
+  // ShooterSetpoint supplier for coordinated aiming
+  private Supplier<ShooterSetpoint> setpointSupplier =
+      () -> new ShooterSetpoint(0, 0, 0, 0, 0, false);
 
   public enum HoodState {
     STOW,
@@ -36,11 +37,11 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /**
-   * Set the robot pose supplier for field-relative distance calculation. Call this from
-   * RobotContainer after constructing the drive subsystem.
+   * Set the shooter setpoint supplier for coordinated aiming. Call this from RobotContainer to
+   * connect all aiming subsystems through ShooterSetpoint.
    */
-  public void setRobotPoseSupplier(Supplier<Pose2d> poseSupplier) {
-    this.robotPoseSupplier = poseSupplier;
+  public void setShooterSetpointSupplier(Supplier<ShooterSetpoint> supplier) {
+    this.setpointSupplier = supplier;
   }
 
   @Override
@@ -77,8 +78,11 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to aim hood at the hub based on robot pose and distance. Calculates optimal angle based
-   * on distance to target.
+   * Command to aim hood at the hub using ShooterSetpoint calculations. This replaces the old
+   * duplicate logic with the unified ShooterSetpoint utility.
+   *
+   * <p>Benefits: - Coordinated aiming with turret and shooter - Physics-based trajectory
+   * calculation - Distance-based angle interpolation - No duplicate calculation logic
    */
   public Command aimHub() {
     return runOnce(
@@ -88,50 +92,17 @@ public class HoodSubsystem extends SubsystemBase {
         .andThen(
             positionSetpointCommand(
                 () -> {
-                  // Get robot position from pose supplier
-                  Pose2d robotPose = robotPoseSupplier.get();
-                  Translation2d robotPosition = robotPose.getTranslation();
+                  // Get setpoint from ShooterSetpoint utility
+                  ShooterSetpoint setpoint = setpointSupplier.get();
 
-                  // Get target position based on alliance
-                  Translation3d targetPosition;
-                  var alliance = DriverStation.getAlliance();
-                  if (alliance.isPresent() && alliance.get() == Alliance.Red) {
-                    targetPosition = Constants.FieldPoses.RED_AIM_TARGET;
-                  } else {
-                    targetPosition = Constants.FieldPoses.BLUE_AIM_TARGET;
-                  }
-
-                  // Calculate distance to target
-                  Translation2d robotToTarget =
-                      new Translation2d(targetPosition.getX(), targetPosition.getY())
-                          .minus(robotPosition);
-                  double distanceToTarget = robotToTarget.getNorm();
-
-                  // Calculate hood angle based on distance
-                  // Using simplified linear interpolation
-                  // For competition: Replace with empirically-tuned lookup table
-                  // or full ballistic trajectory calculation with air resistance
-
-                  // Simple angle calculation based on distance
-                  double minDistance = 1.0; // meters
-                  double maxDistance = 6.0; // meters
-
-                  double normalizedDistance =
-                      (distanceToTarget - minDistance) / (maxDistance - minDistance);
-                  normalizedDistance = Math.max(0.0, Math.min(1.0, normalizedDistance));
-
-                  // Interpolate between min and max hood angles
-                  double hoodAngle =
-                      Constants.HoodConstants.MIN_AIM_ANGLE
-                          + normalizedDistance
-                              * (Constants.HoodConstants.MAX_POSITION_RAD
-                                  - Constants.HoodConstants.MIN_AIM_ANGLE);
-
-                  return hoodAngle;
+                  // Extract hood angle from setpoint
+                  return setpoint.getHoodRadians();
                 },
-                // No feedforward for stationary shooting
-                // For moving shot compensation, add robot velocity component
-                () -> 0.0))
+                () -> {
+                  // Extract hood feedforward from setpoint
+                  ShooterSetpoint setpoint = setpointSupplier.get();
+                  return setpoint.getHoodFeedforward();
+                }))
         .withName("Hood Aim Hub");
   }
 

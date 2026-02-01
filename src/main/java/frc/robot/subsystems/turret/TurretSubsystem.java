@@ -119,13 +119,9 @@ public class TurretSubsystem extends SubsystemBase {
                   Logger.recordOutput("Turret/Aiming/IsNeutralShoot", setpoint.getIsNeutralShoot());
 
                   // Convert feedforward velocity to volts for motor control
-                  // Formula: Volts = (rad/s) * (V/(rot/s)) / (mech_rot/motor_rot)
-                  // Since GEAR_RATIO is now mechanism_rotations per motor_rotation,
-                  // we divide by GEAR_RATIO to get motor rotations per second
-                  double feedforwardVolts =
-                      feedforwardRadPerSec
-                          * Constants.TurretConstants.KV
-                          / Constants.TurretConstants.GEAR_RATIO;
+                  // Phoenix 6 SensorToMechanismRatio handles unit conversion automatically
+                  // KV is in volts per (mechanism rotations/second)
+                  double feedforwardVolts = feedforwardRadPerSec * Constants.TurretConstants.KV;
 
                   setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
                   positionSetpointRad = wrappedTarget;

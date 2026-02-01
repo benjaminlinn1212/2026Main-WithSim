@@ -58,26 +58,34 @@ public class ShooterIOTalonFX implements ShooterIO {
     // Our GEAR_RATIO is mechanism per motor, so we need the reciprocal
     configuration.Feedback.SensorToMechanismRatio = 1.0 / ShooterConstants.GEAR_RATIO;
 
+    // Motor Inversion
+    configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;
+
+    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
     configuration.Slot0 =
         new Slot0Configs()
+            .withKP(ShooterConstants.KP)
+            .withKI(ShooterConstants.KI)
+            .withKD(ShooterConstants.KD)
             .withKS(ShooterConstants.KS)
             .withKV(ShooterConstants.KV)
             .withKA(ShooterConstants.KA)
-            .withKP(ShooterConstants.KP)
-            .withKI(ShooterConstants.KI)
-            .withKD(ShooterConstants.KD);
+            .withGravityType(com.ctre.phoenix6.signals.GravityTypeValue.Elevator_Static)
+            .withKG(ShooterConstants.KG);
 
+    // Motion Magic
     configuration.MotionMagic =
         new MotionMagicConfigs()
             .withMotionMagicCruiseVelocity(ShooterConstants.CRUISE_VELOCITY)
             .withMotionMagicAcceleration(ShooterConstants.ACCELERATION)
             .withMotionMagicJerk(ShooterConstants.JERK);
 
+    // Current Limits
     configuration.CurrentLimits.StatorCurrentLimit = ShooterConstants.STATOR_CURRENT_LIMIT;
-    configuration.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;
-    configuration.CurrentLimits.SupplyCurrentLowerTime = ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
     configuration.CurrentLimits.StatorCurrentLimitEnable = true;
+    configuration.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;
     configuration.CurrentLimits.SupplyCurrentLimitEnable = true;
+    configuration.CurrentLimits.SupplyCurrentLowerTime = ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
 
     configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;
 

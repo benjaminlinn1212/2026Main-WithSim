@@ -15,11 +15,16 @@ public class ConveyorIOTalonFX implements ConveyorIO {
     motor = new TalonFX(ConveyorConstants.MOTOR_CAN_ID, ConveyorConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
+
+    // Motor Inversion and Neutral Mode
+    config.MotorOutput.Inverted = ConveyorConstants.MOTOR_INVERTED;
+    config.MotorOutput.NeutralMode = ConveyorConstants.NEUTRAL_MODE;
+
+    // Current Limits
     config.CurrentLimits.StatorCurrentLimit = ConveyorConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = ConveyorConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
-    config.MotorOutput.NeutralMode = ConveyorConstants.NEUTRAL_MODE;
 
     motor.getConfigurator().apply(config);
   }

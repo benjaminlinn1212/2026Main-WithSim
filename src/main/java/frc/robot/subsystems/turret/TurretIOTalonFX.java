@@ -20,45 +20,45 @@ public class TurretIOTalonFX implements TurretIO {
 
     // Configure TalonFX
     var motorConfig = new TalonFXConfiguration();
-    motorConfig.MotorOutput.NeutralMode = Constants.TurretConstants.NEUTRAL_MODE;
-    motorConfig.MotorOutput.Inverted = Constants.TurretConstants.MOTOR_INVERTED;
 
-    // Software limits in motor rotor rotations
-    // GEAR_RATIO is mechanism rotations per motor rotation
-    // So: motor_rotation = mechanism_rotation / GEAR_RATIO
+    // Motor Inversion and Neutral Mode
+    motorConfig.MotorOutput.Inverted = Constants.TurretConstants.MOTOR_INVERTED;
+    motorConfig.MotorOutput.NeutralMode = Constants.TurretConstants.NEUTRAL_MODE;
+
+    // Feedback Configuration
+    // Configure SensorToMechanismRatio so Phoenix handles the conversion
+    // SensorToMechanismRatio in Phoenix 6 = sensor rotations per mechanism rotation
+    // Our GEAR_RATIO is mechanism per motor, so we need the reciprocal
+    motorConfig.Feedback.SensorToMechanismRatio = 1.0 / Constants.TurretConstants.GEAR_RATIO;
+    motorConfig.Feedback.FeedbackRotorOffset = Constants.TurretConstants.ROTOR_OFFSET;
+
+    // Software Limits (now in mechanism rotations since we use SensorToMechanismRatio)
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
-        Units.radiansToRotations(Constants.TurretConstants.MAX_POSITION_RAD)
-            / Constants.TurretConstants.GEAR_RATIO;
+        Units.radiansToRotations(Constants.TurretConstants.MAX_POSITION_RAD);
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
-        Units.radiansToRotations(Constants.TurretConstants.MIN_POSITION_RAD)
-            / Constants.TurretConstants.GEAR_RATIO;
+        Units.radiansToRotations(Constants.TurretConstants.MIN_POSITION_RAD);
 
-    // PID configuration
+    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
     motorConfig.Slot0.kP = Constants.TurretConstants.KP;
     motorConfig.Slot0.kI = Constants.TurretConstants.KI;
     motorConfig.Slot0.kD = Constants.TurretConstants.KD;
     motorConfig.Slot0.kS = Constants.TurretConstants.KS;
     motorConfig.Slot0.kV = Constants.TurretConstants.KV;
     motorConfig.Slot0.kA = Constants.TurretConstants.KA;
+    motorConfig.Slot0.kG = Constants.TurretConstants.KG;
 
-    // Motion Magic configuration
+    // Motion Magic
     motorConfig.MotionMagic.MotionMagicCruiseVelocity = Constants.TurretConstants.CRUISE_VELOCITY;
     motorConfig.MotionMagic.MotionMagicAcceleration = Constants.TurretConstants.ACCELERATION;
     motorConfig.MotionMagic.MotionMagicJerk = Constants.TurretConstants.JERK;
 
-    // Motor inversion
-    motorConfig.MotorOutput.Inverted = Constants.TurretConstants.MOTOR_INVERTED;
-
-    // Current limits
+    // Current Limits
     motorConfig.CurrentLimits.StatorCurrentLimit = Constants.TurretConstants.STATOR_CURRENT_LIMIT;
     motorConfig.CurrentLimits.StatorCurrentLimitEnable = true;
     motorConfig.CurrentLimits.SupplyCurrentLimit = Constants.TurretConstants.SUPPLY_CURRENT_LIMIT;
     motorConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
-
-    // Set motor encoder offset (adjust the motor's internal sensor reading)
-    motorConfig.Feedback.FeedbackRotorOffset = Constants.TurretConstants.ROTOR_OFFSET;
 
     // Apply configuration
     motor.getConfigurator().apply(motorConfig);
@@ -68,13 +68,10 @@ public class TurretIOTalonFX implements TurretIO {
 
   @Override
   public void updateInputs(TurretIOInputs inputs) {
-    // Read motor position in rotations
-    // GEAR_RATIO is mechanism rotations per motor rotation (e.g., 1/26.812)
-    // So: mech_position = motor_position * GEAR_RATIO
-    double motorPositionRot = motor.getPosition().getValueAsDouble();
-    inputs.positionRot = motorPositionRot * Constants.TurretConstants.GEAR_RATIO;
-    inputs.velocityRotPerSec =
-        motor.getVelocity().getValueAsDouble() * Constants.TurretConstants.GEAR_RATIO;
+    // Read motor position - Phoenix 6 already converts to mechanism rotations via
+    // SensorToMechanismRatio
+    inputs.positionRot = motor.getPosition().getValueAsDouble();
+    inputs.velocityRotPerSec = motor.getVelocity().getValueAsDouble();
 
     // No CANcoder - absolute position not available
     inputs.absolutePosition = 0.0;
@@ -95,14 +92,10 @@ public class TurretIOTalonFX implements TurretIO {
             Units.radiansToRotations(Constants.TurretConstants.MIN_POSITION_RAD),
             Units.radiansToRotations(Constants.TurretConstants.MAX_POSITION_RAD));
 
-    // Convert to motor rotations
-    // GEAR_RATIO is mechanism rotations per motor rotation (e.g., 1/26.812)
-    // So: motor_rotation = mechanism_rotation / GEAR_RATIO
-    double motorRotations = clampedRotations / Constants.TurretConstants.GEAR_RATIO;
-
-    // feedforwardVolts is already in Volts - use directly in MotionMagicVoltage
+    // Phoenix 6 handles the gear ratio conversion via SensorToMechanismRatio
+    // Just send mechanism rotations directly
     motor.setControl(
-        positionControl.withPosition(motorRotations).withFeedForward(feedforwardVolts));
+        positionControl.withPosition(clampedRotations).withFeedForward(feedforwardVolts));
   }
 
   @Override

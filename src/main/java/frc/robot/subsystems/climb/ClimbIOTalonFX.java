@@ -15,26 +15,29 @@ public class ClimbIOTalonFX implements ClimbIO {
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 
-    // PID configuration
+    // Motor Inversion and Neutral Mode
+    config.MotorOutput.Inverted = ClimbConstants.MOTOR_INVERTED;
+    config.MotorOutput.NeutralMode = ClimbConstants.NEUTRAL_MODE;
+
+    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
     config.Slot0.kP = ClimbConstants.KP;
     config.Slot0.kI = ClimbConstants.KI;
     config.Slot0.kD = ClimbConstants.KD;
     config.Slot0.kS = ClimbConstants.KS;
     config.Slot0.kV = ClimbConstants.KV;
     config.Slot0.kA = ClimbConstants.KA;
+    config.Slot0.kG = ClimbConstants.KG;
 
-    // Motion Magic configuration
+    // Motion Magic
     config.MotionMagic.MotionMagicCruiseVelocity = ClimbConstants.CRUISE_VELOCITY;
     config.MotionMagic.MotionMagicAcceleration = ClimbConstants.ACCELERATION;
     config.MotionMagic.MotionMagicJerk = ClimbConstants.JERK;
 
-    // Current limits
+    // Current Limits
     config.CurrentLimits.StatorCurrentLimit = ClimbConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = ClimbConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
-
-    config.MotorOutput.NeutralMode = ClimbConstants.NEUTRAL_MODE;
 
     motor.getConfigurator().apply(config);
     motor.setPosition(0); // Reset position on startup

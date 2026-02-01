@@ -17,11 +17,16 @@ public class IntakeIOTalonFX implements IntakeIO {
     lowerMotor = new TalonFX(IntakeConstants.LOWER_MOTOR_CAN_ID, IntakeConstants.CAN_BUS);
 
     TalonFXConfiguration config = new TalonFXConfiguration();
+
+    // Motor Inversion and Neutral Mode
+    config.MotorOutput.Inverted = IntakeConstants.MOTOR_INVERTED;
+    config.MotorOutput.NeutralMode = IntakeConstants.NEUTRAL_MODE;
+
+    // Current Limits
     config.CurrentLimits.StatorCurrentLimit = IntakeConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = IntakeConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
-    config.MotorOutput.NeutralMode = IntakeConstants.NEUTRAL_MODE;
 
     upperMotor.getConfigurator().apply(config);
     lowerMotor.getConfigurator().apply(config);

@@ -15,39 +15,38 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 
-    // PID configuration
+    // Motor Inversion and Neutral Mode
+    config.MotorOutput.Inverted = IntakePivotConstants.MOTOR_INVERTED;
+    config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
+
+    // Feedback Configuration
+    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
+
+    // Soft Limits
+    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_FORWARD;
+    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
+
+    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
     config.Slot0.kP = IntakePivotConstants.KP;
     config.Slot0.kI = IntakePivotConstants.KI;
     config.Slot0.kD = IntakePivotConstants.KD;
     config.Slot0.kS = IntakePivotConstants.KS;
     config.Slot0.kV = IntakePivotConstants.KV;
     config.Slot0.kA = IntakePivotConstants.KA;
-    config.Slot0.kG = IntakePivotConstants.KG; // Gravity feedforward
+    config.Slot0.kG = IntakePivotConstants.KG;
 
-    // Motion Magic configuration
+    // Motion Magic
     config.MotionMagic.MotionMagicCruiseVelocity = IntakePivotConstants.CRUISE_VELOCITY;
     config.MotionMagic.MotionMagicAcceleration = IntakePivotConstants.ACCELERATION;
     config.MotionMagic.MotionMagicJerk = IntakePivotConstants.JERK;
 
-    // Soft limits configuration
-    config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
-    config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_FORWARD;
-    config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
-    config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
-
-    // Motor inversion
-    config.MotorOutput.Inverted = IntakePivotConstants.MOTOR_INVERTED;
-
-    // Current limits
+    // Current Limits
     config.CurrentLimits.StatorCurrentLimit = IntakePivotConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = IntakePivotConstants.SUPPLY_CURRENT_LIMIT;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
-
-    config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
-
-    // Set motor encoder offset (adjust the motor's internal sensor reading)
-    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
 
     motor.getConfigurator().apply(config);
   }

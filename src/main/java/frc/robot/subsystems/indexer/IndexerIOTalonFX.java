@@ -18,23 +18,31 @@ public class IndexerIOTalonFX implements IndexerIO {
 
     // Configure leader motor
     TalonFXConfiguration leaderConfig = new TalonFXConfiguration();
+
+    // Motor Inversion and Neutral Mode
+    leaderConfig.MotorOutput.Inverted = IndexerConstants.LEADER_INVERTED;
+    leaderConfig.MotorOutput.NeutralMode = IndexerConstants.NEUTRAL_MODE;
+
+    // Current Limits
     leaderConfig.CurrentLimits.StatorCurrentLimit = IndexerConstants.STATOR_CURRENT_LIMIT;
     leaderConfig.CurrentLimits.StatorCurrentLimitEnable = true;
     leaderConfig.CurrentLimits.SupplyCurrentLimit = IndexerConstants.SUPPLY_CURRENT_LIMIT;
     leaderConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
-    leaderConfig.MotorOutput.NeutralMode = IndexerConstants.NEUTRAL_MODE;
-    leaderConfig.MotorOutput.Inverted = IndexerConstants.LEADER_INVERTED;
 
     leaderMotor.getConfigurator().apply(leaderConfig);
 
     // Configure follower motor
     TalonFXConfiguration followerConfig = new TalonFXConfiguration();
+
+    // Motor Inversion and Neutral Mode
+    followerConfig.MotorOutput.Inverted = IndexerConstants.FOLLOWER_INVERTED;
+    followerConfig.MotorOutput.NeutralMode = IndexerConstants.NEUTRAL_MODE;
+
+    // Current Limits
     followerConfig.CurrentLimits.StatorCurrentLimit = IndexerConstants.STATOR_CURRENT_LIMIT;
     followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
     followerConfig.CurrentLimits.SupplyCurrentLimit = IndexerConstants.SUPPLY_CURRENT_LIMIT;
     followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
-    followerConfig.MotorOutput.NeutralMode = IndexerConstants.NEUTRAL_MODE;
-    followerConfig.MotorOutput.Inverted = IndexerConstants.FOLLOWER_INVERTED;
 
     followerMotor.getConfigurator().apply(followerConfig);
 

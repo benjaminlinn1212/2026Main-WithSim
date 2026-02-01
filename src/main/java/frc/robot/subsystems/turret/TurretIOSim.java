@@ -18,10 +18,12 @@ public class TurretIOSim implements TurretIO {
     // Create a simulated turret using SingleJointedArmSim
     // Parameters: DCMotor, gear ratio, MOI, length, min angle, max angle, simulate gravity,
     // starting angle
+    // NOTE: WPILib expects gear ratio as motor_rotations/mechanism_rotation (reduction)
+    // Our GEAR_RATIO is mechanism/motor, so we need the reciprocal
     sim =
         new SingleJointedArmSim(
             DCMotor.getKrakenX60(1),
-            Constants.TurretConstants.GEAR_RATIO,
+            1.0 / Constants.TurretConstants.GEAR_RATIO,
             0.06,
             0.15,
             Constants.TurretConstants.MIN_POSITION_RAD,
@@ -36,7 +38,9 @@ public class TurretIOSim implements TurretIO {
     if (closedLoop) {
       // Simple P controller for simulation
       double error = positionSetpointRad - sim.getAngleRads();
-      double ffVolts = velocitySetpointRadPerSec * Constants.TurretConstants.KV;
+      // KV is in volts per (mechanism rotations/sec), convert rad/s to rot/s
+      double ffVolts =
+          Units.radiansToRotations(velocitySetpointRadPerSec) * Constants.TurretConstants.KV;
       double fbVolts = error * Constants.TurretConstants.KP;
       appliedVolts = MathUtil.clamp(ffVolts + fbVolts, -12.0, 12.0);
     }

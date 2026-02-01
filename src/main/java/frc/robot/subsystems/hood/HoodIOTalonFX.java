@@ -21,18 +21,19 @@ public class HoodIOTalonFX implements HoodIO {
 
     // Configure TalonFX
     var motorConfig = new TalonFXConfiguration();
-    motorConfig.MotorOutput.NeutralMode = Constants.HoodConstants.NEUTRAL_MODE;
-    motorConfig.MotorOutput.Inverted = Constants.HoodConstants.MOTOR_INVERTED;
 
-    // Rotor offset for zeroing (set this to current position when at reference angle)
+    // Motor Inversion and Neutral Mode
+    motorConfig.MotorOutput.Inverted = Constants.HoodConstants.MOTOR_INVERTED;
+    motorConfig.MotorOutput.NeutralMode = Constants.HoodConstants.NEUTRAL_MODE;
+
+    // Feedback Configuration
     motorConfig.Feedback.RotorToSensorRatio = 1.0;
     // SensorToMechanismRatio in Phoenix 6 = sensor rotations per mechanism rotation
     // Our GEAR_RATIO is mechanism per motor, so we need the reciprocal
     motorConfig.Feedback.SensorToMechanismRatio = 1.0 / Constants.HoodConstants.GEAR_RATIO;
     motorConfig.Feedback.FeedbackRotorOffset = Constants.HoodConstants.ROTOR_OFFSET;
 
-    // Software limits in mechanism rotations (Phoenix 6 handles the gear ratio)
-    // Subtract the zero offset since the limits are for mechanism angle from horizontal
+    // Software Limits (mechanism rotations - Phoenix 6 handles the gear ratio)
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
@@ -44,7 +45,7 @@ public class HoodIOTalonFX implements HoodIO {
             Constants.HoodConstants.MIN_POSITION_RAD
                 - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG));
 
-    // PID configuration with gravity compensation
+    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
     motorConfig.Slot0.kP = Constants.HoodConstants.KP;
     motorConfig.Slot0.kI = Constants.HoodConstants.KI;
     motorConfig.Slot0.kD = Constants.HoodConstants.KD;
@@ -54,12 +55,12 @@ public class HoodIOTalonFX implements HoodIO {
     motorConfig.Slot0.kG = Constants.HoodConstants.KG;
     motorConfig.Slot0.GravityType = GravityTypeValue.Arm_Cosine;
 
-    // Motion Magic configuration
+    // Motion Magic
     motorConfig.MotionMagic.MotionMagicCruiseVelocity = Constants.HoodConstants.CRUISE_VELOCITY;
     motorConfig.MotionMagic.MotionMagicAcceleration = Constants.HoodConstants.ACCELERATION;
     motorConfig.MotionMagic.MotionMagicJerk = Constants.HoodConstants.JERK;
 
-    // Current limits
+    // Current Limits
     motorConfig.CurrentLimits.StatorCurrentLimit = Constants.HoodConstants.STATOR_CURRENT_LIMIT;
     motorConfig.CurrentLimits.StatorCurrentLimitEnable = true;
     motorConfig.CurrentLimits.SupplyCurrentLimit = Constants.HoodConstants.SUPPLY_CURRENT_LIMIT;

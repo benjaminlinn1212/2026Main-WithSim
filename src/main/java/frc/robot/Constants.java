@@ -13,7 +13,6 @@ import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import com.pathplanner.lib.path.PathConstraints;
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
 import edu.wpi.first.math.Matrix;
@@ -136,17 +135,12 @@ public final class Constants {
         new PPHolonomicDriveController(
             // PPHolonomicController is the built in path following controller for holonomic drive
             // trains.
-            // This does not affect DriveToPose.
-            new PIDConstants(3.5, 0.0, 0.0), // Translation PID constants500
-            new PIDConstants(2.8, 0.0, 0.0) // Rotation PID constants500
+            new PIDConstants(3.5, 0.0, 0.0), // Translation PID constants
+            new PIDConstants(2.8, 0.0, 0.0) // Rotation PID constants
             );
 
     public static class DriveToPose {
       // This constraint is used in the driveToPose() function by PPLib AND PIDControl.
-      public static final PathConstraints CONSTRAINTS =
-          new PathConstraints(4, 4, 360, 360, 12, false); // 2.2
-
-      // These constraints are solely used in the driveToPose() function by PIDControl.
       public static final double TRANSLATION_KP = 2.0; // Reduced from 5 to reduce oscillation
       public static final double TRANSLATION_KI = 0.0;
       public static final double TRANSLATION_KD = 0.2; // Increased to dampen oscillation
@@ -173,77 +167,82 @@ public final class Constants {
   }
 
   public static class ShooterConstants {
-    // Motor CAN ID
+    // Hardware Configuration
     public static final int MOTOR_CAN_ID = 49;
     public static final String CAN_BUS = "Superstructure";
-
-    // Gear ratio: 1 mechanism rotation per 1 motor rotation (direct drive)
-    public static final double GEAR_RATIO = 1.0;
-
-    // Motor inversion
+    public static final double GEAR_RATIO =
+        1.0; // 1 mechanism rotation per 1 motor rotation (direct drive)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
-
-    // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and feedforward constants for VelocityVoltage control
-    public static final double KS = 0.25;
+    // PID and Feedforward Constants (VelocityVoltage control)
+    public static final double KP = 0.5; // Proportional gain
+    public static final double KI = 0.0; // Integral gain
+    public static final double KD = 0.0; // Derivative gain
+    public static final double KS = 0.25; // Static friction
+    public static final double KV = 0.12; // Velocity feedforward
+    public static final double KA = 0.01; // Acceleration feedforward
+    public static final double KG = 0.0; // Gravity feedforward
 
-    public static final double KV = 0.12;
-    public static final double KA = 0.01;
-    public static final double KP = 0.5;
-    public static final double KI = 0.0;
-    public static final double KD = 0.0;
-
-    // Motion Magic constants
+    // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 80.0; // rotations per second
     public static final double ACCELERATION = 160.0; // rotations per second^2
     public static final double JERK = 1600.0; // rotations per second^3
 
-    // Current limits
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
     public static final double SUPPLY_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Shooter speed presets (in rotations per second)
+    // Shooter Speed Presets (rotations per second)
     public static final double IDLE_SPEED = 0.0;
     public static final double HUB_SPEED = 60.0; // Speed for shooting at hub
     public static final double PASS_SPEED = 50.0; // Speed for passing notes
     public static final double NEUTRAL_ZONE_SPEED = 80.0; // Speed for shooting back in neutral zone
 
-    // Velocity tolerance (for checking if at speed)
+    // Velocity Tolerance
     public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
   }
 
   public static class Aiming {
-    // Shot calculation parameters
+    // Shot Calculation Parameters
     public static final double MIN_SHOT_DISTANCE = 1.0; // meters - minimum valid shot distance
     public static final double MAX_SHOT_DISTANCE = 6.0; // meters - maximum valid shot distance
     public static final double PHASE_DELAY =
         0.03; // seconds - prediction lookahead for motion compensation
 
-    // Feedforward filter
+    // Feedforward Filter
     public static final int FEEDFORWARD_FILTER_TAPS = 10; // Moving average filter size
 
-    // Neutral zone shot settings (simple shot back to alliance wall)
+    // Neutral Zone Shot Settings
     public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG =
         35.0; // Hood angle for neutral zone shots
   }
 
   public static class IntakeConstants {
-    // Motor CAN IDs
+    // Hardware Configuration
     public static final int UPPER_MOTOR_CAN_ID = 41;
     public static final int LOWER_MOTOR_CAN_ID = 42;
     public static final String CAN_BUS = "Superstructure";
-
-    // Neutral mode
+    public static final double GEAR_RATIO = 1.0; // Direct drive
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // Current limits
+    // PID and Feedforward Constants (not used for duty cycle control)
+    public static final double KP = 0.0;
+    public static final double KI = 0.0;
+    public static final double KD = 0.0;
+    public static final double KS = 0.0;
+    public static final double KV = 0.0;
+    public static final double KA = 0.0;
+    public static final double KG = 0.0;
+
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Intake percent output (0.0 to 1.0)
+    // Intake Percent Output (0.0 to 1.0)
     public static final double UPPER_INTAKE_PERCENT = 0.45;
     public static final double LOWER_INTAKE_PERCENT = 0.75;
     public static final double UPPER_OUTTAKE_PERCENT = -0.5;
@@ -255,25 +254,19 @@ public final class Constants {
   }
 
   public static class IntakePivotConstants {
-    // Motor CAN ID
+    // Hardware Configuration
     public static final int MOTOR_CAN_ID = 43;
     public static final String CAN_BUS = "Superstructure";
-
-    // Motor inversion (true = clockwise positive)
+    public static final double GEAR_RATIO = 1.0; // Direct drive or specify actual ratio
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
-
-    // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+    public static final double MOTOR_ROTOR_OFFSET = 0.048; // Motor encoder offset (rotations)
 
-    // Motor encoder offset (in rotations)
-    // Set this to the current position when the mechanism is at its zero/reference position
-    public static final double MOTOR_ROTOR_OFFSET = 0.048;
+    // Soft Limits (rotations)
+    public static final double SOFT_LIMIT_REVERSE = 0.0; // Minimum position
+    public static final double SOFT_LIMIT_FORWARD = 28.0; // Maximum position
 
-    // Soft limits (in rotations)
-    public static final double SOFT_LIMIT_REVERSE = 0.0; // Reverse soft limit (minimum position)
-    public static final double SOFT_LIMIT_FORWARD = 28.0; // Forward soft limit (maximum position)
-
-    // PID constants
+    // PID and Feedforward Constants
     public static final double KP = 1.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -282,178 +275,179 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.0;
 
-    // Motion Magic constants
+    // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 100.0; // rotations per second
     public static final double ACCELERATION = 200.0; // rotations per second^2
     public static final double JERK = 2000.0; // rotations per second^3
 
-    // Current limits
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Position setpoints (in rotations)
+    // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0; // Stowed/up position
     public static final double DEPLOYED_POSITION = 27.6; // Extended/down position for intaking
 
-    // Position tolerance
+    // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
   }
 
   public static class ConveyorConstants {
-    // Motor CAN ID
+    // Hardware Configuration
     public static final int MOTOR_CAN_ID = 45;
     public static final String CAN_BUS = "Superstructure";
-
-    // Neutral mode
+    public static final double GEAR_RATIO = 1.0; // Direct drive
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // Current limits
+    // PID and Feedforward Constants (not used for duty cycle control)
+    public static final double KP = 0.0;
+    public static final double KI = 0.0;
+    public static final double KD = 0.0;
+    public static final double KS = 0.0;
+    public static final double KV = 0.0;
+    public static final double KA = 0.0;
+    public static final double KG = 0.0;
+
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Conveyor duty cycle percentages
+    // Conveyor Duty Cycle Percentages
     public static final double TO_SHOOTER_PERCENT = 0.3;
     public static final double TO_BUCKET_PERCENT = -0.3;
   }
 
   public static class IndexerConstants {
-    // Motor CAN IDs
+    // Hardware Configuration
     public static final int LEADER_MOTOR_CAN_ID = 47;
     public static final int FOLLOWER_MOTOR_CAN_ID = 48;
     public static final String CAN_BUS = "Superstructure";
-
-    // Motor inversions
+    public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue LEADER_INVERTED = InvertedValue.Clockwise_Positive;
     public static final InvertedValue FOLLOWER_INVERTED = InvertedValue.CounterClockwise_Positive;
-
-    // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // Current limits
+    // PID and Feedforward Constants (not used for duty cycle control)
+    public static final double KP = 0.0;
+    public static final double KI = 0.0;
+    public static final double KD = 0.0;
+    public static final double KS = 0.0;
+    public static final double KV = 0.0;
+    public static final double KA = 0.0;
+    public static final double KG = 0.0;
+
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Indexer duty cycle
+    // Indexer Duty Cycle
     public static final double TO_SHOOTER_DUTY_CYCLE = 0.9;
   }
 
   public static class ClimbConstants {
-    // Motor CAN ID
+    // Hardware Configuration
     public static final int MOTOR_CAN_ID = 46;
     public static final String CAN_BUS = "Superstructure";
-
-    // Neutral mode
+    public static final double GEAR_RATIO = 1.0; // Direct drive or specify actual ratio
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // PID constants
+    // PID and Feedforward Constants
     public static final double KP = 10.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.0;
     public static final double KV = 0.0;
     public static final double KA = 0.0;
+    public static final double KG = 0.0;
 
-    // Motion Magic constants
+    // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 40.0; // rotations per second
     public static final double ACCELERATION = 80.0; // rotations per second^2
     public static final double JERK = 800.0; // rotations per second^3
 
-    // Current limits
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
     public static final double SUPPLY_CURRENT_LIMIT = 60.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Position setpoints (in rotations)
+    // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0; // Starting position
     public static final double EXTENDED_POSITION = 50.0; // Fully extended
     public static final double RETRACTED_POSITION = 5.0; // Pulled up on chain
 
-    // Position tolerance
+    // Position Tolerance
     public static final double POSITION_TOLERANCE = 1.0; // rotations
   }
 
   public static class TurretConstants {
-    // Motor CAN ID
+    // Hardware Configuration
     public static final int MOTOR_CAN_ID = 44;
     public static final String CAN_BUS = "Superstructure";
+    public static final double GEAR_RATIO =
+        1.0 / 26.812; // mechanism rotations per motor rotation (reduction)
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+    public static final double ROTOR_OFFSET = -0.03; // Motor rotations
 
-    // Turret position offset from robot center (meters)
-    // Positive X = forward from robot center, Positive Y = left from robot center
-    // This is CRITICAL for accurate aiming when the turret is not at the robot's center.
-    // To measure: With robot at origin facing +X, measure turret's X and Y coordinates.
-    // Example: If turret is 0.2m forward and 0.1m left of robot center:
-    //   new Translation2d(0.2, 0.1)
+    // Turret Position Offset from Robot Center
+    // Positive X = forward, Positive Y = left from robot center (meters)
     public static final Translation2d TURRET_OFFSET_FROM_ROBOT_CENTER =
         new Translation2d(0.1909, 0.0);
 
-    // Gear ratio: mechanism rotations per motor rotation
-    // 1/26.812 = 0.0373 mechanism rotations per 1 motor rotation (reduction)
-    public static final double GEAR_RATIO = 1.0 / 26.812;
-
-    // Motor inversion (positive = counter-clockwise when viewed from above)
-    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
-
-    // Neutral mode
-    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
-
-    // Rotor offset for zeroing (motor rotations - this stays in rotations as it's a motor property)
-    public static final double ROTOR_OFFSET = -0.03;
-
-    // Position limits (RADIANS - mechanism angle limits)
+    // Position Limits (radians - mechanism angle limits)
     public static final double MIN_POSITION_RAD = Units.rotationsToRadians(-0.5); // -π radians
     public static final double MAX_POSITION_RAD = Units.rotationsToRadians(0.5); // +π radians
 
-    // PID constants (tuned for MotionMagicVoltage mode)
+    // PID and Feedforward Constants (MotionMagicVoltage mode)
     public static final double KP = 10.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.25;
     public static final double KV = 0.12;
     public static final double KA = 0.0;
+    public static final double KG = 0.0;
 
-    // Motion Magic constants (in motor rotations/sec, after gear ratio)
-    public static final double CRUISE_VELOCITY = 100.0; // Motor rotations/sec
-    public static final double ACCELERATION = 1200.0; // Motor rotations/sec²
-    public static final double JERK = 9000.0; // Motor rotations/sec³
+    // Motion Magic Constants (mechanism rotations/sec, Phoenix handles gear ratio)
+    public static final double CRUISE_VELOCITY = 2.0; // Mechanism rotations/sec (~720 deg/s)
+    public static final double ACCELERATION = 10.0; // Mechanism rotations/sec²
+    public static final double JERK = 100.0; // Mechanism rotations/sec³
 
-    // Current limits
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 150.0;
     public static final double SUPPLY_CURRENT_LIMIT = 80.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Position tolerance for aiming (rotations)
+    // Position Tolerance
     public static final double AIMING_TOLERANCE_ROT = Units.degreesToRadians(2.0) / (2 * Math.PI);
 
-    // Position setpoints (RADIANS for subsystem use)
-    public static final double STOW_POSITION = 0.0; // Forward (radians)
+    // Position Setpoints (radians)
+    public static final double STOW_POSITION = 0.0; // Forward
   }
 
   public static class HoodConstants {
-    // Motor CAN ID
+    // Hardware Configuration
     public static final int MOTOR_CAN_ID = 50;
     public static final String CAN_BUS = "Superstructure";
-
-    // Gear ratio: mechanism rotations per motor rotation
-    // 1/12.6 = 0.0794 mechanism rotations per 1 motor rotation (reduction)
-    public static final double GEAR_RATIO = 1.0 / 12.6;
-
-    // Motor inversion (positive = mechanism moves up)
+    public static final double GEAR_RATIO =
+        1.0 / 12.6; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
-
-    // Neutral mode
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+    public static final double ROTOR_OFFSET = 0.228027; // Motor rotations
 
-    // Rotor offset (rotations) - sets where the motor thinks "zero" is
-    // When rotor sensor reads 0, the mechanism is actually at MECHANISM_ZERO_ANGLE_DEG
-    public static final double ROTOR_OFFSET = 0.228027;
+    // Mechanism Zero Angle
+    // The actual mechanism angle when rotor sensor reads 0 (degrees from horizontal)
+    public static final double MECHANISM_ZERO_ANGLE_DEG = 20.0;
 
-    // Mechanism zero angle - the actual mechanism angle when rotor sensor reads 0
-    // This is the angle from horizontal when the motor encoder is at its zero position
-    public static final double MECHANISM_ZERO_ANGLE_DEG = 20.0; // degrees from horizontal
-
-    // Position limits (radians from horizontal)
+    // Position Limits (radians from horizontal)
     public static final double MIN_POSITION_RAD = Units.degreesToRadians(21.0);
     public static final double MAX_POSITION_RAD = Units.degreesToRadians(45.0);
 
-    // PID constants
+    // PID and Feedforward Constants
     public static final double KP = 25.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -462,19 +456,19 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.2;
 
-    // Motion Magic constants
+    // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 80.0; // rotations per second
     public static final double ACCELERATION = 160.0; // rotations per second^2
     public static final double JERK = 1600.0; // rotations per second^3
 
-    // Current limits
+    // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
 
-    // Position tolerance for aiming
+    // Position Tolerance
     public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(1.0);
 
-    // Position setpoints (radians)
+    // Position Setpoints (radians)
     public static final double STOW_POSITION = Units.degreesToRadians(21.0); // Safe stow angle
     public static final double MIN_AIM_ANGLE = Units.degreesToRadians(21.0); // Minimum angle
   }

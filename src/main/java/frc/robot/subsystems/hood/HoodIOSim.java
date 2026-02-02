@@ -19,8 +19,10 @@ public class HoodIOSim implements HoodIO {
     // starting angle
     sim =
         new SingleJointedArmSim(
-            DCMotor.getFalcon500Foc(1), // Falcon 500 FOC (similar to X44)
-            Constants.HoodConstants.GEAR_RATIO, // Gear ratio
+            DCMotor.getKrakenX44(1),
+            1.0
+                / Constants.HoodConstants
+                    .GEAR_RATIO, // Gear ratio (motor rotations per mechanism rotation)
             0.3, // Moment of inertia (kg*m^2) - adjust based on actual mechanism
             0.3, // Arm length (meters) - approximate hood length
             Constants.HoodConstants.MIN_POSITION_RAD, // Min angle
@@ -35,7 +37,10 @@ public class HoodIOSim implements HoodIO {
     if (closedLoop) {
       // Simple PID controller for simulation
       double error = positionSetpointRad - sim.getAngleRads();
-      double ffVolts = velocitySetpointRadPerSec * Constants.HoodConstants.KV;
+      double ffVolts =
+          velocitySetpointRadPerSec
+              * Constants.HoodConstants.KV
+              * (2 * Math.PI); // Convert KV from rotations/s to rad/s
       double fbVolts = error * Constants.HoodConstants.KP;
 
       // Add gravity compensation

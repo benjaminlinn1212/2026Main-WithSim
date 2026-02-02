@@ -147,8 +147,8 @@ public class Superstructure extends SubsystemBase {
             intake.intake(),
             indexer.stop(),
             conveyor.stop(),
-            // turret.aimHub(),
-            // hood.aimHub(),
+            turret.aiming(),
+            hood.aimHub(),
             shooter.spinUp())
         .withName("Superstructure_IntakeWhileAimingHub");
   }
@@ -158,7 +158,13 @@ public class Superstructure extends SubsystemBase {
             Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_SCORING_HUB)),
             // Commands.waitUntil(shooter::readyForHub),
             Commands.parallel(
-                intakePivot.deploy(), intake.intake(), conveyor.goToShooter(), indexer.toShooter()))
+                intakePivot.deploy(),
+                intake.intake(),
+                conveyor.goToShooter(),
+                turret.aiming(),
+                hood.aimHub(),
+                shooter.spinUp(),
+                indexer.toShooter()))
         .withName("Superstructure_IntakeWhileScoringHub");
   }
 

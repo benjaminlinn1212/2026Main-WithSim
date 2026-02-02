@@ -68,8 +68,7 @@ public class DriveToPose extends Command {
     thetaController.reset(currentPose.getRotation().getRadians());
 
     // Set the goal
-    double distance =
-        currentPose.getTranslation().getDistance(targetPose.getTranslation());
+    double distance = currentPose.getTranslation().getDistance(targetPose.getTranslation());
     driveController.setGoal(distance);
     thetaController.setGoal(targetPose.getRotation().getRadians());
 

@@ -316,8 +316,8 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Conveyor Duty Cycle Percentages
-    public static final double TO_SHOOTER_PERCENT = 0.3;
-    public static final double TO_BUCKET_PERCENT = -0.3;
+    public static final double TO_SHOOTER_PERCENT = 0.5;
+    public static final double TO_BUCKET_PERCENT = -0.5;
   }
 
   public static class IndexerConstants {
@@ -345,7 +345,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Indexer Duty Cycle
-    public static final double TO_SHOOTER_DUTY_CYCLE = 0.9;
+    public static final double TO_SHOOTER_DUTY_CYCLE = 0.7;
   }
 
   public static class ClimbConstants {

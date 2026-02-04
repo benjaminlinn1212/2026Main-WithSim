@@ -119,6 +119,14 @@ public final class Constants {
     public static final Matrix<N3, N1> MULTI_TAG_STD_DEVS = VecBuilder.fill(0.5, 0.5, 1);
   }
 
+  public static class AutoConstants {
+    // Path following PID controllers (inspired by Team 254's tuning approach)
+    // Note: Standard PathPlanner uses 2 controllers (translation + rotation)
+    // We use 254's translation value as our baseline
+    public static final double kPLTEController = 3.0; // Translation (along/cross track combined)
+    public static final double kPThetaController = 5.0; // Rotation error
+  }
+
   public static class DriveConstants {
     // Maple-Sim Physics Simulation Configuration
     public static final boolean USE_MAPLE_SIM = true;

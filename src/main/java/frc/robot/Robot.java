@@ -92,20 +92,34 @@ public class Robot extends LoggedRobot {
 
   /** This function is called once when the robot is disabled. */
   @Override
-  public void disabledInit() {}
+  public void disabledInit() {
+    // Cancel any running commands when disabled
+    if (autonomousCommand != null) {
+      System.out.println("[Robot] Canceling autonomous command on disable");
+      autonomousCommand.cancel();
+      autonomousCommand = null; // Clear reference so it can be recreated
+    }
+  }
 
   /** This function is called periodically when disabled. */
   @Override
-  public void disabledPeriodic() {}
+  public void disabledPeriodic() {
+    // Run warmup for selected auto during disabled
+    robotContainer.runAutoWarmup();
+  }
 
   /** This autonomous runs the autonomous command selected by your {@link RobotContainer} class. */
   @Override
   public void autonomousInit() {
+    // Always get a fresh command from the chooser
     autonomousCommand = robotContainer.getAutonomousCommand();
 
     // schedule the autonomous command (example)
     if (autonomousCommand != null) {
+      System.out.println("[Robot] Scheduling autonomous command: " + autonomousCommand.getName());
       CommandScheduler.getInstance().schedule(autonomousCommand);
+    } else {
+      System.out.println("[Robot] WARNING: No autonomous command selected!");
     }
   }
 

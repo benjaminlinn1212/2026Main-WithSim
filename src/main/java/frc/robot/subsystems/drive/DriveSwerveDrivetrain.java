@@ -59,6 +59,11 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     return robotState;
   }
 
+  /** Get current chassis speeds */
+  public ChassisSpeeds getChassisSpeeds() {
+    return driveIO.getState().Speeds;
+  }
+
   /** Reset the robot's pose. */
   public void setPose(Pose2d pose) {
     driveIO.resetOdometry(pose);
@@ -109,5 +114,20 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   /** Get the underlying DriveIO instance. */
   public DriveIOHardware getDriveIO() {
     return driveIO;
+  }
+
+  /**
+   * Get path constraints for PathPlanner pathfinding.
+   *
+   * @return PathConstraints for autonomous navigation
+   */
+  public com.pathplanner.lib.path.PathConstraints getPathConstraints() {
+    // Moderate constraints for safe auto navigation
+    return new com.pathplanner.lib.path.PathConstraints(
+        3.0, // Max velocity (m/s)
+        3.0, // Max acceleration (m/s²)
+        Math.toRadians(360), // Max angular velocity (rad/s)
+        Math.toRadians(540) // Max angular acceleration (rad/s²)
+        );
   }
 }

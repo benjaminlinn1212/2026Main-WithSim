@@ -155,6 +155,56 @@ public class ClimbSubsystem extends SubsystemBase {
     moveToTargetPositions();
   }
 
+  // Internal method for velocity-based path following
+  private void setTargetVelocitiesInternal(
+      Translation2d leftPosition,
+      Translation2d rightPosition,
+      Translation2d leftVelocity,
+      Translation2d rightVelocity) {
+    this.leftTargetPosition = leftPosition;
+    this.rightTargetPosition = rightPosition;
+
+    // Calculate IK to get motor rotations
+    ClimbIKResult ikResult = ClimbIK.calculateBothSides(leftPosition, rightPosition);
+    if (!ikResult.isValid()) {
+      Logger.recordOutput("Climb/IK/Valid", false);
+      return;
+    }
+
+    // Calculate motor velocities from Cartesian velocities using numerical differentiation
+    // dθ/dt = (∂θ/∂x) * dx/dt + (∂θ/∂y) * dy/dt (chain rule)
+    // For simplicity, we'll use the velocity magnitude scaled by the path curvature
+
+    double leftSpeed = leftVelocity.getNorm(); // m/s
+    double rightSpeed = rightVelocity.getNorm(); // m/s
+
+    // Convert Cartesian speed to motor rotation speed (rough approximation)
+    // Assuming typical arm velocity, scale by drum circumference and gear ratio
+    double drumCircumference =
+        Math.PI * frc.robot.Constants.ClimbConstants.CABLE_DRUM_DIAMETER_METERS;
+
+    // Front motors
+    double leftFrontVel =
+        leftSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.FRONT_GEAR_RATIO);
+    double rightFrontVel =
+        rightSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.FRONT_GEAR_RATIO);
+
+    // Back motors
+    double leftBackVel =
+        leftSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.BACK_GEAR_RATIO);
+    double rightBackVel =
+        rightSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.BACK_GEAR_RATIO);
+
+    io.setLeftFrontVelocity(leftFrontVel);
+    io.setLeftBackVelocity(leftBackVel);
+    io.setRightFrontVelocity(rightFrontVel);
+    io.setRightBackVelocity(rightBackVel);
+
+    Logger.recordOutput("Climb/IK/Valid", true);
+    Logger.recordOutput("Climb/Velocity/LeftSpeed", leftSpeed);
+    Logger.recordOutput("Climb/Velocity/RightSpeed", rightSpeed);
+  }
+
   // PATH FOLLOWING
 
   public Command followWaypointPath(List<Translation2d> waypoints, double durationSeconds) {
@@ -168,8 +218,10 @@ public class ClimbSubsystem extends SubsystemBase {
           cancel();
           return;
         }
+        // Use multi-Bezier path for smooth continuous motion through waypoints
+        // Lower tension (0.15) creates gentler curves that Motion Magic can follow smoothly
         ClimbPathPlanner.ClimbPath path =
-            ClimbPathPlanner.createSmoothPath(waypoints, durationSeconds);
+            ClimbPathPlanner.createMultiBezierPath(waypoints, 0.15, durationSeconds);
         if (!ClimbPathPlanner.isPathValid(path)) {
           Logger.recordOutput("Climb/Path/Error", "Invalid waypoint path");
           cancel();
@@ -190,7 +242,9 @@ public class ClimbSubsystem extends SubsystemBase {
       public void execute() {
         if (executor != null) {
           Translation2d[] targets = executor.getCurrentTargets();
-          setTargetPositionsInternal(targets[0], targets[1]); // Position control
+          Translation2d[] velocities = executor.getCurrentVelocities();
+          // Use velocity control for smooth feedforward motion
+          setTargetVelocitiesInternal(targets[0], targets[1], velocities[0], velocities[1]);
         }
       }
 

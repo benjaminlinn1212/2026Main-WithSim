@@ -1,11 +1,17 @@
 package frc.robot.subsystems.climb.util;
 
+import com.pathplanner.lib.path.GoalEndState;
+import com.pathplanner.lib.path.PathConstraints;
+import com.pathplanner.lib.path.PathPlannerPath;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Timer;
 import frc.robot.Constants.ClimbConstants;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Path Planning - Interpolates between waypoints to create smooth paths Path planning utilities for
@@ -144,13 +150,14 @@ public class ClimbPathPlanner {
   }
 
   /**
-   * Create a multi-segment Bezier path through multiple waypoints. Automatically generates control
-   * points for smooth transitions.
+   * Create a multi-segment Bezier path through multiple waypoints using PathPlanner's path
+   * generation. PathPlanner automatically creates smooth curves through waypoints without stopping.
    *
-   * @param waypoints List of waypoints to pass through
-   * @param tension Controls how tight the curves are (0.0 = tight, 1.0 = loose)
+   * @param waypoints List of waypoints to pass through (in climb 2D space: x=forward, y=up)
+   * @param tension Controls how tight the curves are (0.0 = tight, 1.0 = loose) - NOT USED, kept
+   *     for API compatibility
    * @param duration Total time to complete the path (seconds)
-   * @return Planned multi-segment Bezier path
+   * @return Planned multi-segment Bezier path sampled from PathPlanner
    */
   public static ClimbPath createMultiBezierPath(
       List<Translation2d> waypoints, double tension, double duration) {
@@ -158,31 +165,74 @@ public class ClimbPathPlanner {
       throw new IllegalArgumentException("Need at least 2 waypoints for a Bezier path");
     }
 
-    List<Translation2d> bezierPath = new ArrayList<>();
+    // Convert climb waypoints (2D: x=forward, y=up) to PathPlanner poses
+    // Rotation = direction of travel (required by PathPlanner)
+    List<Pose2d> poses = new ArrayList<>();
+    for (int i = 0; i < waypoints.size(); i++) {
+      Translation2d wp = waypoints.get(i);
 
-    // For each segment between waypoints
-    for (int i = 0; i < waypoints.size() - 1; i++) {
-      Translation2d p0 = waypoints.get(i);
-      Translation2d p3 = waypoints.get(i + 1);
-
-      // Auto-generate control points based on waypoint tangents
-      Translation2d direction = p3.minus(p0).times(tension);
-      Translation2d p1 = p0.plus(direction.times(0.33));
-      Translation2d p2 = p3.minus(direction.times(0.33));
-
-      // Sample the Bezier segment
-      int samplesPerSegment = 20;
-      for (int j = 0; j < samplesPerSegment; j++) {
-        double t = (double) j / samplesPerSegment;
-        Translation2d point = calculateCubicBezier(p0, p1, p2, p3, t);
-        bezierPath.add(point);
+      // Calculate direction of travel for this waypoint
+      Rotation2d heading;
+      if (i == 0) {
+        // First waypoint: heading toward next waypoint
+        Translation2d direction = waypoints.get(1).minus(wp);
+        heading = new Rotation2d(direction.getX(), direction.getY());
+      } else if (i == waypoints.size() - 1) {
+        // Last waypoint: heading from previous waypoint
+        Translation2d direction = wp.minus(waypoints.get(i - 1));
+        heading = new Rotation2d(direction.getX(), direction.getY());
+      } else {
+        // Middle waypoints: average of incoming and outgoing directions
+        Translation2d incoming = wp.minus(waypoints.get(i - 1));
+        Translation2d outgoing = waypoints.get(i + 1).minus(wp);
+        Translation2d avgDirection = incoming.plus(outgoing).times(0.5);
+        heading = new Rotation2d(avgDirection.getX(), avgDirection.getY());
       }
+
+      poses.add(new Pose2d(wp, heading));
     }
 
-    // Add final waypoint
-    bezierPath.add(waypoints.get(waypoints.size() - 1));
+    // Create PathPlanner path from poses - this uses Bezier curves with proper control points
+    PathPlannerPath path =
+        new PathPlannerPath(
+            PathPlannerPath.waypointsFromPoses(poses),
+            new PathConstraints(
+                1.0, // max velocity m/s
+                2.0, // max acceleration m/s^2
+                Double.POSITIVE_INFINITY, // max angular velocity (not used)
+                Double.POSITIVE_INFINITY), // max angular acceleration (not used)
+            null, // ideal starting state
+            new GoalEndState(0.0, poses.get(poses.size() - 1).getRotation())); // end at rest
 
-    return new ClimbPath(bezierPath, duration, PathType.SMOOTH);
+    // Get path poses from PathPlanner (these are the smoothly interpolated points)
+    List<Pose2d> pathPoses = path.getPathPoses();
+
+    // Extract just the Translation2d positions
+    List<Translation2d> pathPoints =
+        pathPoses.stream().map(Pose2d::getTranslation).collect(Collectors.toList());
+
+    // PathPlanner generates LOTS of points - resample to 50Hz for our duration
+    int targetSamples = (int) (duration * 50); // 50Hz control loop
+    List<Translation2d> resampledPoints = new ArrayList<>();
+
+    if (pathPoints.size() <= targetSamples) {
+      // Already have fewer points than target, use all of them
+      resampledPoints.addAll(pathPoints);
+    } else {
+      // Downsample by taking every Nth point
+      double step = (double) pathPoints.size() / targetSamples;
+      for (int i = 0; i < targetSamples; i++) {
+        int index = (int) (i * step);
+        if (index >= pathPoints.size()) {
+          index = pathPoints.size() - 1;
+        }
+        resampledPoints.add(pathPoints.get(index));
+      }
+      // Make sure we end exactly at the final waypoint
+      resampledPoints.add(waypoints.get(waypoints.size() - 1));
+    }
+
+    return new ClimbPath(resampledPoints, duration, PathType.SMOOTH);
   }
 
   /**
@@ -405,12 +455,34 @@ public class ClimbPathPlanner {
       isFinished = true;
     }
 
-    /** Get current target positions for both sides */
+    /** Get current target positions - smoothly interpolates between waypoints based on time */
     public Translation2d[] getCurrentTargets() {
       double elapsed = timer.get();
       Translation2d leftTarget = getPositionAtTime(leftPath, elapsed);
       Translation2d rightTarget = getPositionAtTime(rightPath, elapsed);
+
       return new Translation2d[] {leftTarget, rightTarget};
+    }
+
+    /**
+     * Get current velocities along the path (for velocity control) Calculates velocity as
+     * derivative of position
+     */
+    public Translation2d[] getCurrentVelocities() {
+      double elapsed = timer.get();
+      double dt = 0.02; // 20ms lookahead (50Hz control loop)
+
+      // Get current and future positions
+      Translation2d leftCurrent = getPositionAtTime(leftPath, elapsed);
+      Translation2d leftFuture = getPositionAtTime(leftPath, elapsed + dt);
+      Translation2d rightCurrent = getPositionAtTime(rightPath, elapsed);
+      Translation2d rightFuture = getPositionAtTime(rightPath, elapsed + dt);
+
+      // Velocity = (future - current) / dt
+      Translation2d leftVel = leftFuture.minus(leftCurrent).div(dt);
+      Translation2d rightVel = rightFuture.minus(rightCurrent).div(dt);
+
+      return new Translation2d[] {leftVel, rightVel};
     }
 
     /** Check if path execution is complete */
@@ -426,8 +498,8 @@ public class ClimbPathPlanner {
 
     /** Get progress as a percentage (0.0 to 1.0) */
     public double getProgress() {
-      double maxDuration = Math.max(leftPath.getTotalDuration(), rightPath.getTotalDuration());
-      return Math.min(1.0, timer.get() / maxDuration);
+      return Math.min(
+          1.0, timer.get() / Math.max(leftPath.getTotalDuration(), rightPath.getTotalDuration()));
     }
   }
 }

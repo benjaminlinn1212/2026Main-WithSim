@@ -14,11 +14,26 @@ public enum ClimbState {
   // STOWED - Starting position
   STOWED("Stowed", new Translation2d(0.0, 0.0), null, 1.0),
 
-  // REACH_L1 - Reach up to L1 bar (initial reach from stowed)
+  // REACH_L1_AUTO - Reach up to L1 bar for autonomous - CURVED PATH
+  REACH_L1_AUTO(
+      "Reach L1 Auto",
+      new Translation2d(0.15, 0.7),
+      List.of(
+          new Translation2d(0.0, 0.0), // Start (stowed)
+          new Translation2d(0.05, 0.2), // Curve point 1 (move forward and up)
+          new Translation2d(0.12, 0.5), // Curve point 2 (continue arc)
+          new Translation2d(0.15, 0.7)), // End (reach position)
+      2.0),
+
+  // REACH_L1 - Reach up to L1 bar (teleop) - CURVED PATH
   REACH_L1(
       "Reach L1",
       new Translation2d(0.15, 0.7),
-      List.of(new Translation2d(0.0, 0.0), new Translation2d(0.15, 0.7)),
+      List.of(
+          new Translation2d(0.0, 0.0), // Start (stowed)
+          new Translation2d(0.05, 0.2), // Curve point 1 (move forward and up)
+          new Translation2d(0.12, 0.5), // Curve point 2 (continue arc)
+          new Translation2d(0.15, 0.7)), // End (reach position)
       2.0),
 
   // PULL_L1_AUTO - Pull up on L1 for autonomous
@@ -42,11 +57,15 @@ public enum ClimbState {
       List.of(new Translation2d(0.15, 0.7), new Translation2d(0.08, 0.45)),
       2.5),
 
-  // REACH_L2 - Reach L2 from L1 (shared position for L2/L3)
+  // REACH_L2 - Reach L2 from L1 (shared position for L2/L3) - CURVED PATH
   REACH_L2(
       "Reach L2",
       new Translation2d(0.2, 0.8),
-      List.of(new Translation2d(0.08, 0.45), new Translation2d(0.2, 0.8)),
+      List.of(
+          new Translation2d(0.08, 0.45), // Start (pulled on L1)
+          new Translation2d(0.12, 0.58), // Curve point 1 (arc outward)
+          new Translation2d(0.17, 0.72), // Curve point 2 (continue arc)
+          new Translation2d(0.2, 0.8)), // End (reach L2)
       2.5),
 
   // PULL_L2 - Pull up on L2 (shared position for L2/L3)
@@ -56,11 +75,15 @@ public enum ClimbState {
       List.of(new Translation2d(0.2, 0.8), new Translation2d(0.1, 0.5)),
       2.5),
 
-  // REACH_L3 - Reach L3 from L2 (shared position for L2/L3)
+  // REACH_L3 - Reach L3 from L2 (shared position for L2/L3) - CURVED PATH
   REACH_L3(
       "Reach L3",
       new Translation2d(0.2, 0.8),
-      List.of(new Translation2d(0.1, 0.5), new Translation2d(0.2, 0.8)),
+      List.of(
+          new Translation2d(0.1, 0.5), // Start (pulled on L2)
+          new Translation2d(0.14, 0.62), // Curve point 1 (arc outward)
+          new Translation2d(0.18, 0.74), // Curve point 2 (continue arc)
+          new Translation2d(0.2, 0.8)), // End (reach L3)
       2.5),
 
   // PULL_L3 - Pull up on L3 (shared position for L2/L3, final)
@@ -121,8 +144,10 @@ public enum ClimbState {
     switch (this) {
       case STOWED:
         return REACH_L1;
-      case REACH_L1:
+      case REACH_L1_AUTO:
         return PULL_L1_AUTO;
+      case REACH_L1:
+        return PULL_L1; // Skip auto states (PULL_L1_AUTO, DROP_L1_AUTO)
       case PULL_L1_AUTO:
         return DROP_L1_AUTO;
       case DROP_L1_AUTO:
@@ -143,14 +168,16 @@ public enum ClimbState {
   /** Get previous state in climb sequence */
   public ClimbState getPreviousState() {
     switch (this) {
+      case REACH_L1_AUTO:
+        return STOWED;
       case REACH_L1:
         return STOWED;
       case PULL_L1_AUTO:
-        return REACH_L1;
+        return REACH_L1_AUTO;
       case DROP_L1_AUTO:
         return PULL_L1_AUTO;
       case PULL_L1:
-        return DROP_L1_AUTO;
+        return REACH_L1; // Skip auto states (DROP_L1_AUTO, PULL_L1_AUTO)
       case REACH_L2:
         return PULL_L1;
       case PULL_L2:

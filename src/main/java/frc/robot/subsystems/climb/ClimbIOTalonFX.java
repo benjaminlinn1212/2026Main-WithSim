@@ -2,6 +2,7 @@ package frc.robot.subsystems.climb;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
+import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import edu.wpi.first.wpilibj.Servo;
 import frc.robot.Constants.ClimbConstants;
@@ -20,6 +21,11 @@ public class ClimbIOTalonFX implements ClimbIO {
   private final MotionMagicVoltage rightBackPositionControl = new MotionMagicVoltage(0);
   private final MotionMagicVoltage leftFrontPositionControl = new MotionMagicVoltage(0);
   private final MotionMagicVoltage leftBackPositionControl = new MotionMagicVoltage(0);
+
+  private final VelocityVoltage rightFrontVelocityControl = new VelocityVoltage(0);
+  private final VelocityVoltage rightBackVelocityControl = new VelocityVoltage(0);
+  private final VelocityVoltage leftFrontVelocityControl = new VelocityVoltage(0);
+  private final VelocityVoltage leftBackVelocityControl = new VelocityVoltage(0);
 
   public ClimbIOTalonFX() {
     rightFrontMotor = new TalonFX(ClimbConstants.RIGHT_FRONT_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
@@ -144,6 +150,26 @@ public class ClimbIOTalonFX implements ClimbIO {
   @Override
   public void setLeftBackPosition(double positionRotations) {
     leftBackMotor.setControl(leftBackPositionControl.withPosition(positionRotations));
+  }
+
+  @Override
+  public void setRightFrontVelocity(double velocityRotPerSec) {
+    rightFrontMotor.setControl(rightFrontVelocityControl.withVelocity(velocityRotPerSec));
+  }
+
+  @Override
+  public void setRightBackVelocity(double velocityRotPerSec) {
+    rightBackMotor.setControl(rightBackVelocityControl.withVelocity(velocityRotPerSec));
+  }
+
+  @Override
+  public void setLeftFrontVelocity(double velocityRotPerSec) {
+    leftFrontMotor.setControl(leftFrontVelocityControl.withVelocity(velocityRotPerSec));
+  }
+
+  @Override
+  public void setLeftBackVelocity(double velocityRotPerSec) {
+    leftBackMotor.setControl(leftBackVelocityControl.withVelocity(velocityRotPerSec));
   }
 
   @Override

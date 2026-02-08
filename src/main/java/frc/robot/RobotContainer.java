@@ -331,7 +331,8 @@ public class RobotContainer {
    * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
    */
   private void configureButtonBindings() {
-    // Default command, field-relative drive using 254's approach
+    // ===== DRIVE CONTROLS =====
+    // Default command, field-relative drive
     swerveIO.setDefaultCommand(
         Commands.run(
             () -> {
@@ -353,6 +354,7 @@ public class RobotContainer {
             },
             swerveIO));
 
+    // Right bumper: Reset pose
     controller
         .rightBumper()
         .onTrue(
@@ -361,20 +363,61 @@ public class RobotContainer {
                     swerveIO)
                 .ignoringDisable(true));
 
-    // B button: Toggle conveyor direction (does not change state)
-    controller.b().onTrue(Commands.runOnce(() -> conveyor.toggleDirection(), conveyor));
+    // ===== CLIMB TEST CONTROLS =====
 
-    // X button: Aim hub from alliance zone
-    controller.x().onTrue(superstructure.aimHubFromAllianceZone());
-
-    // Y button: Idle (stow everything)
-    controller.y().onTrue(superstructure.idle());
-
-    // Right trigger: Score hub (while held) then aim hub (when released)
+    // A button: Go to STOWED state
     controller
-        .rightTrigger()
-        .whileTrue(superstructure.scoreHubFromAllianceZone())
-        .onFalse(superstructure.aimHubFromAllianceZone());
+        .a()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  climb.setState(frc.robot.subsystems.climb.ClimbState.STOWED);
+                  System.out.println("[Climb Test] Set to STOWED state");
+                },
+                climb));
+
+    // B button: Test manual position control
+    controller
+        .b()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  climb.setSymmetricTargetPosition(
+                      new edu.wpi.first.math.geometry.Translation2d(0.6, 0.8));
+                  System.out.println("[Climb Test] Manual position (0.6, 0.8)");
+                },
+                climb));
+
+    // X button: Cycle through climb states (forward)
+    controller.x().onTrue(climb.nextState());
+
+    // Y button: Emergency stop climb
+    controller.y().onTrue(climb.emergencyStop());
+
+    // D-Pad Right: Next climb state
+    controller.povRight().onTrue(climb.nextState());
+
+    // D-Pad Left: Previous climb state
+    controller.povLeft().onTrue(climb.previousState());
+
+    // D-Pad Down: Test path following
+    controller
+        .povDown()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  System.out.println("[Climb Test] Testing path following...");
+                  java.util.List<edu.wpi.first.math.geometry.Translation2d> waypoints =
+                      java.util.List.of(
+                          new edu.wpi.first.math.geometry.Translation2d(0.1, 0.2),
+                          new edu.wpi.first.math.geometry.Translation2d(0.3, 0.5),
+                          new edu.wpi.first.math.geometry.Translation2d(0.5, 0.8));
+                  climb.followWaypointPath(waypoints, 3.0).schedule();
+                },
+                climb));
+
+    // Left bumper: Stop all climb motors
+    controller.leftBumper().onTrue(Commands.runOnce(() -> climb.stopMotors(), climb));
   }
 
   /**

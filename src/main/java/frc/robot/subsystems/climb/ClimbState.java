@@ -134,6 +134,17 @@ public enum ClimbState {
     return prePlannedWaypoints;
   }
 
+  /** Get reversed waypoints for going backwards along the path */
+  public List<Translation2d> getReversedWaypoints() {
+    if (prePlannedWaypoints == null || prePlannedWaypoints.isEmpty()) {
+      return null;
+    }
+    // Reverse the order of waypoints
+    List<Translation2d> reversed = new java.util.ArrayList<>(prePlannedWaypoints);
+    java.util.Collections.reverse(reversed);
+    return reversed;
+  }
+
   /** Get default duration for this state's path */
   public double getDefaultDuration() {
     return defaultDuration;

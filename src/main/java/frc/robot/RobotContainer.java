@@ -397,8 +397,8 @@ public class RobotContainer {
     // D-Pad Right: Next climb state
     controller.povRight().onTrue(climb.nextState());
 
-    // D-Pad Left: Previous climb state
-    controller.povLeft().onTrue(climb.previousState());
+    // D-Pad Left: Previous climb state (using REVERSED path for smooth backwards motion)
+    controller.povLeft().onTrue(climb.previousStateReversed());
 
     // D-Pad Down: Test path following
     controller

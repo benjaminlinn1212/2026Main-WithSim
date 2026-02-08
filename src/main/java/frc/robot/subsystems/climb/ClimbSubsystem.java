@@ -1,6 +1,14 @@
 package frc.robot.subsystems.climb;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
+import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
+import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.util.Color;
+import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -21,8 +29,38 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d leftTargetPosition = new Translation2d();
   private Translation2d rightTargetPosition = new Translation2d();
 
+  // Mechanism2d for visualization
+  private final Mechanism2d mechanism;
+  private final MechanismRoot2d leftRoot;
+  private final MechanismRoot2d rightRoot;
+  private final MechanismLigament2d leftFrontArm;
+  private final MechanismLigament2d leftBackArm;
+  private final MechanismLigament2d rightFrontArm;
+  private final MechanismLigament2d rightBackArm;
+
   public ClimbSubsystem(ClimbIO io) {
     this.io = io;
+
+    // Create Mechanism2d (1m wide x 1m tall canvas)
+    mechanism = new Mechanism2d(1.0, 1.0);
+
+    // Create roots at base positions (left and right sides)
+    leftRoot = mechanism.getRoot("LeftBase", 0.25, 0.0);
+    rightRoot = mechanism.getRoot("RightBase", 0.75, 0.0);
+
+    // Create ligaments (arms) - will be updated in periodic()
+    leftFrontArm =
+        leftRoot.append(
+            new MechanismLigament2d("LeftFront", 0.3, 90, 6, new Color8Bit(Color.kRed)));
+    leftBackArm =
+        leftRoot.append(
+            new MechanismLigament2d("LeftBack", 0.3, 90, 6, new Color8Bit(Color.kBlue)));
+    rightFrontArm =
+        rightRoot.append(
+            new MechanismLigament2d("RightFront", 0.3, 90, 6, new Color8Bit(Color.kRed)));
+    rightBackArm =
+        rightRoot.append(
+            new MechanismLigament2d("RightBack", 0.3, 90, 6, new Color8Bit(Color.kBlue)));
   }
 
   @Override
@@ -33,13 +71,26 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
     Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
 
-    // Visualize end effector as 2D pose (for AdvantageScope 2D field view)
+    // Visualize end effector as Pose2d (for AdvantageScope Points view)
+    Logger.recordOutput("Climb/LeftEndEffector", new Pose2d(leftTargetPosition, new Rotation2d()));
     Logger.recordOutput(
-        "Climb/LeftEndEffector",
-        new double[] {leftTargetPosition.getX(), leftTargetPosition.getY()});
-    Logger.recordOutput(
-        "Climb/RightEndEffector",
-        new double[] {rightTargetPosition.getX(), rightTargetPosition.getY()});
+        "Climb/RightEndEffector", new Pose2d(rightTargetPosition, new Rotation2d()));
+
+    // Update mechanism arms to show current positions
+    double leftLength = Math.hypot(leftTargetPosition.getX(), leftTargetPosition.getY());
+    double leftAngle =
+        Math.toDegrees(Math.atan2(leftTargetPosition.getY(), leftTargetPosition.getX()));
+    double rightLength = Math.hypot(rightTargetPosition.getX(), rightTargetPosition.getY());
+    double rightAngle =
+        Math.toDegrees(Math.atan2(rightTargetPosition.getY(), rightTargetPosition.getX()));
+
+    leftFrontArm.setLength(leftLength);
+    leftFrontArm.setAngle(leftAngle);
+    rightFrontArm.setLength(rightLength);
+    rightFrontArm.setAngle(rightAngle);
+
+    // Log Mechanism2d for AdvantageScope Mechanism view
+    SmartDashboard.putData("Climb/Mechanism", mechanism);
   }
 
   // STATE MANAGEMENT
@@ -97,6 +148,31 @@ public class ClimbSubsystem extends SubsystemBase {
             Commands.none(),
             () -> currentState.getPreviousState() != null)
         .withName("ClimbPreviousState");
+  }
+
+  /** Go to previous state using REVERSED path of current state (for smooth backwards motion) */
+  public Command previousStateReversed() {
+    return Commands.either(
+            // Use reversed waypoints of CURRENT state to go back
+            Commands.defer(
+                () -> {
+                  ClimbState previous = currentState.getPreviousState();
+                  if (previous != null && currentState.hasPrePlannedPath()) {
+                    List<Translation2d> reversedWaypoints = currentState.getReversedWaypoints();
+                    double duration =
+                        currentState.getDefaultDuration(); // Save duration BEFORE changing state
+                    this.currentState = previous;
+                    return followWaypointPath(reversedWaypoints, duration);
+                  } else if (previous != null) {
+                    return runOnce(() -> setState(previous));
+                  } else {
+                    return Commands.none();
+                  }
+                },
+                Set.of(this)),
+            Commands.none(),
+            () -> currentState.getPreviousState() != null)
+        .withName("ClimbPreviousStateReversed");
   }
 
   public Command setStateCommand(ClimbState state) {

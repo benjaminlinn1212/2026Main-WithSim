@@ -251,6 +251,54 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   // ===========================================================================
+  // DIRECT MOTOR POSITION CONTROL (Test Mode)
+  // ===========================================================================
+
+  /** Set left front motor position directly (bypasses IK) - for test mode. */
+  public void setLeftFrontMotorPosition(double positionRotations) {
+    io.setLeftFrontPosition(positionRotations);
+  }
+
+  /** Set right front motor position directly (bypasses IK) - for test mode. */
+  public void setRightFrontMotorPosition(double positionRotations) {
+    io.setRightFrontPosition(positionRotations);
+  }
+
+  /** Set left back motor position directly (bypasses IK) - for test mode. */
+  public void setLeftBackMotorPosition(double positionRotations) {
+    io.setLeftBackPosition(positionRotations);
+  }
+
+  /** Set right back motor position directly (bypasses IK) - for test mode. */
+  public void setRightBackMotorPosition(double positionRotations) {
+    io.setRightBackPosition(positionRotations);
+  }
+
+  // ===========================================================================
+  // DIRECT MOTOR VOLTAGE CONTROL (Test Mode)
+  // ===========================================================================
+
+  /** Set left front motor voltage directly - for test mode. */
+  public void setLeftFrontMotorVoltage(double volts) {
+    io.setLeftFrontVoltage(volts);
+  }
+
+  /** Set right front motor voltage directly - for test mode. */
+  public void setRightFrontMotorVoltage(double volts) {
+    io.setRightFrontVoltage(volts);
+  }
+
+  /** Set left back motor voltage directly - for test mode. */
+  public void setLeftBackMotorVoltage(double volts) {
+    io.setLeftBackVoltage(volts);
+  }
+
+  /** Set right back motor voltage directly - for test mode. */
+  public void setRightBackMotorVoltage(double volts) {
+    io.setRightBackVoltage(volts);
+  }
+
+  // ===========================================================================
   // VELOCITY CONTROL (Jacobian-based for path following)
   // ===========================================================================
 

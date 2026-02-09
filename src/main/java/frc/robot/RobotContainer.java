@@ -335,6 +335,13 @@ public class RobotContainer {
    * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
    */
   private void configureButtonBindings() {
+    configureTeleopBindings();
+  }
+
+  /** Configure button bindings for teleop mode. This is the normal driving configuration. */
+  public void configureTeleopBindings() {
+    System.out.println("[RobotContainer] Configuring teleop bindings...");
+
     // ===== DRIVE CONTROLS =====
     // Default command, field-relative drive
     swerveIO.setDefaultCommand(
@@ -419,8 +426,8 @@ public class RobotContainer {
   }
 
   /**
-   * Configure button bindings for test mode. This allows tuning of shooter RPS and hood angle while
-   * keeping drivetrain operational.
+   * Configure button bindings for test mode. This allows tuning of shooter RPS and hood angle
+   * without drivetrain interference.
    */
   public void configureTestModeBindings() {
     // Cancel all running commands
@@ -428,27 +435,22 @@ public class RobotContainer {
 
     System.out.println("[RobotContainer] Configuring test mode bindings...");
 
-    // ===== DRIVE CONTROLS (same as teleop) =====
-    swerveIO.setDefaultCommand(
-        Commands.run(
-            () -> {
-              // Apply deadband to prevent drift from joystick noise
-              double leftY =
-                  edu.wpi.first.math.MathUtil.applyDeadband(
-                      -controller.getLeftY(), Constants.DriveConstants.JOYSTICK_DEADBAND);
-              double leftX =
-                  edu.wpi.first.math.MathUtil.applyDeadband(
-                      -controller.getLeftX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
-              double rightX =
-                  edu.wpi.first.math.MathUtil.applyDeadband(
-                      -controller.getRightX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+    // ===== CLEAR ALL EXISTING BUTTON BINDINGS =====
+    // This prevents old teleop bindings from interfering with test mode
+    controller.a().onTrue(Commands.none());
+    controller.b().onTrue(Commands.none());
+    controller.x().onTrue(Commands.none());
+    controller.y().onTrue(Commands.none());
+    controller.leftBumper().onTrue(Commands.none());
+    controller.rightBumper().onTrue(Commands.none());
+    controller.povUp().whileTrue(Commands.none()).onFalse(Commands.none());
+    controller.povDown().whileTrue(Commands.none()).onFalse(Commands.none());
+    controller.povLeft().whileTrue(Commands.none()).onFalse(Commands.none());
+    controller.povRight().whileTrue(Commands.none()).onFalse(Commands.none());
 
-              double vxMetersPerSec = leftY * 5.0; // Max 5 m/s
-              double vyMetersPerSec = leftX * 5.0;
-              double omegaRadPerSec = rightX * Math.PI * 2;
-              swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
-            },
-            swerveIO));
+    // ===== NO DRIVETRAIN IN TEST MODE =====
+    // Clear any default command to prevent accidental movement
+    swerveIO.removeDefaultCommand();
 
     // ===== TEST MODE TUNING CONTROLS =====
 
@@ -542,6 +544,76 @@ public class RobotContainer {
                       "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
                 }));
 
+    // ===== CLIMB VOLTAGE CONTROLS =====
+
+    // POV Up: Run front climb motors forward (while held)
+    controller
+        .povUp()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setLeftFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                  climb.setRightFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setLeftFrontMotorVoltage(0.0);
+                  climb.setRightFrontMotorVoltage(0.0);
+                }));
+
+    // POV Down: Run front climb motors reverse (while held)
+    controller
+        .povDown()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setLeftFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                  climb.setRightFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setLeftFrontMotorVoltage(0.0);
+                  climb.setRightFrontMotorVoltage(0.0);
+                }));
+
+    // POV Left: Run back climb motors forward (while held)
+    controller
+        .povLeft()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setLeftBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                  climb.setRightBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setLeftBackMotorVoltage(0.0);
+                  climb.setRightBackMotorVoltage(0.0);
+                }));
+
+    // POV Right: Run back climb motors reverse (while held)
+    controller
+        .povRight()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setLeftBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                  climb.setRightBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setLeftBackMotorVoltage(0.0);
+                  climb.setRightBackMotorVoltage(0.0);
+                }));
+
     // Initialize SmartDashboard values
     SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
     SmartDashboard.putNumber("TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
@@ -553,9 +625,11 @@ public class RobotContainer {
     System.out.println("  Y: Decrease Hood Angle");
     System.out.println("  Left Bumper: Stop Shooter");
     System.out.println("  Right Bumper: Reset Hood to Stow");
+    System.out.println("  POV Up: Run Front Climb Motors Forward (hold)");
+    System.out.println("  POV Down: Run Front Climb Motors Reverse (hold)");
+    System.out.println("  POV Left: Run Back Climb Motors Forward (hold)");
+    System.out.println("  POV Right: Run Back Climb Motors Reverse (hold)");
     System.out.println("  Back: Test ClimbWorkflow Full Auto Climb");
-    System.out.println("  Left Stick: Drive (field-relative)");
-    System.out.println("  Right Stick X: Rotate");
   }
 
   /**

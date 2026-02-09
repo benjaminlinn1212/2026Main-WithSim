@@ -476,10 +476,10 @@ public final class Constants {
     // Motor Inversion - Configure each motor independently
     public static final InvertedValue RIGHT_FRONT_MOTOR_INVERTED =
         InvertedValue.CounterClockwise_Positive;
-    public static final InvertedValue RIGHT_BACK_MOTOR_INVERTED =
-        InvertedValue.CounterClockwise_Positive;
+    public static final InvertedValue RIGHT_BACK_MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final InvertedValue LEFT_FRONT_MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
-    public static final InvertedValue LEFT_BACK_MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
+    public static final InvertedValue LEFT_BACK_MOTOR_INVERTED =
+        InvertedValue.CounterClockwise_Positive;
 
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
@@ -534,9 +534,10 @@ public final class Constants {
     public static final double CABLE_DRUM_CIRCUMFERENCE_METERS =
         0.043992; // Circumference of cable drum (meters per rotation)
 
-    // Motor Position Limits (safety limits in rotations)
-    public static final double MIN_MOTOR_POSITION = 0.0; // Minimum safe position
-    public static final double MAX_MOTOR_POSITION = 100.0; // Maximum safe position
+    // Mechanism Position Limits (safety limits in drum/mechanism rotations, not motor rotations)
+    // Note: With SensorToMechanismRatio configured, position control uses mechanism rotations
+    public static final double MIN_MECHANISM_POSITION = 0.0; // Minimum safe drum position
+    public static final double MAX_MECHANISM_POSITION = 100.0; // Maximum safe drum position
 
     // Joint Angle Limits (safety limits in radians)
     public static final double MIN_SHOULDER_ANGLE_RAD = -Math.PI / 2; // -90 degrees
@@ -580,5 +581,10 @@ public final class Constants {
     // Velocity control feedforward (for pulling paths under load)
     public static final double VELOCITY_KG_PULLING =
         0.15; // Extra feedforward voltage when pulling robot (0-1.0)
+
+    // Test Mode Tuning
+    public static final double TEST_MODE_POSITION_INCREMENT =
+        1.0; // rotations increment per button press
+    public static final double TEST_MODE_VOLTAGE = 3.0; // volts for manual control
   }
 }

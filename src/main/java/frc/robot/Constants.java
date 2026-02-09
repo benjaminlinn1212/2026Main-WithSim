@@ -210,6 +210,9 @@ public final class Constants {
 
     // Velocity Tolerance
     public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
+
+    // Test Mode Tuning
+    public static final double TEST_MODE_RPS_INCREMENT = 1.0; // RPS increment per button press
   }
 
   public static class Aiming {
@@ -563,5 +566,9 @@ public final class Constants {
     // Position Setpoints (radians)
     public static final double STOW_POSITION = Units.degreesToRadians(21.0); // Safe stow angle
     public static final double MIN_AIM_ANGLE = Units.degreesToRadians(21.0); // Minimum angle
+
+    // Test Mode Tuning
+    public static final double TEST_MODE_ANGLE_INCREMENT =
+        Units.degreesToRadians(1.0); // angle increment per button press
   }
 }

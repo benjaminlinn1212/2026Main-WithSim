@@ -90,6 +90,10 @@ public class RobotContainer {
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
 
+  // Test mode tuning variables
+  private double testModeShooterRPS = 0.0;
+  private double testModeHoodAngleRad = Constants.HoodConstants.STOW_POSITION;
+
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
 
@@ -418,6 +422,149 @@ public class RobotContainer {
 
     // Left bumper: Stop all climb motors
     controller.leftBumper().onTrue(Commands.runOnce(() -> climb.stopMotors(), climb));
+  }
+
+  /**
+   * Configure button bindings for test mode. This allows tuning of shooter RPS and hood angle
+   * while keeping drivetrain operational.
+   */
+  public void configureTestModeBindings() {
+    // Cancel all running commands
+    CommandScheduler.getInstance().cancelAll();
+
+    System.out.println("[RobotContainer] Configuring test mode bindings...");
+
+    // ===== DRIVE CONTROLS (same as teleop) =====
+    swerveIO.setDefaultCommand(
+        Commands.run(
+            () -> {
+              // Apply deadband to prevent drift from joystick noise
+              double leftY =
+                  edu.wpi.first.math.MathUtil.applyDeadband(
+                      -controller.getLeftY(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+              double leftX =
+                  edu.wpi.first.math.MathUtil.applyDeadband(
+                      -controller.getLeftX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+              double rightX =
+                  edu.wpi.first.math.MathUtil.applyDeadband(
+                      -controller.getRightX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
+
+              double vxMetersPerSec = leftY * 5.0; // Max 5 m/s
+              double vyMetersPerSec = leftX * 5.0;
+              double omegaRadPerSec = rightX * Math.PI * 2;
+              swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
+            },
+            swerveIO));
+
+    // ===== TEST MODE TUNING CONTROLS =====
+
+    // A button: Increase Shooter RPS
+    controller
+        .a()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  testModeShooterRPS += Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
+                  shooter.setVelocity(testModeShooterRPS);
+                  System.out.println(
+                      "[Test Mode] Shooter RPS increased to: " + testModeShooterRPS);
+                  SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
+                }));
+
+    // B button: Decrease Shooter RPS
+    controller
+        .b()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  testModeShooterRPS -= Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
+                  testModeShooterRPS = Math.max(0, testModeShooterRPS); // Don't go negative
+                  shooter.setVelocity(testModeShooterRPS);
+                  System.out.println(
+                      "[Test Mode] Shooter RPS decreased to: " + testModeShooterRPS);
+                  SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
+                }));
+
+    // X button: Increase Hood Angle
+    controller
+        .x()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  testModeHoodAngleRad += Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
+                  testModeHoodAngleRad =
+                      Math.min(
+                          testModeHoodAngleRad,
+                          Constants.HoodConstants
+                              .MAX_POSITION_RAD); // Don't exceed max position
+                  hood.positionSetpointCommand(() -> testModeHoodAngleRad, () -> 0.0).schedule();
+                  System.out.println(
+                      "[Test Mode] Hood angle increased to: "
+                          + Math.toDegrees(testModeHoodAngleRad)
+                          + " degrees");
+                  SmartDashboard.putNumber(
+                      "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
+                }));
+
+    // Y button: Decrease Hood Angle
+    controller
+        .y()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  testModeHoodAngleRad -= Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
+                  testModeHoodAngleRad =
+                      Math.max(
+                          testModeHoodAngleRad,
+                          Constants.HoodConstants
+                              .MIN_POSITION_RAD); // Don't go below min position
+                  hood.positionSetpointCommand(() -> testModeHoodAngleRad, () -> 0.0).schedule();
+                  System.out.println(
+                      "[Test Mode] Hood angle decreased to: "
+                          + Math.toDegrees(testModeHoodAngleRad)
+                          + " degrees");
+                  SmartDashboard.putNumber(
+                      "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
+                }));
+
+    // Left bumper: Stop shooter
+    controller
+        .leftBumper()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  testModeShooterRPS = 0.0;
+                  shooter.stop();
+                  System.out.println("[Test Mode] Shooter stopped");
+                  SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
+                }));
+
+    // Right bumper: Reset hood to stow position
+    controller
+        .rightBumper()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  testModeHoodAngleRad = Constants.HoodConstants.STOW_POSITION;
+                  hood.stow().schedule();
+                  System.out.println("[Test Mode] Hood reset to stow position");
+                  SmartDashboard.putNumber(
+                      "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
+                }));
+
+    // Initialize SmartDashboard values
+    SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
+    SmartDashboard.putNumber("TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
+
+    System.out.println("[RobotContainer] Test mode bindings configured!");
+    System.out.println("  A: Increase Shooter RPS");
+    System.out.println("  B: Decrease Shooter RPS");
+    System.out.println("  X: Increase Hood Angle");
+    System.out.println("  Y: Decrease Hood Angle");
+    System.out.println("  Left Bumper: Stop Shooter");
+    System.out.println("  Right Bumper: Reset Hood to Stow");
+    System.out.println("  Left Stick: Drive (field-relative)");
+    System.out.println("  Right Stick X: Rotate");
   }
 
   /**

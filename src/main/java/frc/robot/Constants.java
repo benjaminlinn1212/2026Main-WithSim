@@ -174,62 +174,6 @@ public final class Constants {
     }
   }
 
-  public static class ShooterConstants {
-    // Hardware Configuration
-    public static final int MOTOR_CAN_ID = 49;
-    public static final String CAN_BUS = "Superstructure";
-    public static final double GEAR_RATIO =
-        1.0; // 1 mechanism rotation per 1 motor rotation (direct drive)
-    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
-    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
-
-    // PID and Feedforward Constants (VelocityVoltage control)
-    public static final double KP = 0.5; // Proportional gain
-    public static final double KI = 0.0; // Integral gain
-    public static final double KD = 0.0; // Derivative gain
-    public static final double KS = 0.25; // Static friction
-    public static final double KV = 0.12; // Velocity feedforward
-    public static final double KA = 0.01; // Acceleration feedforward
-    public static final double KG = 0.0; // Gravity feedforward
-
-    // Motion Magic Constants
-    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
-    public static final double ACCELERATION = 160.0; // rotations per second^2
-    public static final double JERK = 1600.0; // rotations per second^3
-
-    // Current Limits
-    public static final double STATOR_CURRENT_LIMIT = 80.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 60.0;
-    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
-
-    // Shooter Speed Presets (rotations per second)
-    public static final double IDLE_SPEED = 0.0;
-    public static final double HUB_SPEED = 60.0; // Speed for shooting at hub
-    public static final double PASS_SPEED = 50.0; // Speed for passing notes
-    public static final double NEUTRAL_ZONE_SPEED = 80.0; // Speed for shooting back in neutral zone
-
-    // Velocity Tolerance
-    public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
-
-    // Test Mode Tuning
-    public static final double TEST_MODE_RPS_INCREMENT = 1.0; // RPS increment per button press
-  }
-
-  public static class Aiming {
-    // Shot Calculation Parameters
-    public static final double MIN_SHOT_DISTANCE = 1.0; // meters - minimum valid shot distance
-    public static final double MAX_SHOT_DISTANCE = 6.0; // meters - maximum valid shot distance
-    public static final double PHASE_DELAY =
-        0.03; // seconds - prediction lookahead for motion compensation
-
-    // Feedforward Filter
-    public static final int FEEDFORWARD_FILTER_TAPS = 10; // Moving average filter size
-
-    // Neutral Zone Shot Settings
-    public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG =
-        35.0; // Hood angle for neutral zone shots
-  }
-
   public static class IntakeConstants {
     // Hardware Configuration
     public static final int UPPER_MOTOR_CAN_ID = 41;
@@ -359,124 +303,19 @@ public final class Constants {
     public static final double TO_SHOOTER_DUTY_CYCLE = 0.7;
   }
 
-  public static class ClimbConstants {
-    // Hardware Configuration - 4 Winch Motors
-    public static final int RIGHT_FRONT_MOTOR_CAN_ID = 46;
-    public static final int RIGHT_BACK_MOTOR_CAN_ID = 47;
-    public static final int LEFT_FRONT_MOTOR_CAN_ID = 48;
-    public static final int LEFT_BACK_MOTOR_CAN_ID = 49;
-    public static final String CAN_BUS = "Superstructure";
+  public static class Aiming {
+    // Shot Calculation Parameters
+    public static final double MIN_SHOT_DISTANCE = 1.0; // meters - minimum valid shot distance
+    public static final double MAX_SHOT_DISTANCE = 6.0; // meters - maximum valid shot distance
+    public static final double PHASE_DELAY =
+        0.03; // seconds - prediction lookahead for motion compensation
 
-    // Passive Hook Release Servos
-    public static final int LEFT_HOOK_SERVO_PWM = 0;
-    public static final int RIGHT_HOOK_SERVO_PWM = 1;
-    public static final double HOOK_STOWED_POSITION = 0.0; // Hooks locked
-    public static final double HOOK_RELEASED_POSITION = 1.0; // Hooks released
+    // Feedforward Filter
+    public static final int FEEDFORWARD_FILTER_TAPS = 10; // Moving average filter size
 
-    // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
-    // Front motors: 100:1 reduction → 1 motor rotation = 1/100 drum rotation
-    // Back motors: 80:1 reduction → 1 motor rotation = 1/80 drum rotation
-    // Used in both Phoenix SensorToMechanismRatio and IK calculations
-    public static final double FRONT_GEAR_RATIO = 1.0 / 100.0; // 0.01
-    public static final double BACK_GEAR_RATIO = 1.0 / 80.0; // 0.0125
-
-    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
-    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
-
-    // PID and Feedforward Constants
-    public static final double KP = 10.0;
-    public static final double KI = 0.0;
-    public static final double KD = 0.0;
-    public static final double KS = 0.0;
-    public static final double KV = 0.0;
-    public static final double KA = 0.0;
-    public static final double KG = 0.0;
-
-    // Motion Magic Constants (in MECHANISM rotations = drum rotations)
-    // These are drum rotations per second, NOT motor rotations
-    // With 100:1 gearing, 0.5 drum rot/s = 50 motor rot/s = 3000 RPM (safe for Kraken X60)
-    public static final double CRUISE_VELOCITY = 3.0; // drum rotations per second
-    public static final double ACCELERATION = 10.0; // drum rotations per second^2
-    public static final double JERK = 40.0; // drum rotations per second^3
-
-    // Current Limits
-    public static final double STATOR_CURRENT_LIMIT = 80.0;
-    public static final double SUPPLY_CURRENT_LIMIT = 60.0;
-    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
-
-    // Position Setpoints (rotations) - Legacy direct motor control
-    public static final double STOWED_POSITION = 0.0; // Starting position
-    public static final double EXTENDED_POSITION = 50.0; // Fully extended
-    public static final double RETRACTED_POSITION = 5.0; // Pulled up on chain
-
-    // Position Tolerance
-    public static final double POSITION_TOLERANCE = 1.0; // rotations
-
-    // ==================== Inverse Kinematics Configuration ====================
-
-    // Winch Separation (distance between W1 and W2)
-    public static final double WINCH_SEPARATION_METERS =
-        0.3; // Distance between front and back winches
-
-    // Link Lengths (adjust these to match your actual mechanism)
-    public static final double LINK_1_LENGTH_METERS =
-        0.5; // Length of first link (shoulder to elbow)
-    public static final double LINK_2_LENGTH_METERS =
-        0.4; // Length of second link (elbow to end effector)
-
-    // Cable Attachment Offsets (on links)
-    public static final double CABLE_1_OFFSET_METERS =
-        0.05; // Cable 1 attachment point on link 1 (p)
-    public static final double CABLE_2_OFFSET_METERS =
-        0.05; // Cable 2 attachment point on link 2 (q)
-
-    // Cable Drum (on motor shaft that winds up cable)
-    public static final double CABLE_DRUM_DIAMETER_METERS =
-        0.05; // Diameter of cable drum (50mm example) - TODO: Measure actual
-
-    // Motor Position Limits (safety limits in rotations)
-    public static final double MIN_MOTOR_POSITION = 0.0; // Minimum safe position
-    public static final double MAX_MOTOR_POSITION = 100.0; // Maximum safe position
-
-    // Joint Angle Limits (safety limits in radians)
-    public static final double MIN_SHOULDER_ANGLE_RAD = -Math.PI / 2; // -90 degrees
-    public static final double MAX_SHOULDER_ANGLE_RAD = Math.PI / 2; // 90 degrees
-    public static final double MIN_ELBOW_ANGLE_RAD = -Math.PI; // -180 degrees
-    public static final double MAX_ELBOW_ANGLE_RAD = Math.PI; // 180 degrees
-
-    // Workspace Limits (for end effector reachability checks)
-    public static final double WORKSPACE_MIN_X_METERS = -0.2; // Minimum X position
-    public static final double WORKSPACE_MAX_X_METERS = 1.0; // Maximum X position
-    public static final double WORKSPACE_MIN_Y_METERS = 0.0; // Minimum Y position (ground)
-    public static final double WORKSPACE_MAX_Y_METERS = 1.2; // Maximum Y position
-
-    // Cable Attachment Points (relative to joint centers)
-    // TODO: Measure and configure based on your actual cable routing
-    public static final double SHOULDER_CABLE_OFFSET_METERS = 0.05; // Offset from shoulder joint
-    public static final double ELBOW_CABLE_OFFSET_METERS = 0.05; // Offset from elbow joint
-
-    // Initial Cable Length Calibration
-    // These values should be measured/calibrated with robot in known position
-    public static final double FRONT_CABLE_INITIAL_LENGTH_METERS = 0.3;
-    public static final double BACK_CABLE_INITIAL_LENGTH_METERS = 0.3;
-
-    // IK Solver Tolerance
-    public static final double IK_POSITION_TOLERANCE_METERS = 0.005; // 5mm tolerance
-    public static final double IK_ANGLE_TOLERANCE_RAD = 0.01; // ~0.57 degrees
-
-    // ==================== Path Planning Configuration ====================
-
-    // Default motion constraints
-    public static final double DEFAULT_MAX_VELOCITY_MPS = 0.5; // 0.5 m/s for end effector
-    public static final double DEFAULT_MAX_ACCELERATION_MPS2 = 1.0; // 1.0 m/s^2
-    public static final double DEFAULT_PATH_DURATION_SECONDS = 2.0; // Default path time
-
-    // Path resolution
-    public static final int PATH_WAYPOINTS_PER_METER = 20; // Waypoints per meter of path
-    public static final double PATH_SAMPLE_RATE_HZ = 50.0; // Hz for trapezoidal profiles
-
-    // Motion smoothing
-    public static final boolean USE_SMOOTH_INTERPOLATION = true; // Use ease-in-out curves
+    // Neutral Zone Shot Settings
+    public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG =
+        35.0; // Hood angle for neutral zone shots
   }
 
   public static class TurretConstants {
@@ -522,6 +361,47 @@ public final class Constants {
 
     // Position Setpoints (radians)
     public static final double STOW_POSITION = 0.0; // Forward
+  }
+
+  public static class ShooterConstants {
+    // Hardware Configuration
+    public static final int MOTOR_CAN_ID = 49;
+    public static final String CAN_BUS = "Superstructure";
+    public static final double GEAR_RATIO =
+        1.0; // 1 mechanism rotation per 1 motor rotation (direct drive)
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
+
+    // PID and Feedforward Constants (VelocityVoltage control)
+    public static final double KP = 0.5; // Proportional gain
+    public static final double KI = 0.0; // Integral gain
+    public static final double KD = 0.0; // Derivative gain
+    public static final double KS = 0.25; // Static friction
+    public static final double KV = 0.12; // Velocity feedforward
+    public static final double KA = 0.01; // Acceleration feedforward
+    public static final double KG = 0.0; // Gravity feedforward
+
+    // Motion Magic Constants
+    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
+    public static final double ACCELERATION = 160.0; // rotations per second^2
+    public static final double JERK = 1600.0; // rotations per second^3
+
+    // Current Limits
+    public static final double STATOR_CURRENT_LIMIT = 80.0;
+    public static final double SUPPLY_CURRENT_LIMIT = 60.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
+
+    // Shooter Speed Presets (rotations per second)
+    public static final double IDLE_SPEED = 0.0;
+    public static final double HUB_SPEED = 60.0; // Speed for shooting at hub
+    public static final double PASS_SPEED = 50.0; // Speed for passing notes
+    public static final double NEUTRAL_ZONE_SPEED = 80.0; // Speed for shooting back in neutral zone
+
+    // Velocity Tolerance
+    public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
+
+    // Test Mode Tuning
+    public static final double TEST_MODE_RPS_INCREMENT = 1.0; // RPS increment per button press
   }
 
   public static class HoodConstants {
@@ -570,5 +450,135 @@ public final class Constants {
     // Test Mode Tuning
     public static final double TEST_MODE_ANGLE_INCREMENT =
         Units.degreesToRadians(1.0); // angle increment per button press
+  }
+
+  public static class ClimbConstants {
+    // Hardware Configuration - 4 Winch Motors
+    public static final int RIGHT_FRONT_MOTOR_CAN_ID = 51;
+    public static final int RIGHT_BACK_MOTOR_CAN_ID = 52;
+    public static final int LEFT_FRONT_MOTOR_CAN_ID = 53;
+    public static final int LEFT_BACK_MOTOR_CAN_ID = 54;
+    public static final String CAN_BUS = "Superstructure";
+
+    // Passive Hook Release Servos
+    public static final int LEFT_HOOK_SERVO_PWM = 0;
+    public static final int RIGHT_HOOK_SERVO_PWM = 1;
+    public static final double HOOK_STOWED_POSITION = 0.0; // Hooks locked
+    public static final double HOOK_RELEASED_POSITION = 1.0; // Hooks released
+
+    // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
+    // Front motors: 100:1 reduction → 1 motor rotation = 1/100 drum rotation
+    // Back motors: 80:1 reduction → 1 motor rotation = 1/80 drum rotation
+    // Used in both Phoenix SensorToMechanismRatio and IK calculations
+    public static final double FRONT_GEAR_RATIO = 1.0 / 100.0; // 0.01
+    public static final double BACK_GEAR_RATIO = 1.0 / 80.0; // 0.0125
+
+    // Motor Inversion - Configure each motor independently
+    public static final InvertedValue RIGHT_FRONT_MOTOR_INVERTED =
+        InvertedValue.CounterClockwise_Positive;
+    public static final InvertedValue RIGHT_BACK_MOTOR_INVERTED =
+        InvertedValue.CounterClockwise_Positive;
+    public static final InvertedValue LEFT_FRONT_MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
+    public static final InvertedValue LEFT_BACK_MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
+
+    public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
+
+    // PID and Feedforward Constants
+    public static final double KP = 10.0;
+    public static final double KI = 0.0;
+    public static final double KD = 0.0;
+    public static final double KS = 0.0;
+    public static final double KV = 0.0;
+    public static final double KA = 0.0;
+    public static final double KG = 0.0;
+
+    // Motion Magic Constants (in MECHANISM rotations = drum rotations)
+    // These are drum rotations per second, NOT motor rotations
+    // With 100:1 gearing, 0.5 drum rot/s = 50 motor rot/s = 3000 RPM (safe for Kraken X60)
+    public static final double CRUISE_VELOCITY = 3.0; // drum rotations per second
+    public static final double ACCELERATION = 10.0; // drum rotations per second^2
+    public static final double JERK = 40.0; // drum rotations per second^3
+
+    // Current Limits
+    public static final double STATOR_CURRENT_LIMIT = 80.0;
+    public static final double SUPPLY_CURRENT_LIMIT = 60.0;
+    public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
+
+    // Position Setpoints (rotations) - Legacy direct motor control
+    public static final double STOWED_POSITION = 0.0; // Starting position
+    public static final double EXTENDED_POSITION = 50.0; // Fully extended
+    public static final double RETRACTED_POSITION = 5.0; // Pulled up on chain
+
+    // Position Tolerance
+    public static final double POSITION_TOLERANCE = 1.0; // rotations
+
+    // ==================== Inverse Kinematics Configuration ====================
+
+    // Winch Separation (distance between W1 and W2)
+    public static final double WINCH_SEPARATION_METERS =
+        0.304818; // Distance between front and back winches
+
+    // Link Lengths (adjust these to match your actual mechanism)
+    public static final double LINK_1_LENGTH_METERS =
+        0.32; // Length of first link (shoulder to elbow)
+    public static final double LINK_2_LENGTH_METERS =
+        0.445; // Length of second link (elbow to end effector)
+
+    // Cable Attachment Offsets (on links)
+    public static final double CABLE_1_OFFSET_METERS =
+        0.171; // Cable 1 attachment point on link 1 (p)
+    public static final double CABLE_2_OFFSET_METERS =
+        0.03; // Cable 2 attachment point on link 2 (q)
+
+    // Cable Drum (on motor shaft that winds up cable)
+    public static final double CABLE_DRUM_CIRCUMFERENCE_METERS =
+        0.043992; // Circumference of cable drum (meters per rotation)
+
+    // Motor Position Limits (safety limits in rotations)
+    public static final double MIN_MOTOR_POSITION = 0.0; // Minimum safe position
+    public static final double MAX_MOTOR_POSITION = 100.0; // Maximum safe position
+
+    // Joint Angle Limits (safety limits in radians)
+    public static final double MIN_SHOULDER_ANGLE_RAD = -Math.PI / 2; // -90 degrees
+    public static final double MAX_SHOULDER_ANGLE_RAD = Math.PI / 2; // 90 degrees
+    public static final double MIN_ELBOW_ANGLE_RAD = -Math.PI; // -180 degrees
+    public static final double MAX_ELBOW_ANGLE_RAD = Math.PI; // 180 degrees
+
+    // Workspace Limits (for end effector reachability checks)
+    public static final double WORKSPACE_MIN_X_METERS = -0.2; // Minimum X position
+    public static final double WORKSPACE_MAX_X_METERS = 1.0; // Maximum X position
+    public static final double WORKSPACE_MIN_Y_METERS = 0.0; // Minimum Y position (ground)
+    public static final double WORKSPACE_MAX_Y_METERS = 1.2; // Maximum Y position
+
+    // Cable Attachment Points (relative to joint centers)
+    // TODO: Measure and configure based on your actual cable routing
+    public static final double SHOULDER_CABLE_OFFSET_METERS = 0.05; // Offset from shoulder joint
+    public static final double ELBOW_CABLE_OFFSET_METERS = 0.05; // Offset from elbow joint
+
+    // Initial Cable Length Calibration
+    // These values should be measured/calibrated with robot in known position
+    public static final double FRONT_CABLE_INITIAL_LENGTH_METERS = 0.3;
+    public static final double BACK_CABLE_INITIAL_LENGTH_METERS = 0.3;
+
+    // Starting Position (cable has some initial extension, not fully retracted)
+    // This represents where the end effector is when the robot powers on
+    // Measure this position with the climb mechanism in its physical starting state
+    public static final double START_POSITION_X_METERS = 0.05; // Forward offset from winch base
+    public static final double START_POSITION_Y_METERS = 0.15; // Height above winch base
+
+    // IK Solver Tolerance
+    public static final double IK_POSITION_TOLERANCE_METERS = 0.005; // 5mm tolerance
+    public static final double IK_ANGLE_TOLERANCE_RAD = 0.01; // ~0.57 degrees
+
+    // ==================== Path Planning Constraints ====================
+
+    // Cartesian path generation constraints (for ClimbPathPlanner)
+    public static final double PATH_MAX_VELOCITY_MPS = 1.0; // Maximum end effector velocity (m/s)
+    public static final double PATH_MAX_ACCELERATION_MPS2 =
+        2.0; // Maximum end effector acceleration (m/s^2)
+
+    // Velocity control feedforward (for pulling paths under load)
+    public static final double VELOCITY_KG_PULLING =
+        0.15; // Extra feedforward voltage when pulling robot (0-1.0)
   }
 }

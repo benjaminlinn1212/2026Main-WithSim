@@ -103,6 +103,11 @@ public class ShooterSubsystem extends SubsystemBase {
     return atVelocity(setpoint.getShooterRPS()) && setpoint.getIsValid();
   }
 
+  /** Check if shooter is stopped (for climb readiness) */
+  public boolean atSetpoint() {
+    return atVelocity(0.0); // Check if at zero velocity (stopped)
+  }
+
   /** Stops the shooter motors */
   public void stop() {
     io.stop();

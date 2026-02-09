@@ -404,29 +404,23 @@ public class RobotContainer {
     // D-Pad Left: Previous climb state (using REVERSED path for smooth backwards motion)
     controller.povLeft().onTrue(climb.previousStateReversed());
 
-    // D-Pad Down: Test path following
     controller
         .povDown()
         .onTrue(
             Commands.runOnce(
                 () -> {
-                  System.out.println("[Climb Test] Testing path following...");
-                  java.util.List<edu.wpi.first.math.geometry.Translation2d> waypoints =
-                      java.util.List.of(
-                          new edu.wpi.first.math.geometry.Translation2d(0.1, 0.2),
-                          new edu.wpi.first.math.geometry.Translation2d(0.3, 0.5),
-                          new edu.wpi.first.math.geometry.Translation2d(0.5, 0.8));
-                  climb.followWaypointPath(waypoints, 3.0).schedule();
-                },
-                climb));
+                  System.out.println("[Test Mode] Starting ClimbWorkflow fullAutoClimb test...");
+                  frc.robot.subsystems.climb.ClimbWorkflow.fullAutoClimb(superstructure, swerveIO)
+                      .schedule();
+                }));
 
     // Left bumper: Stop all climb motors
     controller.leftBumper().onTrue(Commands.runOnce(() -> climb.stopMotors(), climb));
   }
 
   /**
-   * Configure button bindings for test mode. This allows tuning of shooter RPS and hood angle
-   * while keeping drivetrain operational.
+   * Configure button bindings for test mode. This allows tuning of shooter RPS and hood angle while
+   * keeping drivetrain operational.
    */
   public void configureTestModeBindings() {
     // Cancel all running commands
@@ -466,8 +460,7 @@ public class RobotContainer {
                 () -> {
                   testModeShooterRPS += Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
                   shooter.setVelocity(testModeShooterRPS);
-                  System.out.println(
-                      "[Test Mode] Shooter RPS increased to: " + testModeShooterRPS);
+                  System.out.println("[Test Mode] Shooter RPS increased to: " + testModeShooterRPS);
                   SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
                 }));
 
@@ -480,8 +473,7 @@ public class RobotContainer {
                   testModeShooterRPS -= Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
                   testModeShooterRPS = Math.max(0, testModeShooterRPS); // Don't go negative
                   shooter.setVelocity(testModeShooterRPS);
-                  System.out.println(
-                      "[Test Mode] Shooter RPS decreased to: " + testModeShooterRPS);
+                  System.out.println("[Test Mode] Shooter RPS decreased to: " + testModeShooterRPS);
                   SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
                 }));
 
@@ -495,8 +487,7 @@ public class RobotContainer {
                   testModeHoodAngleRad =
                       Math.min(
                           testModeHoodAngleRad,
-                          Constants.HoodConstants
-                              .MAX_POSITION_RAD); // Don't exceed max position
+                          Constants.HoodConstants.MAX_POSITION_RAD); // Don't exceed max position
                   hood.positionSetpointCommand(() -> testModeHoodAngleRad, () -> 0.0).schedule();
                   System.out.println(
                       "[Test Mode] Hood angle increased to: "
@@ -516,8 +507,7 @@ public class RobotContainer {
                   testModeHoodAngleRad =
                       Math.max(
                           testModeHoodAngleRad,
-                          Constants.HoodConstants
-                              .MIN_POSITION_RAD); // Don't go below min position
+                          Constants.HoodConstants.MIN_POSITION_RAD); // Don't go below min position
                   hood.positionSetpointCommand(() -> testModeHoodAngleRad, () -> 0.0).schedule();
                   System.out.println(
                       "[Test Mode] Hood angle decreased to: "
@@ -563,6 +553,7 @@ public class RobotContainer {
     System.out.println("  Y: Decrease Hood Angle");
     System.out.println("  Left Bumper: Stop Shooter");
     System.out.println("  Right Bumper: Reset Hood to Stow");
+    System.out.println("  Back: Test ClimbWorkflow Full Auto Climb");
     System.out.println("  Left Stick: Drive (field-relative)");
     System.out.println("  Right Stick X: Rotate");
   }

@@ -46,6 +46,11 @@ public class IndexerSubsystem extends SubsystemBase {
         .withName("IndexerStop");
   }
 
+  /** Check if indexer is stopped (for climb readiness) */
+  public boolean atSetpoint() {
+    return Math.abs(inputs.velocityRotPerSec) < 0.1; // Stopped if velocity near zero
+  }
+
   /** Stop indexer motor immediately (for emergency use) */
   public void stopMotor() {
     io.stop();

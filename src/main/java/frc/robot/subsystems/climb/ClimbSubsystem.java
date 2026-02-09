@@ -19,7 +19,18 @@ import java.util.List;
 import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
-/** Climb subsystem: ClimbState waypoints ClimbIK math TalonFX motors */
+/**
+ * Climb subsystem: ClimbState waypoints ClimbIK math TalonFX motors
+ *
+ * <p>CONTROL STRATEGY (Hybrid Position + Velocity): - VELOCITY CONTROL: Used during path following
+ * for smooth dynamic motion - Numerical Jacobian converts end effector velocity → motor velocity -
+ * Similar to drivetrain: chassis speeds → wheel speeds - Enables accurate trajectory tracking with
+ * feedforward
+ *
+ * <p>- POSITION CONTROL: Used for holding static positions - Motion Magic to final positions after
+ * path completes - Used for MANUAL and EMERGENCY_STOP states - Provides stable position hold at
+ * target locations
+ */
 public class ClimbSubsystem extends SubsystemBase {
 
   private final ClimbIO io;
@@ -67,7 +78,7 @@ public class ClimbSubsystem extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("Climb", inputs);
-    Logger.recordOutput("Climb/CurrentState", currentState.toString());
+    // State is logged by commands (setState, followWaypointPath)
     Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
     Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
 
@@ -93,13 +104,18 @@ public class ClimbSubsystem extends SubsystemBase {
     SmartDashboard.putData("Climb/Mechanism", mechanism);
   }
 
+  // =============================================================================
   // STATE MANAGEMENT
+  // =============================================================================
 
   public void setState(ClimbState state) {
     this.currentState = state;
     this.leftTargetPosition = state.getLeftTargetPosition();
     this.rightTargetPosition = state.getRightTargetPosition();
     moveToTargetPositions();
+
+    // Log detailed state (e.g., "REACHED_L1" when holding position)
+    Logger.recordOutput("Climb/CurrentState", "REACHED_" + state.getName());
   }
 
   public ClimbState getState() {
@@ -115,7 +131,7 @@ public class ClimbSubsystem extends SubsystemBase {
                   if (next != null && next.hasPrePlannedPath()) {
                     this.currentState = next;
                     return followWaypointPath(
-                        next.getPrePlannedWaypoints(), next.getDefaultDuration());
+                        next.getPrePlannedWaypoints(), next.getDefaultDuration(), next.isPulling());
                   } else if (next != null) {
                     return runOnce(() -> setState(next));
                   } else {
@@ -137,7 +153,9 @@ public class ClimbSubsystem extends SubsystemBase {
                   if (previous != null && previous.hasPrePlannedPath()) {
                     this.currentState = previous;
                     return followWaypointPath(
-                        previous.getPrePlannedWaypoints(), previous.getDefaultDuration());
+                        previous.getPrePlannedWaypoints(),
+                        previous.getDefaultDuration(),
+                        previous.isPulling());
                   } else if (previous != null) {
                     return runOnce(() -> setState(previous));
                   } else {
@@ -161,8 +179,11 @@ public class ClimbSubsystem extends SubsystemBase {
                     List<Translation2d> reversedWaypoints = currentState.getReversedWaypoints();
                     double duration =
                         currentState.getDefaultDuration(); // Save duration BEFORE changing state
+                    boolean isPulling =
+                        currentState
+                            .isPulling(); // Reversed path has opposite pulling (true -> false)
                     this.currentState = previous;
-                    return followWaypointPath(reversedWaypoints, duration);
+                    return followWaypointPath(reversedWaypoints, duration, !isPulling);
                   } else if (previous != null) {
                     return runOnce(() -> setState(previous));
                   } else {
@@ -176,20 +197,20 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   public Command setStateCommand(ClimbState state) {
-    return runOnce(
-            () -> {
-              if (state.hasPrePlannedPath()) {
-                this.currentState = state;
-                followWaypointPath(state.getPrePlannedWaypoints(), state.getDefaultDuration())
-                    .schedule();
-              } else {
-                setState(state);
-              }
-            })
-        .withName("ClimbSetState_" + state.getName());
+    if (state.hasPrePlannedPath()) {
+      return Commands.sequence(
+              runOnce(() -> this.currentState = state),
+              followWaypointPath(
+                  state.getPrePlannedWaypoints(), state.getDefaultDuration(), state.isPulling()))
+          .withName("ClimbSetState_" + state.getName());
+    } else {
+      return runOnce(() -> setState(state)).withName("ClimbSetState_" + state.getName());
+    }
   }
 
-  // CORE CONTROL
+  // ===========================================================================
+  // POSITION CONTROL (Motion Magic for static positions)
+  // ===========================================================================
 
   private void moveToTargetPositions() {
     ClimbIKResult ikResult = ClimbIK.calculateBothSides(leftTargetPosition, rightTargetPosition);
@@ -211,8 +232,6 @@ public class ClimbSubsystem extends SubsystemBase {
     }
   }
 
-  // MANUAL POSITION CONTROL
-
   public void setTargetPositions(Translation2d leftPosition, Translation2d rightPosition) {
     this.leftTargetPosition = leftPosition;
     this.rightTargetPosition = rightPosition;
@@ -231,80 +250,146 @@ public class ClimbSubsystem extends SubsystemBase {
     moveToTargetPositions();
   }
 
-  // Internal method for velocity-based path following
+  // ===========================================================================
+  // VELOCITY CONTROL (Jacobian-based for path following)
+  // ===========================================================================
+
+  /**
+   * Set motor velocities using numerical Jacobian transformation.
+   *
+   * <p>Flow: (x, y, xdot, ydot) → IK → (l1, l2) → Jacobian → (l1dot, l2dot) → motors
+   *
+   * @param leftPosition Current left end effector position (m)
+   * @param rightPosition Current right end effector position (m)
+   * @param leftVelocity Desired left end effector velocity (m/s)
+   * @param rightVelocity Desired right end effector velocity (m/s)
+   * @param isPulling Whether this is a pulling motion (adds extra feedforward)
+   */
   private void setTargetVelocitiesInternal(
       Translation2d leftPosition,
       Translation2d rightPosition,
       Translation2d leftVelocity,
-      Translation2d rightVelocity) {
+      Translation2d rightVelocity,
+      boolean isPulling) {
     this.leftTargetPosition = leftPosition;
     this.rightTargetPosition = rightPosition;
 
-    // Calculate IK to get motor rotations
-    ClimbIKResult ikResult = ClimbIK.calculateBothSides(leftPosition, rightPosition);
-    if (!ikResult.isValid()) {
-      Logger.recordOutput("Climb/IK/Valid", false);
+    // Use numerical Jacobian to calculate motor velocities from end effector velocities
+    ClimbIK.ClimbVelocityResult velocityResult =
+        ClimbIK.calculateVelocityIKBothSides(
+            leftPosition, rightPosition, leftVelocity, rightVelocity);
+
+    if (!velocityResult.isValid()) {
+      Logger.recordOutput("Climb/VelocityIK/Valid", false);
+      // Fallback to position control if velocity IK fails
+      moveToTargetPositions();
       return;
     }
 
-    // Calculate motor velocities from Cartesian velocities using numerical differentiation
-    // dθ/dt = (∂θ/∂x) * dx/dt + (∂θ/∂y) * dy/dt (chain rule)
-    // For simplicity, we'll use the velocity magnitude scaled by the path curvature
+    Logger.recordOutput("Climb/VelocityIK/Valid", true);
 
-    double leftSpeed = leftVelocity.getNorm(); // m/s
-    double rightSpeed = rightVelocity.getNorm(); // m/s
+    // Apply extra feedforward if this is a pulling motion to overcome gravity/load
+    double feedforward = isPulling ? frc.robot.Constants.ClimbConstants.VELOCITY_KG_PULLING : 0.0;
 
-    // Convert Cartesian speed to motor rotation speed (rough approximation)
-    // Assuming typical arm velocity, scale by drum circumference and gear ratio
-    double drumCircumference =
-        Math.PI * frc.robot.Constants.ClimbConstants.CABLE_DRUM_DIAMETER_METERS;
+    // Send velocity commands to all 4 motors
+    io.setLeftFrontVelocity(velocityResult.leftSide.frontMotorVelocity, feedforward);
+    io.setLeftBackVelocity(velocityResult.leftSide.backMotorVelocity, feedforward);
+    io.setRightFrontVelocity(velocityResult.rightSide.frontMotorVelocity, feedforward);
+    io.setRightBackVelocity(velocityResult.rightSide.backMotorVelocity, feedforward);
 
-    // Front motors
-    double leftFrontVel =
-        leftSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.FRONT_GEAR_RATIO);
-    double rightFrontVel =
-        rightSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.FRONT_GEAR_RATIO);
+    // Log velocities for debugging
+    Logger.recordOutput(
+        "Climb/VelocityIK/LeftFrontVel", velocityResult.leftSide.frontMotorVelocity);
+    Logger.recordOutput("Climb/VelocityIK/LeftBackVel", velocityResult.leftSide.backMotorVelocity);
+    Logger.recordOutput(
+        "Climb/VelocityIK/RightFrontVel", velocityResult.rightSide.frontMotorVelocity);
+    Logger.recordOutput(
+        "Climb/VelocityIK/RightBackVel", velocityResult.rightSide.backMotorVelocity);
 
-    // Back motors
-    double leftBackVel =
-        leftSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.BACK_GEAR_RATIO);
-    double rightBackVel =
-        rightSpeed / (drumCircumference * frc.robot.Constants.ClimbConstants.BACK_GEAR_RATIO);
+    // Log end effector velocities
+    Logger.recordOutput("Climb/VelocityIK/LeftVelX", leftVelocity.getX());
+    Logger.recordOutput("Climb/VelocityIK/LeftVelY", leftVelocity.getY());
+    Logger.recordOutput("Climb/VelocityIK/RightVelX", rightVelocity.getX());
+    Logger.recordOutput("Climb/VelocityIK/RightVelY", rightVelocity.getY());
 
-    io.setLeftFrontVelocity(leftFrontVel);
-    io.setLeftBackVelocity(leftBackVel);
-    io.setRightFrontVelocity(rightFrontVel);
-    io.setRightBackVelocity(rightBackVel);
-
-    Logger.recordOutput("Climb/IK/Valid", true);
-    Logger.recordOutput("Climb/Velocity/LeftSpeed", leftSpeed);
-    Logger.recordOutput("Climb/Velocity/RightSpeed", rightSpeed);
+    // Still calculate IK for position logging
+    ClimbIKResult ikResult = ClimbIK.calculateBothSides(leftPosition, rightPosition);
+    if (ikResult.isValid()) {
+      Logger.recordOutput("Climb/IK/Valid", true);
+      Logger.recordOutput(
+          "Climb/IK/LeftJoint", new double[] {ikResult.leftSide.jointX, ikResult.leftSide.jointY});
+      Logger.recordOutput(
+          "Climb/IK/RightJoint",
+          new double[] {ikResult.rightSide.jointX, ikResult.rightSide.jointY});
+    }
   }
 
-  // PATH FOLLOWING
+  // ===========================================================================
+  // PATH FOLLOWING (Waypoint-based trajectory execution)
+  // ===========================================================================
 
-  public Command followWaypointPath(List<Translation2d> waypoints, double durationSeconds) {
+  /**
+   * Follow a smooth path through waypoints using velocity control.
+   *
+   * @param waypoints List of waypoints to pass through
+   * @param durationSeconds Total time to complete the path
+   * @param isPulling Whether this is a pulling motion (for extra feedforward)
+   * @return Command that executes the path
+   */
+  public Command followWaypointPath(
+      List<Translation2d> waypoints, double durationSeconds, boolean isPulling) {
     return new Command() {
       private ClimbPathPlanner.PathExecutor executor;
 
       @Override
       public void initialize() {
+        // Log that we're actively moving (reaching or pulling)
+        String action = isPulling ? "PULLING" : "REACHING";
+        Logger.recordOutput("Climb/CurrentState", action + "_" + currentState.getName());
+
+        System.out.println(
+            "[ClimbPath] Initializing path with "
+                + waypoints.size()
+                + " waypoints, isPulling="
+                + isPulling);
+        System.out.println("[ClimbPath] First waypoint: " + waypoints.get(0));
+        System.out.println("[ClimbPath] Current left position: " + leftTargetPosition);
+        System.out.println("[ClimbPath] Current right position: " + rightTargetPosition);
         if (waypoints.size() < 2) {
           Logger.recordOutput("Climb/Path/Error", "Need at least 2 waypoints");
+          System.out.println("[ClimbPath] ERROR: Need at least 2 waypoints");
           cancel();
           return;
         }
         // Use multi-Bezier path for smooth continuous motion through waypoints
         // Lower tension (0.15) creates gentler curves that Motion Magic can follow smoothly
+        // Pass isPulling to control end velocity: pulling = maintain speed, reaching = decelerate
         ClimbPathPlanner.ClimbPath path =
-            ClimbPathPlanner.createMultiBezierPath(waypoints, 0.15, durationSeconds);
+            ClimbPathPlanner.createMultiBezierPath(waypoints, 0.15, durationSeconds, isPulling);
         if (!ClimbPathPlanner.isPathValid(path)) {
           Logger.recordOutput("Climb/Path/Error", "Invalid waypoint path");
+          System.out.println("[ClimbPath] ERROR: Invalid waypoint path");
+          // Debug: check each waypoint
+          for (int i = 0; i < path.getWaypoints().size(); i++) {
+            Translation2d point = path.getWaypoints().get(i);
+            boolean reachable = ClimbIK.isPositionReachable(point);
+            boolean inWorkspace = ClimbPathPlanner.isWithinWorkspace(point);
+            System.out.println(
+                "[ClimbPath] Waypoint "
+                    + i
+                    + ": "
+                    + point
+                    + " reachable="
+                    + reachable
+                    + " inWorkspace="
+                    + inWorkspace);
+          }
           cancel();
           return;
         }
         executor = new ClimbPathPlanner.PathExecutor(path, path);
         executor.start();
+        System.out.println("[ClimbPath] Path started successfully");
         Logger.recordOutput("Climb/Path/WaypointCount", waypoints.size());
 
         // Log all waypoints for visualization in AdvantageScope
@@ -312,6 +397,13 @@ public class ClimbSubsystem extends SubsystemBase {
         double[] waypointYs = waypoints.stream().mapToDouble(Translation2d::getY).toArray();
         Logger.recordOutput("Climb/Path/WaypointsX", waypointXs);
         Logger.recordOutput("Climb/Path/WaypointsY", waypointYs);
+
+        // Log generated path points for smooth curve visualization
+        List<Translation2d> pathPoints = path.getWaypoints();
+        double[] pathXs = pathPoints.stream().mapToDouble(Translation2d::getX).toArray();
+        double[] pathYs = pathPoints.stream().mapToDouble(Translation2d::getY).toArray();
+        Logger.recordOutput("Climb/Path/GeneratedX", pathXs);
+        Logger.recordOutput("Climb/Path/GeneratedY", pathYs);
       }
 
       @Override
@@ -320,27 +412,37 @@ public class ClimbSubsystem extends SubsystemBase {
           Translation2d[] targets = executor.getCurrentTargets();
           Translation2d[] velocities = executor.getCurrentVelocities();
           // Use velocity control for smooth feedforward motion
-          setTargetVelocitiesInternal(targets[0], targets[1], velocities[0], velocities[1]);
+          setTargetVelocitiesInternal(
+              targets[0], targets[1], velocities[0], velocities[1], isPulling);
         }
       }
 
       @Override
       public boolean isFinished() {
-        return executor != null && executor.isFinished();
+        boolean finished = executor != null && executor.isFinished();
+        if (finished) {
+          System.out.println("[ClimbPath] Path finished");
+        }
+        return finished;
       }
 
       @Override
       public void end(boolean interrupted) {
+        System.out.println("[ClimbPath] Path ended, interrupted=" + interrupted);
         if (executor != null) executor.stop();
         if (!interrupted) {
           Translation2d finalPos = waypoints.get(waypoints.size() - 1);
           setTargetPositionsInternal(finalPos, finalPos);
+          // Log that we've reached the target position
+          Logger.recordOutput("Climb/CurrentState", "REACHED_" + currentState.getName());
         }
       }
     }.withName("ClimbFollowWaypointPath");
   }
 
+  // ===========================================================================
   // GETTERS
+  // ===========================================================================
 
   public Translation2d getLeftTargetPosition() {
     return leftTargetPosition;
@@ -366,7 +468,9 @@ public class ClimbSubsystem extends SubsystemBase {
     return inputs.leftBackPositionRotations;
   }
 
-  // PASSIVE HOOK RELEASE
+  // ===========================================================================
+  // PASSIVE HOOKS
+  // ===========================================================================
 
   /** Release passive hooks (called when entering climb mode). */
   public void releaseHooks() {
@@ -390,7 +494,9 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(this::stowHooks).withName("ClimbStowHooks");
   }
 
+  // ===========================================================================
   // EMERGENCY
+  // ===========================================================================
 
   public void stopMotors() {
     io.stop();

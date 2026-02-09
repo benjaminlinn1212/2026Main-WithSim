@@ -44,8 +44,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     // Base configuration (shared by all motors)
     TalonFXConfiguration baseConfig = new TalonFXConfiguration();
 
-    // Motor Inversion and Neutral Mode
-    baseConfig.MotorOutput.Inverted = ClimbConstants.MOTOR_INVERTED;
+    // Neutral Mode (same for all)
     baseConfig.MotorOutput.NeutralMode = ClimbConstants.NEUTRAL_MODE;
 
     // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
@@ -68,27 +67,47 @@ public class ClimbIOTalonFX implements ClimbIO {
     baseConfig.CurrentLimits.SupplyCurrentLimit = ClimbConstants.SUPPLY_CURRENT_LIMIT;
     baseConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
 
-    // Front motors config (100:1 gear ratio)
-    TalonFXConfiguration frontConfig = new TalonFXConfiguration();
-    frontConfig.MotorOutput = baseConfig.MotorOutput;
-    frontConfig.Slot0 = baseConfig.Slot0;
-    frontConfig.MotionMagic = baseConfig.MotionMagic;
-    frontConfig.CurrentLimits = baseConfig.CurrentLimits;
-    frontConfig.Feedback.SensorToMechanismRatio = ClimbConstants.FRONT_GEAR_RATIO;
+    // Right Front motor config (100:1 gear ratio)
+    TalonFXConfiguration rightFrontConfig = new TalonFXConfiguration();
+    rightFrontConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_FRONT_MOTOR_INVERTED;
+    rightFrontConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
+    rightFrontConfig.Slot0 = baseConfig.Slot0;
+    rightFrontConfig.MotionMagic = baseConfig.MotionMagic;
+    rightFrontConfig.CurrentLimits = baseConfig.CurrentLimits;
+    rightFrontConfig.Feedback.SensorToMechanismRatio = ClimbConstants.FRONT_GEAR_RATIO;
 
-    // Back motors config (80:1 gear ratio)
-    TalonFXConfiguration backConfig = new TalonFXConfiguration();
-    backConfig.MotorOutput = baseConfig.MotorOutput;
-    backConfig.Slot0 = baseConfig.Slot0;
-    backConfig.MotionMagic = baseConfig.MotionMagic;
-    backConfig.CurrentLimits = baseConfig.CurrentLimits;
-    backConfig.Feedback.SensorToMechanismRatio = ClimbConstants.BACK_GEAR_RATIO;
+    // Right Back motor config (80:1 gear ratio)
+    TalonFXConfiguration rightBackConfig = new TalonFXConfiguration();
+    rightBackConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_BACK_MOTOR_INVERTED;
+    rightBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
+    rightBackConfig.Slot0 = baseConfig.Slot0;
+    rightBackConfig.MotionMagic = baseConfig.MotionMagic;
+    rightBackConfig.CurrentLimits = baseConfig.CurrentLimits;
+    rightBackConfig.Feedback.SensorToMechanismRatio = ClimbConstants.BACK_GEAR_RATIO;
+
+    // Left Front motor config (100:1 gear ratio)
+    TalonFXConfiguration leftFrontConfig = new TalonFXConfiguration();
+    leftFrontConfig.MotorOutput.Inverted = ClimbConstants.LEFT_FRONT_MOTOR_INVERTED;
+    leftFrontConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
+    leftFrontConfig.Slot0 = baseConfig.Slot0;
+    leftFrontConfig.MotionMagic = baseConfig.MotionMagic;
+    leftFrontConfig.CurrentLimits = baseConfig.CurrentLimits;
+    leftFrontConfig.Feedback.SensorToMechanismRatio = ClimbConstants.FRONT_GEAR_RATIO;
+
+    // Left Back motor config (80:1 gear ratio)
+    TalonFXConfiguration leftBackConfig = new TalonFXConfiguration();
+    leftBackConfig.MotorOutput.Inverted = ClimbConstants.LEFT_BACK_MOTOR_INVERTED;
+    leftBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
+    leftBackConfig.Slot0 = baseConfig.Slot0;
+    leftBackConfig.MotionMagic = baseConfig.MotionMagic;
+    leftBackConfig.CurrentLimits = baseConfig.CurrentLimits;
+    leftBackConfig.Feedback.SensorToMechanismRatio = ClimbConstants.BACK_GEAR_RATIO;
 
     // Apply configs
-    rightFrontMotor.getConfigurator().apply(frontConfig);
-    rightBackMotor.getConfigurator().apply(backConfig);
-    leftFrontMotor.getConfigurator().apply(frontConfig);
-    leftBackMotor.getConfigurator().apply(backConfig);
+    rightFrontMotor.getConfigurator().apply(rightFrontConfig);
+    rightBackMotor.getConfigurator().apply(rightBackConfig);
+    leftFrontMotor.getConfigurator().apply(leftFrontConfig);
+    leftBackMotor.getConfigurator().apply(leftBackConfig);
 
     // Reset positions on startup
     rightFrontMotor.setPosition(0);
@@ -153,23 +172,29 @@ public class ClimbIOTalonFX implements ClimbIO {
   }
 
   @Override
-  public void setRightFrontVelocity(double velocityRotPerSec) {
-    rightFrontMotor.setControl(rightFrontVelocityControl.withVelocity(velocityRotPerSec));
+  public void setRightFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    rightFrontMotor.setControl(
+        rightFrontVelocityControl
+            .withVelocity(velocityRotPerSec)
+            .withFeedForward(feedforwardVolts));
   }
 
   @Override
-  public void setRightBackVelocity(double velocityRotPerSec) {
-    rightBackMotor.setControl(rightBackVelocityControl.withVelocity(velocityRotPerSec));
+  public void setRightBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    rightBackMotor.setControl(
+        rightBackVelocityControl.withVelocity(velocityRotPerSec).withFeedForward(feedforwardVolts));
   }
 
   @Override
-  public void setLeftFrontVelocity(double velocityRotPerSec) {
-    leftFrontMotor.setControl(leftFrontVelocityControl.withVelocity(velocityRotPerSec));
+  public void setLeftFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    leftFrontMotor.setControl(
+        leftFrontVelocityControl.withVelocity(velocityRotPerSec).withFeedForward(feedforwardVolts));
   }
 
   @Override
-  public void setLeftBackVelocity(double velocityRotPerSec) {
-    leftBackMotor.setControl(leftBackVelocityControl.withVelocity(velocityRotPerSec));
+  public void setLeftBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    leftBackMotor.setControl(
+        leftBackVelocityControl.withVelocity(velocityRotPerSec).withFeedForward(feedforwardVolts));
   }
 
   @Override

@@ -60,6 +60,12 @@ public class IntakeSubsystem extends SubsystemBase {
         .withName("IntakeStop");
   }
 
+  /** Check if intake is stopped (for climb readiness) */
+  public boolean atSetpoint() {
+    return Math.abs(inputs.upperVelocityRotPerSec) < 0.1
+        && Math.abs(inputs.lowerVelocityRotPerSec) < 0.1; // Stopped if velocity near zero
+  }
+
   /** Immediately stop the intake motor */
   public void stopMotor() {
     io.stop();

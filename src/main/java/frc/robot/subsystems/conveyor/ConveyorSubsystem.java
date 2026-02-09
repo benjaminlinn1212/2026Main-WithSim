@@ -58,6 +58,11 @@ public class ConveyorSubsystem extends SubsystemBase {
         .withName("ConveyorStop");
   }
 
+  /** Check if conveyor is stopped (for climb readiness) */
+  public boolean atSetpoint() {
+    return Math.abs(inputs.velocityRotPerSec) < 0.1; // Stopped if velocity near zero
+  }
+
   /** Immediately stop the conveyor motor */
   public void stopMotor() {
     io.stop();

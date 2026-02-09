@@ -141,25 +141,25 @@ public class ClimbIOSim implements ClimbIO {
   }
 
   @Override
-  public void setRightFrontVelocity(double velocityRotPerSec) {
+  public void setRightFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
     this.rightFrontVelocityRotPerSec = velocityRotPerSec;
     this.rightFrontPositionRotations += velocityRotPerSec * DT;
   }
 
   @Override
-  public void setRightBackVelocity(double velocityRotPerSec) {
+  public void setRightBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
     this.rightBackVelocityRotPerSec = velocityRotPerSec;
     this.rightBackPositionRotations += velocityRotPerSec * DT;
   }
 
   @Override
-  public void setLeftFrontVelocity(double velocityRotPerSec) {
+  public void setLeftFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
     this.leftFrontVelocityRotPerSec = velocityRotPerSec;
     this.leftFrontPositionRotations += velocityRotPerSec * DT;
   }
 
   @Override
-  public void setLeftBackVelocity(double velocityRotPerSec) {
+  public void setLeftBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
     this.leftBackVelocityRotPerSec = velocityRotPerSec;
     this.leftBackPositionRotations += velocityRotPerSec * DT;
   }

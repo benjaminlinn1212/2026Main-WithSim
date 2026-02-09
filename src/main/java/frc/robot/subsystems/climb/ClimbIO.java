@@ -55,16 +55,16 @@ public interface ClimbIO {
   public default void setLeftBackPosition(double positionRotations) {}
 
   /** Set the right front motor to a target velocity. */
-  public default void setRightFrontVelocity(double velocityRotPerSec) {}
+  public default void setRightFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {}
 
   /** Set the right back motor to a target velocity. */
-  public default void setRightBackVelocity(double velocityRotPerSec) {}
+  public default void setRightBackVelocity(double velocityRotPerSec, double feedforwardVolts) {}
 
   /** Set the left front motor to a target velocity. */
-  public default void setLeftFrontVelocity(double velocityRotPerSec) {}
+  public default void setLeftFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {}
 
   /** Set the left back motor to a target velocity. */
-  public default void setLeftBackVelocity(double velocityRotPerSec) {}
+  public default void setLeftBackVelocity(double velocityRotPerSec, double feedforwardVolts) {}
 
   /** Run the right front motor at a specific voltage. */
   public default void setRightFrontVoltage(double volts) {}

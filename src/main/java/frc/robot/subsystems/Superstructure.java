@@ -188,16 +188,18 @@ public class Superstructure extends SubsystemBase {
    */
   public Command enterClimbMode() {
     return Commands.sequence(
-            Commands.parallel(
-                Commands.runOnce(() -> setState(SuperstructureState.CLIMB_MODE)),
-                turret.stow(),
-                hood.stow(),
-                shooter.stopShooter(),
-                intakePivot.stow(),
-                intake.stop(),
-                conveyor.stop(),
-                indexer.stop()),
-            Commands.waitSeconds(0.2), // Brief delay to ensure subsystems are stowed
+            Commands.runOnce(
+                () -> {
+                  setState(SuperstructureState.CLIMB_MODE);
+                  // Schedule stow commands (they will run in background)
+                  turret.stow().schedule();
+                  hood.stow().schedule();
+                  intakePivot.stow().schedule();
+                  shooter.stop();
+                  intake.stopMotor();
+                  conveyor.stopMotor();
+                  indexer.stopMotor();
+                }),
             climb.releaseHooksCommand(), // Release passive hooks
             Commands.runOnce(
                 () ->
@@ -227,6 +229,23 @@ public class Superstructure extends SubsystemBase {
    */
   public boolean isInClimbMode() {
     return currentState == SuperstructureState.CLIMB_MODE;
+  }
+
+  /**
+   * Check if all subsystems are stowed and ready for climb operations.
+   *
+   * @return true if all subsystems are at stow positions
+   */
+  public boolean isReadyForClimb() {
+    return isInClimbMode()
+        && turret.atSetpoint() // Turret at stow
+        && hood.atSetpoint() // Hood at stow
+        && shooter.atSetpoint() // Shooter stopped
+        && intakePivot.isStowed() // Intake pivot stowed
+        && intake.atSetpoint() // Intake stopped
+        && conveyor.atSetpoint() // Conveyor stopped
+        && indexer.atSetpoint() // Indexer stopped
+        && climb.getState() == ClimbState.STOWED; // Climb at stowed state
   }
 
   /**

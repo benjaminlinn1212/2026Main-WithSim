@@ -109,6 +109,15 @@ public class HoodSubsystem extends SubsystemBase {
     io.setPositionSetpoint(radiansFromHorizontal, radPerSecond);
   }
 
+  /**
+   * Direct method to set hood position (no command scheduling). Use this for simple test bindings
+   * where you want to call it from a runOnce() lambda, similar to shooter.setVelocity().
+   */
+  public void setPosition(double radiansFromHorizontal) {
+    positionSetpointRad = radiansFromHorizontal;
+    setPositionSetpointImpl(radiansFromHorizontal, 0.0);
+  }
+
   public double getCurrentPosition() {
     return inputs.positionRad;
   }

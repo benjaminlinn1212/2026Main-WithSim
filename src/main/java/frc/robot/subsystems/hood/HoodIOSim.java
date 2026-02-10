@@ -10,8 +10,13 @@ public class HoodIOSim implements HoodIO {
   private final SingleJointedArmSim sim;
   private double appliedVolts = 0.0;
   private double positionSetpointRad = 0.0;
-  private double velocitySetpointRadPerSec = 0.0;
   private boolean closedLoop = false;
+
+  // Sim-tuned PID gains (different from hardware MotionMagic gains)
+  // Hardware uses MotionMagic with motion profiling; sim uses a simple PD controller
+  // so we tune separately for realistic sim behavior.
+  private static final double SIM_KP = 200.0; // volts per mechanism radian of error
+  private static final double SIM_KD = 10.0; // volts per mechanism rad/s
 
   public HoodIOSim() {
     // Create a simulated hood using SingleJointedArmSim
@@ -27,7 +32,7 @@ public class HoodIOSim implements HoodIO {
             0.3, // Arm length (meters) - approximate hood length
             Constants.HoodConstants.MIN_POSITION_RAD, // Min angle
             Constants.HoodConstants.MAX_POSITION_RAD, // Max angle
-            true, // Simulate gravity (true for arm/hood that fights gravity)
+            false, // Disable gravity — hood range is small and KG is hardware-tuned
             Constants.HoodConstants.MIN_POSITION_RAD); // Starting angle
   }
 
@@ -35,18 +40,11 @@ public class HoodIOSim implements HoodIO {
   public void updateInputs(HoodIOInputs inputs) {
     // Perform closed-loop control in simulation
     if (closedLoop) {
-      // Simple PID controller for simulation
-      double error = positionSetpointRad - sim.getAngleRads();
-      double ffVolts =
-          velocitySetpointRadPerSec
-              * Constants.HoodConstants.KV
-              * (2 * Math.PI); // Convert KV from rotations/s to rad/s
-      double fbVolts = error * Constants.HoodConstants.KP;
+      // Use sim-tuned PD controller (not hardware Phoenix6 gains)
+      double errorRad = positionSetpointRad - sim.getAngleRads();
+      double fbVolts = errorRad * SIM_KP - sim.getVelocityRadPerSec() * SIM_KD;
 
-      // Add gravity compensation
-      double gravityVolts = Constants.HoodConstants.KG * Math.cos(sim.getAngleRads());
-
-      appliedVolts = MathUtil.clamp(ffVolts + fbVolts + gravityVolts, -12.0, 12.0);
+      appliedVolts = MathUtil.clamp(fbVolts, -12.0, 12.0);
     }
 
     // Update simulation
@@ -70,7 +68,6 @@ public class HoodIOSim implements HoodIO {
             radiansFromHorizontal,
             Constants.HoodConstants.MIN_POSITION_RAD,
             Constants.HoodConstants.MAX_POSITION_RAD);
-    velocitySetpointRadPerSec = radPerSecond;
   }
 
   @Override

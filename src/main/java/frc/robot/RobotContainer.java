@@ -427,7 +427,7 @@ public class RobotContainer {
                   hoodTestAngleRad += Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
                   hoodTestAngleRad =
                       Math.min(hoodTestAngleRad, Constants.HoodConstants.MAX_POSITION_RAD);
-                  hood.positionSetpointCommand(() -> hoodTestAngleRad, () -> 0.0).schedule();
+                  hood.setPosition(hoodTestAngleRad);
                   System.out.println(
                       "[Hood Test] Angle increased to: " + Math.toDegrees(hoodTestAngleRad) + "°");
                   SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
@@ -442,7 +442,7 @@ public class RobotContainer {
                   hoodTestAngleRad -= Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
                   hoodTestAngleRad =
                       Math.max(hoodTestAngleRad, Constants.HoodConstants.MIN_POSITION_RAD);
-                  hood.positionSetpointCommand(() -> hoodTestAngleRad, () -> 0.0).schedule();
+                  hood.setPosition(hoodTestAngleRad);
                   System.out.println(
                       "[Hood Test] Angle decreased to: " + Math.toDegrees(hoodTestAngleRad) + "°");
                   SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
@@ -457,7 +457,7 @@ public class RobotContainer {
                   shooterTestRPS = 0.0;
                   shooter.stop();
                   hoodTestAngleRad = Constants.HoodConstants.STOW_POSITION;
-                  hood.stow().schedule();
+                  hood.setPosition(hoodTestAngleRad);
                   System.out.println("[Test] Shooter stopped, hood stowed");
                   SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
                   SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));

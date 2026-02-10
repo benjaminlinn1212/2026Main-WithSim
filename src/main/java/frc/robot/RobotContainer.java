@@ -90,9 +90,9 @@ public class RobotContainer {
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
 
-  // Test mode tuning variables
-  private double testModeShooterRPS = 0.0;
-  private double testModeHoodAngleRad = Constants.HoodConstants.STOW_POSITION;
+  // Shooter tuning variables for teleop testing
+  private double shooterTestRPS = 0.0;
+  private double hoodTestAngleRad = Constants.HoodConstants.STOW_POSITION;
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -374,262 +374,205 @@ public class RobotContainer {
                     swerveIO)
                 .ignoringDisable(true));
 
-    // ===== CLIMB TEST CONTROLS =====
+    // ===== CLIMB VOLTAGE CONTROLS (moved from test mode) =====
 
-    // A button: Go to STOWED state
-    controller
-        .a()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  climb.setState(frc.robot.subsystems.climb.ClimbState.STOWED);
-                  System.out.println("[Climb Test] Set to STOWED state");
-                },
-                climb));
-
-    // B button: Test manual position control
-    controller
-        .b()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  climb.setSymmetricTargetPosition(
-                      new edu.wpi.first.math.geometry.Translation2d(0.6, 0.8));
-                  System.out.println("[Climb Test] Manual position (0.6, 0.8)");
-                },
-                climb));
-
-    // X button: Cycle through climb states (forward)
-    controller.x().onTrue(climb.nextState());
-
-    // Y button: Emergency stop climb
-    controller.y().onTrue(climb.emergencyStop());
-
-    // D-Pad Right: Next climb state
-    controller.povRight().onTrue(climb.nextState());
-
-    // D-Pad Left: Previous climb state (using REVERSED path for smooth backwards motion)
-    controller.povLeft().onTrue(climb.previousStateReversed());
-
-    controller
-        .povDown()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  System.out.println("[Test Mode] Starting ClimbWorkflow fullAutoClimb test...");
-                  frc.robot.subsystems.climb.ClimbWorkflow.fullAutoClimb(superstructure, swerveIO)
-                      .schedule();
-                }));
-
-    // Left bumper: Stop all climb motors
-    controller.leftBumper().onTrue(Commands.runOnce(() -> climb.stopMotors(), climb));
-  }
-
-  /**
-   * Configure button bindings for test mode. This allows tuning of shooter RPS and hood angle
-   * without drivetrain interference.
-   */
-  public void configureTestModeBindings() {
-    // Cancel all running commands
-    CommandScheduler.getInstance().cancelAll();
-
-    System.out.println("[RobotContainer] Configuring test mode bindings...");
-
-    // ===== CLEAR ALL EXISTING BUTTON BINDINGS =====
-    // This prevents old teleop bindings from interfering with test mode
-    controller.a().onTrue(Commands.none());
-    controller.b().onTrue(Commands.none());
-    controller.x().onTrue(Commands.none());
-    controller.y().onTrue(Commands.none());
-    controller.leftBumper().onTrue(Commands.none());
-    controller.rightBumper().onTrue(Commands.none());
-    controller.povUp().whileTrue(Commands.none()).onFalse(Commands.none());
-    controller.povDown().whileTrue(Commands.none()).onFalse(Commands.none());
-    controller.povLeft().whileTrue(Commands.none()).onFalse(Commands.none());
-    controller.povRight().whileTrue(Commands.none()).onFalse(Commands.none());
-
-    // ===== NO DRIVETRAIN IN TEST MODE =====
-    // Clear any default command to prevent accidental movement
-    swerveIO.removeDefaultCommand();
-
-    // ===== TEST MODE TUNING CONTROLS =====
-
-    // A button: Increase Shooter RPS
-    controller
-        .a()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  testModeShooterRPS += Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
-                  shooter.setVelocity(testModeShooterRPS);
-                  System.out.println("[Test Mode] Shooter RPS increased to: " + testModeShooterRPS);
-                  SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
-                }));
-
-    // B button: Decrease Shooter RPS
-    controller
-        .b()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  testModeShooterRPS -= Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
-                  testModeShooterRPS = Math.max(0, testModeShooterRPS); // Don't go negative
-                  shooter.setVelocity(testModeShooterRPS);
-                  System.out.println("[Test Mode] Shooter RPS decreased to: " + testModeShooterRPS);
-                  SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
-                }));
-
-    // X button: Increase Hood Angle
-    controller
-        .x()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  testModeHoodAngleRad += Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
-                  testModeHoodAngleRad =
-                      Math.min(
-                          testModeHoodAngleRad,
-                          Constants.HoodConstants.MAX_POSITION_RAD); // Don't exceed max position
-                  hood.positionSetpointCommand(() -> testModeHoodAngleRad, () -> 0.0).schedule();
-                  System.out.println(
-                      "[Test Mode] Hood angle increased to: "
-                          + Math.toDegrees(testModeHoodAngleRad)
-                          + " degrees");
-                  SmartDashboard.putNumber(
-                      "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
-                }));
-
-    // Y button: Decrease Hood Angle
-    controller
-        .y()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  testModeHoodAngleRad -= Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
-                  testModeHoodAngleRad =
-                      Math.max(
-                          testModeHoodAngleRad,
-                          Constants.HoodConstants.MIN_POSITION_RAD); // Don't go below min position
-                  hood.positionSetpointCommand(() -> testModeHoodAngleRad, () -> 0.0).schedule();
-                  System.out.println(
-                      "[Test Mode] Hood angle decreased to: "
-                          + Math.toDegrees(testModeHoodAngleRad)
-                          + " degrees");
-                  SmartDashboard.putNumber(
-                      "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
-                }));
-
-    // Left bumper: Stop shooter
-    controller
-        .leftBumper()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  testModeShooterRPS = 0.0;
-                  shooter.stop();
-                  System.out.println("[Test Mode] Shooter stopped");
-                  SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
-                }));
-
-    // Right bumper: Reset hood to stow position
-    controller
-        .rightBumper()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  testModeHoodAngleRad = Constants.HoodConstants.STOW_POSITION;
-                  hood.stow().schedule();
-                  System.out.println("[Test Mode] Hood reset to stow position");
-                  SmartDashboard.putNumber(
-                      "TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
-                }));
-
-    // ===== CLIMB VOLTAGE CONTROLS =====
-
-    // POV Up: Run front climb motors forward (while held)
+    // POV Up: Left Front Release (positive voltage)
     controller
         .povUp()
         .whileTrue(
             Commands.run(
                 () -> {
                   climb.setLeftFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                  climb.setRightFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
                 },
                 climb))
         .onFalse(
             Commands.runOnce(
                 () -> {
                   climb.setLeftFrontMotorVoltage(0.0);
-                  climb.setRightFrontMotorVoltage(0.0);
                 }));
 
-    // POV Down: Run front climb motors reverse (while held)
+    // POV Down: Left Front Pull (negative voltage)
     controller
         .povDown()
         .whileTrue(
             Commands.run(
                 () -> {
                   climb.setLeftFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                  climb.setRightFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
                 },
                 climb))
         .onFalse(
             Commands.runOnce(
                 () -> {
                   climb.setLeftFrontMotorVoltage(0.0);
-                  climb.setRightFrontMotorVoltage(0.0);
                 }));
 
-    // POV Left: Run back climb motors forward (while held)
+    // POV Left: Left Back Release (positive voltage)
     controller
         .povLeft()
         .whileTrue(
             Commands.run(
                 () -> {
                   climb.setLeftBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                  climb.setRightBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
                 },
                 climb))
         .onFalse(
             Commands.runOnce(
                 () -> {
                   climb.setLeftBackMotorVoltage(0.0);
-                  climb.setRightBackMotorVoltage(0.0);
                 }));
 
-    // POV Right: Run back climb motors reverse (while held)
+    // POV Right: Left Back Pull (negative voltage)
     controller
         .povRight()
         .whileTrue(
             Commands.run(
                 () -> {
                   climb.setLeftBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                  climb.setRightBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
                 },
                 climb))
         .onFalse(
             Commands.runOnce(
                 () -> {
                   climb.setLeftBackMotorVoltage(0.0);
+                }));
+
+    // Y Button: Right Front Release (positive voltage)
+    controller
+        .y()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setRightFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setRightFrontMotorVoltage(0.0);
+                }));
+
+    // A Button: Right Front Pull (negative voltage)
+    controller
+        .a()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setRightFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setRightFrontMotorVoltage(0.0);
+                }));
+
+    // X Button: Right Back Release (positive voltage)
+    controller
+        .x()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setRightBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
                   climb.setRightBackMotorVoltage(0.0);
                 }));
 
-    // Initialize SmartDashboard values
-    SmartDashboard.putNumber("TestMode/ShooterRPS", testModeShooterRPS);
-    SmartDashboard.putNumber("TestMode/HoodAngleDeg", Math.toDegrees(testModeHoodAngleRad));
+    // B Button: Right Back Pull (negative voltage)
+    controller
+        .b()
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  climb.setRightBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
+                },
+                climb))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  climb.setRightBackMotorVoltage(0.0);
+                }));
 
-    System.out.println("[RobotContainer] Test mode bindings configured!");
-    System.out.println("  A: Increase Shooter RPS");
-    System.out.println("  B: Decrease Shooter RPS");
-    System.out.println("  X: Increase Hood Angle");
-    System.out.println("  Y: Decrease Hood Angle");
-    System.out.println("  Left Bumper: Stop Shooter");
-    System.out.println("  Right Bumper: Reset Hood to Stow");
-    System.out.println("  POV Up: Run Front Climb Motors Forward (hold)");
-    System.out.println("  POV Down: Run Front Climb Motors Reverse (hold)");
-    System.out.println("  POV Left: Run Back Climb Motors Forward (hold)");
-    System.out.println("  POV Right: Run Back Climb Motors Reverse (hold)");
-    System.out.println("  Back: Test ClimbWorkflow Full Auto Climb");
+    // Left bumper: Stop all climb motors
+    controller.leftBumper().onTrue(Commands.runOnce(() -> climb.stopMotors(), climb));
+
+    // ===== SHOOTER & HOOD TUNING CONTROLS =====
+    // Right Bumper + A: Increase Shooter RPS
+    controller
+        .rightBumper()
+        .and(controller.a())
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  shooterTestRPS += Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
+                  shooter.setVelocity(shooterTestRPS);
+                  System.out.println("[Shooter Test] RPS increased to: " + shooterTestRPS);
+                  SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
+                }));
+
+    // Right Bumper + B: Decrease Shooter RPS
+    controller
+        .rightBumper()
+        .and(controller.b())
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  shooterTestRPS -= Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
+                  shooterTestRPS = Math.max(0, shooterTestRPS);
+                  shooter.setVelocity(shooterTestRPS);
+                  System.out.println("[Shooter Test] RPS decreased to: " + shooterTestRPS);
+                  SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
+                }));
+
+    // Right Bumper + X: Increase Hood Angle
+    controller
+        .rightBumper()
+        .and(controller.x())
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  hoodTestAngleRad += Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
+                  hoodTestAngleRad =
+                      Math.min(hoodTestAngleRad, Constants.HoodConstants.MAX_POSITION_RAD);
+                  hood.positionSetpointCommand(() -> hoodTestAngleRad, () -> 0.0).schedule();
+                  System.out.println(
+                      "[Hood Test] Angle increased to: " + Math.toDegrees(hoodTestAngleRad) + "°");
+                  SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
+                }));
+
+    // Right Bumper + Y: Decrease Hood Angle
+    controller
+        .rightBumper()
+        .and(controller.y())
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  hoodTestAngleRad -= Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
+                  hoodTestAngleRad =
+                      Math.max(hoodTestAngleRad, Constants.HoodConstants.MIN_POSITION_RAD);
+                  hood.positionSetpointCommand(() -> hoodTestAngleRad, () -> 0.0).schedule();
+                  System.out.println(
+                      "[Hood Test] Angle decreased to: " + Math.toDegrees(hoodTestAngleRad) + "°");
+                  SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
+                }));
+
+    // Right Bumper alone: Stop shooter and reset hood
+    controller
+        .rightBumper()
+        .onTrue(
+            Commands.runOnce(
+                () -> {
+                  shooterTestRPS = 0.0;
+                  shooter.stop();
+                  hoodTestAngleRad = Constants.HoodConstants.STOW_POSITION;
+                  hood.stow().schedule();
+                  System.out.println("[Test] Shooter stopped, hood stowed");
+                  SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
+                  SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
+                }));
   }
 
   /**

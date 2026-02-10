@@ -153,11 +153,11 @@ public class ClimbIK {
     final double drumRotations_front = l1 / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
     final double drumRotations_back = l2 / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
 
-    // Step 2: Drum rotations to motor rotations (account for gear ratio)
-    // Front motors: 100:1 reduction → motor rotations = drum rotations / gear_ratio
-    // Back motors: 80:1 reduction → motor rotations = drum rotations / gear_ratio
-    final double frontMotorRotations = drumRotations_front / ClimbConstants.FRONT_GEAR_RATIO;
-    final double backMotorRotations = drumRotations_back / ClimbConstants.BACK_GEAR_RATIO;
+    // Step 2: Drum rotations = mechanism rotations (we return mechanism rotations)
+    // The IO layer (ClimbIOTalonFX) handles conversion to motor rotations
+    // since SensorToMechanismRatio is now 1.0 per CTRE recommendation
+    final double frontMotorRotations = drumRotations_front;
+    final double backMotorRotations = drumRotations_back;
 
     return new ClimbSideIKResult(
         frontMotorRotations,

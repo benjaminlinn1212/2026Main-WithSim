@@ -54,9 +54,9 @@ public class ShooterIOTalonFX implements ShooterIO {
   private TalonFXConfiguration shooterConfiguration() {
     TalonFXConfiguration configuration = new TalonFXConfiguration();
 
-    // SensorToMechanismRatio in Phoenix 6 = sensor rotations per mechanism rotation
-    // Our GEAR_RATIO is mechanism per motor, so we need the reciprocal
-    configuration.Feedback.SensorToMechanismRatio = 1.0 / ShooterConstants.GEAR_RATIO;
+    // Per CTRE recommendation, set to 1.0 and handle conversions in code
+    // For Shooter: GEAR_RATIO = 1.0 (direct drive), so motor rotations = mechanism rotations
+    configuration.Feedback.SensorToMechanismRatio = 1.0;
 
     // Motor Inversion
     configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;

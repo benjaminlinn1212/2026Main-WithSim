@@ -9,6 +9,7 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
+import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.config.PIDConstants;
@@ -346,10 +347,11 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.0;
 
-    // Motion Magic Constants (mechanism rotations/sec, Phoenix handles gear ratio)
-    public static final double CRUISE_VELOCITY = 2.0; // Mechanism rotations/sec (~720 deg/s)
-    public static final double ACCELERATION = 10.0; // Mechanism rotations/sec²
-    public static final double JERK = 100.0; // Mechanism rotations/sec³
+    // Motion Magic Constants (motor rotations per second)
+    // Note: These are in motor units since SensorToMechanismRatio = 1.0
+    public static final double CRUISE_VELOCITY = 2.0 / GEAR_RATIO; // motor rotations/sec
+    public static final double ACCELERATION = 10.0 / GEAR_RATIO; // motor rotations/sec²
+    public static final double JERK = 100.0 / GEAR_RATIO; // motor rotations/sec³
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 150.0;
@@ -425,16 +427,18 @@ public final class Constants {
     // PID and Feedforward Constants
     public static final double KP = 25.0;
     public static final double KI = 0.0;
-    public static final double KD = 0.0;
+    public static final double KD = 0.1;
     public static final double KS = 0.1;
     public static final double KV = 0.12;
     public static final double KA = 0.0;
-    public static final double KG = 0.2;
+    public static final double KG = 0.23;
+    public static final GravityTypeValue GRAVITY_TYPE = GravityTypeValue.Elevator_Static;
 
-    // Motion Magic Constants
-    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
-    public static final double ACCELERATION = 160.0; // rotations per second^2
-    public static final double JERK = 1600.0; // rotations per second^3
+    // Motion Magic Constants (motor rotations per second)
+    // Note: These are in motor units since SensorToMechanismRatio = 1.0
+    public static final double CRUISE_VELOCITY = 80.0 / GEAR_RATIO; // motor rotations per second
+    public static final double ACCELERATION = 160.0 / GEAR_RATIO; // motor rotations per second^2
+    public static final double JERK = 1600.0 / GEAR_RATIO; // motor rotations per second^3
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
@@ -492,12 +496,14 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.0;
 
-    // Motion Magic Constants (in MECHANISM rotations = drum rotations)
-    // These are drum rotations per second, NOT motor rotations
-    // With 100:1 gearing, 0.5 drum rot/s = 50 motor rot/s = 3000 RPM (safe for Kraken X60)
-    public static final double CRUISE_VELOCITY = 3.0; // drum rotations per second
-    public static final double ACCELERATION = 10.0; // drum rotations per second^2
-    public static final double JERK = 40.0; // drum rotations per second^3
+    // Motion Magic Constants (in MOTOR rotations per second)
+    // Note: These are in motor units since SensorToMechanismRatio = 1.0 per CTRE recommendation
+    // Front motors (100:1): 3.0 drum rot/s = 300 motor rot/s
+    // Back motors (80:1): 3.0 drum rot/s = 240 motor rot/s
+    // We'll use average for shared base config, specific conversions handled in IO layer
+    public static final double CRUISE_VELOCITY = 3.0; // mechanism (drum) rotations per second
+    public static final double ACCELERATION = 10.0; // mechanism (drum) rotations per second^2
+    public static final double JERK = 40.0; // mechanism (drum) rotations per second^3
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;

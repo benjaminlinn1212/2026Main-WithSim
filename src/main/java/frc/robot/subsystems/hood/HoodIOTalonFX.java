@@ -4,7 +4,6 @@ import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
-import com.ctre.phoenix6.signals.GravityTypeValue;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.util.Units;
 import frc.robot.Constants;
@@ -28,22 +27,24 @@ public class HoodIOTalonFX implements HoodIO {
 
     // Feedback Configuration
     motorConfig.Feedback.RotorToSensorRatio = 1.0;
-    // SensorToMechanismRatio in Phoenix 6 = sensor rotations per mechanism rotation
-    // Our GEAR_RATIO is mechanism per motor, so we need the reciprocal
-    motorConfig.Feedback.SensorToMechanismRatio = 1.0 / Constants.HoodConstants.GEAR_RATIO;
+    // Per CTRE recommendation, set SensorToMechanismRatio to 1.0 and handle conversions in code
+    motorConfig.Feedback.SensorToMechanismRatio = 1.0;
     motorConfig.Feedback.FeedbackRotorOffset = Constants.HoodConstants.ROTOR_OFFSET;
 
-    // Software Limits (mechanism rotations - Phoenix 6 handles the gear ratio)
+    // Software Limits (motor rotations - need to convert from mechanism limits)
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
+    // Convert mechanism angle limits to motor rotations: motor_rot = mechanism_rot / gear_ratio
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
         Units.radiansToRotations(
-            Constants.HoodConstants.MAX_POSITION_RAD
-                - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG));
+                Constants.HoodConstants.MAX_POSITION_RAD
+                    - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG))
+            / Constants.HoodConstants.GEAR_RATIO;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
         Units.radiansToRotations(
-            Constants.HoodConstants.MIN_POSITION_RAD
-                - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG));
+                Constants.HoodConstants.MIN_POSITION_RAD
+                    - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG))
+            / Constants.HoodConstants.GEAR_RATIO;
 
     // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
     motorConfig.Slot0.kP = Constants.HoodConstants.KP;
@@ -53,7 +54,7 @@ public class HoodIOTalonFX implements HoodIO {
     motorConfig.Slot0.kV = Constants.HoodConstants.KV;
     motorConfig.Slot0.kA = Constants.HoodConstants.KA;
     motorConfig.Slot0.kG = Constants.HoodConstants.KG;
-    motorConfig.Slot0.GravityType = GravityTypeValue.Arm_Cosine;
+    motorConfig.Slot0.GravityType = Constants.HoodConstants.GRAVITY_TYPE;
 
     // Motion Magic
     motorConfig.MotionMagic.MotionMagicCruiseVelocity = Constants.HoodConstants.CRUISE_VELOCITY;
@@ -75,18 +76,21 @@ public class HoodIOTalonFX implements HoodIO {
 
   @Override
   public void updateInputs(HoodIOInputs inputs) {
-    // Read motor position - Phoenix 6 already converts to mechanism rotations via
-    // SensorToMechanismRatio
-    // Since the rotor is zeroed at 20 degrees, we need to add that offset back
-    double mechanismPositionRot = motor.getPosition().getValueAsDouble();
+    // Read motor position in motor rotations
+    double motorPositionRot = motor.getPosition().getValueAsDouble();
+
+    // Convert motor rotations to mechanism rotations: mechanism_rot = motor_rot * gear_ratio
+    double mechanismPositionRot = motorPositionRot * Constants.HoodConstants.GEAR_RATIO;
 
     // Add the zero offset to get the actual mechanism angle from horizontal
     inputs.positionRad =
         Units.rotationsToRadians(mechanismPositionRot)
             + Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG);
 
-    // Velocity is also already in mechanism rotations per second
-    inputs.velocityRadPerSec = Units.rotationsToRadians(motor.getVelocity().getValueAsDouble());
+    // Velocity: motor rotations/sec to mechanism rotations/sec
+    double motorVelocityRotPerSec = motor.getVelocity().getValueAsDouble();
+    inputs.velocityRadPerSec =
+        Units.rotationsToRadians(motorVelocityRotPerSec * Constants.HoodConstants.GEAR_RATIO);
 
     // Read electrical data
     inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
@@ -112,11 +116,12 @@ public class HoodIOTalonFX implements HoodIO {
     double mechanismAngleRad =
         clampedRadians - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG);
 
-    // Convert to mechanism rotations - Phoenix 6 handles the gear ratio via SensorToMechanismRatio
+    // Convert mechanism rotations to motor rotations: motor_rot = mechanism_rot / gear_ratio
     double mechanismRotations = Units.radiansToRotations(mechanismAngleRad);
+    double motorRotations = mechanismRotations / Constants.HoodConstants.GEAR_RATIO;
 
     // MotionMagic uses configured cruise velocity/acceleration, feedforward is ignored
-    motor.setControl(positionControl.withPosition(mechanismRotations));
+    motor.setControl(positionControl.withPosition(motorRotations));
   }
 
   @Override

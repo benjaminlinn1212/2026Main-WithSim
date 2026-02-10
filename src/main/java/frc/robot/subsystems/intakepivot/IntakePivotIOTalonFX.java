@@ -20,6 +20,9 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
 
     // Feedback Configuration
+    // Per CTRE recommendation, set SensorToMechanismRatio to 1.0 and handle conversions in code
+    // For IntakePivot: GEAR_RATIO = 1.0 (direct drive), so motor rotations = mechanism rotations
+    config.Feedback.SensorToMechanismRatio = 1.0;
     config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
 
     // Soft Limits
@@ -53,6 +56,7 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
 
   @Override
   public void updateInputs(IntakePivotIOInputs inputs) {
+    // Note: GEAR_RATIO = 1.0 (direct drive), so motor rotations = mechanism rotations
     inputs.positionRotations = motor.getPosition().getValueAsDouble();
     inputs.velocityRotPerSec = motor.getVelocity().getValueAsDouble();
     inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
@@ -62,6 +66,7 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
 
   @Override
   public void setPosition(double positionRotations) {
+    // Note: GEAR_RATIO = 1.0 (direct drive), so no conversion needed
     motor.setControl(positionControl.withPosition(positionRotations));
   }
 

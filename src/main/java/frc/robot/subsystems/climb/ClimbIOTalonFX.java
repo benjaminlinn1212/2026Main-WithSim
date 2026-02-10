@@ -56,11 +56,6 @@ public class ClimbIOTalonFX implements ClimbIO {
     baseConfig.Slot0.kA = ClimbConstants.KA;
     baseConfig.Slot0.kG = ClimbConstants.KG;
 
-    // Motion Magic
-    baseConfig.MotionMagic.MotionMagicCruiseVelocity = ClimbConstants.CRUISE_VELOCITY;
-    baseConfig.MotionMagic.MotionMagicAcceleration = ClimbConstants.ACCELERATION;
-    baseConfig.MotionMagic.MotionMagicJerk = ClimbConstants.JERK;
-
     // Current Limits
     baseConfig.CurrentLimits.StatorCurrentLimit = ClimbConstants.STATOR_CURRENT_LIMIT;
     baseConfig.CurrentLimits.StatorCurrentLimitEnable = true;
@@ -72,36 +67,64 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightFrontConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_FRONT_MOTOR_INVERTED;
     rightFrontConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     rightFrontConfig.Slot0 = baseConfig.Slot0;
-    rightFrontConfig.MotionMagic = baseConfig.MotionMagic;
+    // Motion Magic - convert mechanism speeds to motor speeds
+    rightFrontConfig.MotionMagic.MotionMagicCruiseVelocity =
+        ClimbConstants.CRUISE_VELOCITY / ClimbConstants.FRONT_GEAR_RATIO;
+    rightFrontConfig.MotionMagic.MotionMagicAcceleration =
+        ClimbConstants.ACCELERATION / ClimbConstants.FRONT_GEAR_RATIO;
+    rightFrontConfig.MotionMagic.MotionMagicJerk =
+        ClimbConstants.JERK / ClimbConstants.FRONT_GEAR_RATIO;
     rightFrontConfig.CurrentLimits = baseConfig.CurrentLimits;
-    rightFrontConfig.Feedback.SensorToMechanismRatio = ClimbConstants.FRONT_GEAR_RATIO;
+    // Per CTRE recommendation, set to 1.0 and handle conversions in code
+    rightFrontConfig.Feedback.SensorToMechanismRatio = 1.0;
 
     // Right Back motor config (80:1 gear ratio)
     TalonFXConfiguration rightBackConfig = new TalonFXConfiguration();
     rightBackConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_BACK_MOTOR_INVERTED;
     rightBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     rightBackConfig.Slot0 = baseConfig.Slot0;
-    rightBackConfig.MotionMagic = baseConfig.MotionMagic;
+    // Motion Magic - convert mechanism speeds to motor speeds
+    rightBackConfig.MotionMagic.MotionMagicCruiseVelocity =
+        ClimbConstants.CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
+    rightBackConfig.MotionMagic.MotionMagicAcceleration =
+        ClimbConstants.ACCELERATION / ClimbConstants.BACK_GEAR_RATIO;
+    rightBackConfig.MotionMagic.MotionMagicJerk =
+        ClimbConstants.JERK / ClimbConstants.BACK_GEAR_RATIO;
     rightBackConfig.CurrentLimits = baseConfig.CurrentLimits;
-    rightBackConfig.Feedback.SensorToMechanismRatio = ClimbConstants.BACK_GEAR_RATIO;
+    // Per CTRE recommendation, set to 1.0 and handle conversions in code
+    rightBackConfig.Feedback.SensorToMechanismRatio = 1.0;
 
     // Left Front motor config (100:1 gear ratio)
     TalonFXConfiguration leftFrontConfig = new TalonFXConfiguration();
     leftFrontConfig.MotorOutput.Inverted = ClimbConstants.LEFT_FRONT_MOTOR_INVERTED;
     leftFrontConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     leftFrontConfig.Slot0 = baseConfig.Slot0;
-    leftFrontConfig.MotionMagic = baseConfig.MotionMagic;
+    // Motion Magic - convert mechanism speeds to motor speeds
+    leftFrontConfig.MotionMagic.MotionMagicCruiseVelocity =
+        ClimbConstants.CRUISE_VELOCITY / ClimbConstants.FRONT_GEAR_RATIO;
+    leftFrontConfig.MotionMagic.MotionMagicAcceleration =
+        ClimbConstants.ACCELERATION / ClimbConstants.FRONT_GEAR_RATIO;
+    leftFrontConfig.MotionMagic.MotionMagicJerk =
+        ClimbConstants.JERK / ClimbConstants.FRONT_GEAR_RATIO;
     leftFrontConfig.CurrentLimits = baseConfig.CurrentLimits;
-    leftFrontConfig.Feedback.SensorToMechanismRatio = ClimbConstants.FRONT_GEAR_RATIO;
+    // Per CTRE recommendation, set to 1.0 and handle conversions in code
+    leftFrontConfig.Feedback.SensorToMechanismRatio = 1.0;
 
     // Left Back motor config (80:1 gear ratio)
     TalonFXConfiguration leftBackConfig = new TalonFXConfiguration();
     leftBackConfig.MotorOutput.Inverted = ClimbConstants.LEFT_BACK_MOTOR_INVERTED;
     leftBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     leftBackConfig.Slot0 = baseConfig.Slot0;
-    leftBackConfig.MotionMagic = baseConfig.MotionMagic;
+    // Motion Magic - convert mechanism speeds to motor speeds
+    leftBackConfig.MotionMagic.MotionMagicCruiseVelocity =
+        ClimbConstants.CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
+    leftBackConfig.MotionMagic.MotionMagicAcceleration =
+        ClimbConstants.ACCELERATION / ClimbConstants.BACK_GEAR_RATIO;
+    leftBackConfig.MotionMagic.MotionMagicJerk =
+        ClimbConstants.JERK / ClimbConstants.BACK_GEAR_RATIO;
     leftBackConfig.CurrentLimits = baseConfig.CurrentLimits;
-    leftBackConfig.Feedback.SensorToMechanismRatio = ClimbConstants.BACK_GEAR_RATIO;
+    // Per CTRE recommendation, set to 1.0 and handle conversions in code
+    leftBackConfig.Feedback.SensorToMechanismRatio = 1.0;
 
     // Apply configs
     rightFrontMotor.getConfigurator().apply(rightFrontConfig);
@@ -118,30 +141,38 @@ public class ClimbIOTalonFX implements ClimbIO {
 
   @Override
   public void updateInputs(ClimbIOInputs inputs) {
-    // Right Front Motor
-    inputs.rightFrontPositionRotations = rightFrontMotor.getPosition().getValueAsDouble();
-    inputs.rightFrontVelocityRotPerSec = rightFrontMotor.getVelocity().getValueAsDouble();
+    // Right Front Motor - Convert motor rotations to mechanism rotations
+    double rightFrontMotorRot = rightFrontMotor.getPosition().getValueAsDouble();
+    inputs.rightFrontPositionRotations = rightFrontMotorRot * ClimbConstants.FRONT_GEAR_RATIO;
+    double rightFrontMotorVel = rightFrontMotor.getVelocity().getValueAsDouble();
+    inputs.rightFrontVelocityRotPerSec = rightFrontMotorVel * ClimbConstants.FRONT_GEAR_RATIO;
     inputs.rightFrontAppliedVolts = rightFrontMotor.getMotorVoltage().getValueAsDouble();
     inputs.rightFrontCurrentAmps = rightFrontMotor.getStatorCurrent().getValueAsDouble();
     inputs.rightFrontTemperatureCelsius = rightFrontMotor.getDeviceTemp().getValueAsDouble();
 
-    // Right Back Motor
-    inputs.rightBackPositionRotations = rightBackMotor.getPosition().getValueAsDouble();
-    inputs.rightBackVelocityRotPerSec = rightBackMotor.getVelocity().getValueAsDouble();
+    // Right Back Motor - Convert motor rotations to mechanism rotations
+    double rightBackMotorRot = rightBackMotor.getPosition().getValueAsDouble();
+    inputs.rightBackPositionRotations = rightBackMotorRot * ClimbConstants.BACK_GEAR_RATIO;
+    double rightBackMotorVel = rightBackMotor.getVelocity().getValueAsDouble();
+    inputs.rightBackVelocityRotPerSec = rightBackMotorVel * ClimbConstants.BACK_GEAR_RATIO;
     inputs.rightBackAppliedVolts = rightBackMotor.getMotorVoltage().getValueAsDouble();
     inputs.rightBackCurrentAmps = rightBackMotor.getStatorCurrent().getValueAsDouble();
     inputs.rightBackTemperatureCelsius = rightBackMotor.getDeviceTemp().getValueAsDouble();
 
-    // Left Front Motor
-    inputs.leftFrontPositionRotations = leftFrontMotor.getPosition().getValueAsDouble();
-    inputs.leftFrontVelocityRotPerSec = leftFrontMotor.getVelocity().getValueAsDouble();
+    // Left Front Motor - Convert motor rotations to mechanism rotations
+    double leftFrontMotorRot = leftFrontMotor.getPosition().getValueAsDouble();
+    inputs.leftFrontPositionRotations = leftFrontMotorRot * ClimbConstants.FRONT_GEAR_RATIO;
+    double leftFrontMotorVel = leftFrontMotor.getVelocity().getValueAsDouble();
+    inputs.leftFrontVelocityRotPerSec = leftFrontMotorVel * ClimbConstants.FRONT_GEAR_RATIO;
     inputs.leftFrontAppliedVolts = leftFrontMotor.getMotorVoltage().getValueAsDouble();
     inputs.leftFrontCurrentAmps = leftFrontMotor.getStatorCurrent().getValueAsDouble();
     inputs.leftFrontTemperatureCelsius = leftFrontMotor.getDeviceTemp().getValueAsDouble();
 
-    // Left Back Motor
-    inputs.leftBackPositionRotations = leftBackMotor.getPosition().getValueAsDouble();
-    inputs.leftBackVelocityRotPerSec = leftBackMotor.getVelocity().getValueAsDouble();
+    // Left Back Motor - Convert motor rotations to mechanism rotations
+    double leftBackMotorRot = leftBackMotor.getPosition().getValueAsDouble();
+    inputs.leftBackPositionRotations = leftBackMotorRot * ClimbConstants.BACK_GEAR_RATIO;
+    double leftBackMotorVel = leftBackMotor.getVelocity().getValueAsDouble();
+    inputs.leftBackVelocityRotPerSec = leftBackMotorVel * ClimbConstants.BACK_GEAR_RATIO;
     inputs.leftBackAppliedVolts = leftBackMotor.getMotorVoltage().getValueAsDouble();
     inputs.leftBackCurrentAmps = leftBackMotor.getStatorCurrent().getValueAsDouble();
     inputs.leftBackTemperatureCelsius = leftBackMotor.getDeviceTemp().getValueAsDouble();
@@ -153,48 +184,62 @@ public class ClimbIOTalonFX implements ClimbIO {
 
   @Override
   public void setRightFrontPosition(double positionRotations) {
-    rightFrontMotor.setControl(rightFrontPositionControl.withPosition(positionRotations));
+    // Convert mechanism rotations to motor rotations: motor_rot = mechanism_rot / gear_ratio
+    double motorRotations = positionRotations / ClimbConstants.FRONT_GEAR_RATIO;
+    rightFrontMotor.setControl(rightFrontPositionControl.withPosition(motorRotations));
   }
 
   @Override
   public void setRightBackPosition(double positionRotations) {
-    rightBackMotor.setControl(rightBackPositionControl.withPosition(positionRotations));
+    // Convert mechanism rotations to motor rotations: motor_rot = mechanism_rot / gear_ratio
+    double motorRotations = positionRotations / ClimbConstants.BACK_GEAR_RATIO;
+    rightBackMotor.setControl(rightBackPositionControl.withPosition(motorRotations));
   }
 
   @Override
   public void setLeftFrontPosition(double positionRotations) {
-    leftFrontMotor.setControl(leftFrontPositionControl.withPosition(positionRotations));
+    // Convert mechanism rotations to motor rotations: motor_rot = mechanism_rot / gear_ratio
+    double motorRotations = positionRotations / ClimbConstants.FRONT_GEAR_RATIO;
+    leftFrontMotor.setControl(leftFrontPositionControl.withPosition(motorRotations));
   }
 
   @Override
   public void setLeftBackPosition(double positionRotations) {
-    leftBackMotor.setControl(leftBackPositionControl.withPosition(positionRotations));
+    // Convert mechanism rotations to motor rotations: motor_rot = mechanism_rot / gear_ratio
+    double motorRotations = positionRotations / ClimbConstants.BACK_GEAR_RATIO;
+    leftBackMotor.setControl(leftBackPositionControl.withPosition(motorRotations));
   }
 
   @Override
   public void setRightFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    // Convert mechanism velocity to motor velocity: motor_vel = mechanism_vel / gear_ratio
+    double motorVelocity = velocityRotPerSec / ClimbConstants.FRONT_GEAR_RATIO;
     rightFrontMotor.setControl(
-        rightFrontVelocityControl
-            .withVelocity(velocityRotPerSec)
-            .withFeedForward(feedforwardVolts));
+        rightFrontVelocityControl.withVelocity(motorVelocity).withFeedForward(feedforwardVolts));
   }
 
   @Override
   public void setRightBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    // Convert mechanism velocity to motor velocity: motor_vel = mechanism_vel / gear_ratio
+    double motorVelocity = velocityRotPerSec / ClimbConstants.BACK_GEAR_RATIO;
     rightBackMotor.setControl(
-        rightBackVelocityControl.withVelocity(velocityRotPerSec).withFeedForward(feedforwardVolts));
+        rightBackVelocityControl.withVelocity(motorVelocity).withFeedForward(feedforwardVolts));
   }
 
   @Override
   public void setLeftFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    // Convert mechanism velocity to motor velocity: motor_vel = mechanism_vel / gear_ratio
+    double motorVelocity = velocityRotPerSec / ClimbConstants.FRONT_GEAR_RATIO;
     leftFrontMotor.setControl(
-        leftFrontVelocityControl.withVelocity(velocityRotPerSec).withFeedForward(feedforwardVolts));
+        leftFrontVelocityControl.withVelocity(motorVelocity).withFeedForward(feedforwardVolts));
   }
 
   @Override
   public void setLeftBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
+    // Convert mechanism velocity to motor velocity: motor_vel = mechanism_vel / gear_ratio
+    double motorVelocity = velocityRotPerSec / ClimbConstants.BACK_GEAR_RATIO;
     leftBackMotor.setControl(
-        leftBackVelocityControl.withVelocity(velocityRotPerSec).withFeedForward(feedforwardVolts));
+        leftBackVelocityControl.withVelocity(motorVelocity).withFeedForward(feedforwardVolts));
   }
 
   @Override

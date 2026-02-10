@@ -18,28 +18,33 @@ import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * ShooterSetpoint represents a complete shooting solution combining: - 6328's physics-based
- * calculation with interpolation maps and motion compensation - 254's clean structure with getters
- * and feedforward support - Current project's turret offset accounting for accurate aiming
+ * Complete shooting solution that calculates shooter speed, turret angle, hood angle, and
+ * feedforward velocities for shoot-while-driving.
  *
- * <p>This class calculates shooter wheel speed, turret angle, hood angle, and feedforward
- * velocities needed to make a shot, accounting for robot motion, gravity, and projectile physics.
+ * <p>Combines:
+ *
+ * <ul>
+ *   <li>Distance-based interpolation maps for hood angle, flywheel speed, and time of flight
+ *   <li>Motion compensation: predicts future robot pose and compensates for projectile travel time
+ *   <li>Turret offset accounting: aims from the turret's physical position, not robot center
+ *   <li>Feedforward velocities: filtered angular rates for turret and hood tracking
+ * </ul>
+ *
+ * <p>Usage: Create a supplier via {@link #createSupplier(RobotState)}, then pass it to each aiming
+ * subsystem (shooter, turret, hood) so they share a single coordinated setpoint.
  */
 public class ShooterSetpoint {
-  // ===== Calculation Parameters (6328-style) =====
-  private static final InterpolatingTreeMap<Double, Rotation2d> shotHoodAngleMap =
+
+  // ===== Interpolation Maps =====
+  // Keyed by distance from turret to target (meters)
+  private static final InterpolatingTreeMap<Double, Rotation2d> hoodAngleMap =
       new InterpolatingTreeMap<>(InverseInterpolator.forDouble(), Rotation2d::interpolate);
-  private static final InterpolatingDoubleTreeMap shotFlywheelSpeedMap =
+  private static final InterpolatingDoubleTreeMap flywheelSpeedMap =
       new InterpolatingDoubleTreeMap();
   private static final InterpolatingDoubleTreeMap timeOfFlightMap =
       new InterpolatingDoubleTreeMap();
 
-  // Shot calculation parameters
-  private static double minDistance = Constants.Aiming.MIN_SHOT_DISTANCE; // meters
-  private static double maxDistance = Constants.Aiming.MAX_SHOT_DISTANCE; // meters
-  private static double phaseDelay = Constants.Aiming.PHASE_DELAY; // seconds - prediction lookahead
-
-  // Filters for feedforward velocity calculation (6328-style)
+  // Feedforward filters (smooths angular velocity estimates)
   private static Rotation2d lastTurretAngle = null;
   private static double lastHoodAngle = Double.NaN;
   private static final LinearFilter turretAngleFilter =
@@ -47,48 +52,40 @@ public class ShooterSetpoint {
   private static final LinearFilter hoodAngleFilter =
       LinearFilter.movingAverage(Constants.Aiming.FEEDFORWARD_FILTER_TAPS);
 
-  // Override for testing
-  public static Optional<Double> overrideShooterRPS = Optional.empty();
-
-  // Latest calculated parameters (cached for reading)
-  private static ShooterSetpoint latestParameters = null;
-
-  // ===== Setpoint Data (254-style structure) =====
+  // ===== Setpoint Data =====
   private final double shooterRPS;
-  private final double shooterStage1RPS; // For multi-stage shooters
-  private final double turretRadiansFromCenter;
+  private final double turretAngleRad;
   private final double turretFeedforwardRadPerSec;
-  private final double hoodRadians;
+  private final double hoodAngleRad;
   private final double hoodFeedforwardRadPerSec;
   private final boolean isValid;
-  private final boolean isNeutralShoot; // True if shooting back at alliance wall from neutral zone
+  private final boolean isNeutralZoneShot;
 
-  // ===== Static Initialization Block (6328-style interpolation maps) =====
+  // ===== Interpolation Map Initialization =====
   static {
-    // Configure shot parameters based on distance
-    // These should be tuned based on your shooter's characteristics
+    // Hood angle vs distance (radians from horizontal, interpolated)
+    // Key: distance from turret to target (meters)
+    // Value: hood angle as Rotation2d (converted to radians via getRadians())
+    hoodAngleMap.put(1.0, Rotation2d.fromDegrees(50.0));
+    hoodAngleMap.put(1.5, Rotation2d.fromDegrees(45.0));
+    hoodAngleMap.put(2.0, Rotation2d.fromDegrees(40.0));
+    hoodAngleMap.put(2.5, Rotation2d.fromDegrees(35.0));
+    hoodAngleMap.put(3.0, Rotation2d.fromDegrees(32.0));
+    hoodAngleMap.put(4.0, Rotation2d.fromDegrees(28.0));
+    hoodAngleMap.put(5.0, Rotation2d.fromDegrees(25.0));
+    hoodAngleMap.put(6.0, Rotation2d.fromDegrees(22.0));
 
-    // Hood angle vs distance (interpolated)
-    shotHoodAngleMap.put(1.0, Rotation2d.fromDegrees(50.0));
-    shotHoodAngleMap.put(1.5, Rotation2d.fromDegrees(45.0));
-    shotHoodAngleMap.put(2.0, Rotation2d.fromDegrees(40.0));
-    shotHoodAngleMap.put(2.5, Rotation2d.fromDegrees(35.0));
-    shotHoodAngleMap.put(3.0, Rotation2d.fromDegrees(32.0));
-    shotHoodAngleMap.put(4.0, Rotation2d.fromDegrees(28.0));
-    shotHoodAngleMap.put(5.0, Rotation2d.fromDegrees(25.0));
-    shotHoodAngleMap.put(6.0, Rotation2d.fromDegrees(22.0));
+    // Flywheel speed vs distance (rotations per second)
+    flywheelSpeedMap.put(1.0, 50.0);
+    flywheelSpeedMap.put(1.5, 55.0);
+    flywheelSpeedMap.put(2.0, 58.0);
+    flywheelSpeedMap.put(2.5, 60.0);
+    flywheelSpeedMap.put(3.0, 62.0);
+    flywheelSpeedMap.put(4.0, 65.0);
+    flywheelSpeedMap.put(5.0, 68.0);
+    flywheelSpeedMap.put(6.0, 70.0);
 
-    // Flywheel speed vs distance (RPS - rotations per second)
-    shotFlywheelSpeedMap.put(1.0, 50.0);
-    shotFlywheelSpeedMap.put(1.5, 55.0);
-    shotFlywheelSpeedMap.put(2.0, 58.0);
-    shotFlywheelSpeedMap.put(2.5, 60.0);
-    shotFlywheelSpeedMap.put(3.0, 62.0);
-    shotFlywheelSpeedMap.put(4.0, 65.0);
-    shotFlywheelSpeedMap.put(5.0, 68.0);
-    shotFlywheelSpeedMap.put(6.0, 70.0);
-
-    // Time of flight vs distance (seconds) - for motion compensation
+    // Time of flight vs distance (seconds) — for motion compensation
     timeOfFlightMap.put(1.0, 0.2);
     timeOfFlightMap.put(1.5, 0.3);
     timeOfFlightMap.put(2.0, 0.4);
@@ -99,126 +96,106 @@ public class ShooterSetpoint {
     timeOfFlightMap.put(6.0, 1.0);
   }
 
-  // ===== Constructors (254-style) =====
+  // ===== Constructors =====
 
   /**
-   * Create a shooter setpoint with all parameters and validity flag.
+   * Create a shooter setpoint with all parameters.
    *
-   * @param shooterRPS Main shooter wheel speed in rotations per second
-   * @param turretRadiansFromCenter Turret angle relative to robot (radians)
+   * @param shooterRPS Flywheel speed (rotations per second)
+   * @param turretAngleRad Turret angle relative to robot center (radians, 0 = forward)
    * @param turretFeedforwardRadPerSec Turret angular velocity feedforward (rad/s)
-   * @param hoodRadians Hood angle (radians)
+   * @param hoodAngleRad Hood angle from horizontal (radians)
    * @param hoodFeedforwardRadPerSec Hood angular velocity feedforward (rad/s)
-   * @param isValid Whether this setpoint is physically achievable
-   * @param isNeutralShoot Whether this is a neutral zone shoot-back shot
+   * @param isValid Whether this setpoint is physically achievable (distance in range)
+   * @param isNeutralZoneShot Whether this is a neutral-zone shoot-back shot
    */
   public ShooterSetpoint(
       double shooterRPS,
-      double turretRadiansFromCenter,
+      double turretAngleRad,
       double turretFeedforwardRadPerSec,
-      double hoodRadians,
+      double hoodAngleRad,
       double hoodFeedforwardRadPerSec,
       boolean isValid,
-      boolean isNeutralShoot) {
+      boolean isNeutralZoneShot) {
     this.shooterRPS = shooterRPS;
-    this.shooterStage1RPS = 14.4; // Default stage 1 speed (adjust as needed)
-    this.turretRadiansFromCenter = turretRadiansFromCenter;
+    this.turretAngleRad = turretAngleRad;
     this.turretFeedforwardRadPerSec = turretFeedforwardRadPerSec;
-    this.hoodRadians = hoodRadians;
+    this.hoodAngleRad = hoodAngleRad;
     this.hoodFeedforwardRadPerSec = hoodFeedforwardRadPerSec;
     this.isValid = isValid;
-    this.isNeutralShoot = isNeutralShoot;
+    this.isNeutralZoneShot = isNeutralZoneShot;
   }
 
-  /** Create a shooter setpoint assuming it's valid and not a neutral shot. */
+  /** Create a setpoint with validity flag (assumes not a neutral-zone shot). */
   public ShooterSetpoint(
       double shooterRPS,
-      double turretRadiansFromCenter,
+      double turretAngleRad,
       double turretFeedforwardRadPerSec,
-      double hoodRadians,
-      double hoodFeedforwardRadPerSec) {
-    this(
-        shooterRPS,
-        turretRadiansFromCenter,
-        turretFeedforwardRadPerSec,
-        hoodRadians,
-        hoodFeedforwardRadPerSec,
-        true,
-        false);
-  }
-
-  /** Create a shooter setpoint with validity flag, assuming not neutral shot. */
-  public ShooterSetpoint(
-      double shooterRPS,
-      double turretRadiansFromCenter,
-      double turretFeedforwardRadPerSec,
-      double hoodRadians,
+      double hoodAngleRad,
       double hoodFeedforwardRadPerSec,
       boolean isValid) {
     this(
         shooterRPS,
-        turretRadiansFromCenter,
+        turretAngleRad,
         turretFeedforwardRadPerSec,
-        hoodRadians,
+        hoodAngleRad,
         hoodFeedforwardRadPerSec,
         isValid,
         false);
   }
 
-  // ===== Getters (254-style) =====
+  /** Create an invalid/default setpoint (used as supplier default before aiming starts). */
+  public static ShooterSetpoint invalid() {
+    return new ShooterSetpoint(0, 0, 0, 0, 0, false);
+  }
 
+  // ===== Getters =====
+
+  /** Flywheel speed in rotations per second. */
   public double getShooterRPS() {
     return shooterRPS;
   }
 
-  public double getShooterStage1RPS() {
-    return shooterStage1RPS;
+  /** Turret angle relative to robot center in radians (0 = forward, CCW positive). */
+  public double getTurretAngleRad() {
+    return turretAngleRad;
   }
 
-  public double getTurretRadiansFromCenter() {
-    return turretRadiansFromCenter;
-  }
-
-  public double getTurretFeedforward() {
+  /** Turret angular velocity feedforward in rad/s (for shoot-while-driving tracking). */
+  public double getTurretFeedforwardRadPerSec() {
     return turretFeedforwardRadPerSec;
   }
 
-  public double getHoodRadians() {
-    return hoodRadians;
+  /** Hood angle from horizontal in radians. */
+  public double getHoodAngleRad() {
+    return hoodAngleRad;
   }
 
-  public double getHoodFeedforward() {
+  /** Hood angular velocity feedforward in rad/s (for shoot-while-driving tracking). */
+  public double getHoodFeedforwardRadPerSec() {
     return hoodFeedforwardRadPerSec;
   }
 
-  public boolean getIsValid() {
+  /** Whether this setpoint is physically achievable (target within valid distance range). */
+  public boolean isValid() {
     return isValid;
   }
 
-  public boolean getIsNeutralShoot() {
-    return isNeutralShoot;
+  /** Whether this is a neutral-zone shoot-back shot (fixed speed/angle, no motion compensation). */
+  public boolean isNeutralZoneShot() {
+    return isNeutralZoneShot;
   }
 
-  // ===== Static Factory Methods (254-style suppliers) =====
+  // ===== Factory =====
 
   /**
-   * Create a supplier that calculates hub shot setpoints. Uses current project's turret offset
-   * accounting.
+   * Create a supplier that calculates hub shot setpoints each call.
+   *
+   * @param robotState Robot state providing pose and velocity data
+   * @return Supplier that computes a fresh ShooterSetpoint each invocation
    */
-  public static Supplier<ShooterSetpoint> speakerSetpointSupplier(RobotState robotState) {
+  public static Supplier<ShooterSetpoint> createSupplier(RobotState robotState) {
     return () -> calculateShot(robotState);
-  }
-
-  /** Get the most recently calculated setpoint (for efficiency). */
-  public static ShooterSetpoint getLatestParameters() {
-    return latestParameters;
-  }
-
-  /** Clear the cached shooting parameters. */
-  public static void clearShootingParameters() {
-    latestParameters = null;
-    lastTurretAngle = null;
-    lastHoodAngle = Double.NaN;
   }
 
   // ===== Calculation Methods (6328-style physics with current project's turret logic) =====
@@ -269,22 +246,19 @@ public class ShooterSetpoint {
   }
 
   /**
-   * Calculate shooter setpoint for hub shots using: - 6328's interpolation maps and motion
-   * compensation - Current project's turret offset accounting - Physics-based trajectory
-   * calculation - Smart target selection (hub or neutral zone shoot-back)
+   * Calculate shooter setpoint using interpolation maps, motion compensation, and turret offset
+   * accounting. Handles both normal hub shots and neutral-zone shoot-back.
    */
   private static ShooterSetpoint calculateShot(RobotState robotState) {
-    // Check if robot state is available
     if (robotState.getLatestFieldToRobot() == null) {
-      // Return invalid setpoint if no pose data available yet
-      return new ShooterSetpoint(0, 0, 0, 0, 0, false);
+      return ShooterSetpoint.invalid();
     }
 
-    // Get current robot state
     Pose2d robotPose = robotState.getLatestFieldToRobot().getValue();
     ChassisSpeeds robotVelocity = robotState.getLatestMeasuredFieldRelativeChassisSpeeds();
 
-    // Account for system latency by predicting future pose (6328-style)
+    // Predict future pose to compensate for system latency
+    double phaseDelay = Constants.Aiming.PHASE_DELAY;
     Pose2d estimatedPose =
         robotPose.exp(
             new edu.wpi.first.math.geometry.Twist2d(
@@ -292,146 +266,128 @@ public class ShooterSetpoint {
                 robotVelocity.vyMetersPerSecond * phaseDelay,
                 robotVelocity.omegaRadiansPerSecond * phaseDelay));
 
-    // Calculate turret position accounting for offset from robot center
-    // (Current project's approach)
+    // Calculate turret position in field frame (robot center + rotated turret offset)
     Translation2d robotPosition = estimatedPose.getTranslation();
     Rotation2d robotHeading = estimatedPose.getRotation();
     Translation2d turretOffset = Constants.TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
     Translation2d turretOffsetRotated = turretOffset.rotateBy(robotHeading);
     Translation2d turretPosition = robotPosition.plus(turretOffsetRotated);
 
-    // Get target position with smart selection (hub or neutral zone shoot-back)
+    // Select target (hub or alliance wall if in neutral zone)
     Translation3d target = getSmartTarget(robotPose);
-
-    // Check if we're in neutral zone shooting back at alliance wall
     boolean isNeutralZoneShot = isInNeutralZone(robotPose, target);
 
     if (isNeutralZoneShot) {
-      // Simple neutral zone shot - just point at alliance wall, no motion compensation needed
-      Translation2d turretToTarget =
-          new Translation2d(target.getX(), target.getY()).minus(turretPosition);
-
-      // Calculate turret angle (field-relative angle to wall)
-      Rotation2d turretAngleFieldRelative = turretToTarget.getAngle();
-      Rotation2d turretAngle = turretAngleFieldRelative.minus(robotHeading);
-
-      // Fixed settings for neutral zone shots - just yeet it back
-      double hoodAngle = Math.toRadians(Constants.Aiming.NEUTRAL_ZONE_HOOD_ANGLE_DEG);
-      double shooterSpeed = Constants.ShooterConstants.NEUTRAL_ZONE_SPEED;
-
-      // Log neutral zone shot values
-      Logger.recordOutput("ShooterSetpoint/NeutralZone/Speed", shooterSpeed);
-      Logger.recordOutput("ShooterSetpoint/NeutralZone/HoodAngleDeg", Math.toDegrees(hoodAngle));
-
-      // No feedforward needed for simple wall shot
-      return new ShooterSetpoint(
-          shooterSpeed, turretAngle.getRadians(), 0.0, hoodAngle, 0.0, true, true);
+      return calculateNeutralZoneShot(turretPosition, target, robotHeading);
     }
 
-    // Normal hub shot with full motion compensation
-    // Calculate distance from turret to target
+    return calculateHubShot(
+        turretPosition, target, robotVelocity, estimatedPose, turretOffset, robotHeading);
+  }
+
+  /**
+   * Calculate a simple neutral-zone shot (fixed speed/angle, aim at alliance wall). No motion
+   * compensation — just point and shoot.
+   */
+  private static ShooterSetpoint calculateNeutralZoneShot(
+      Translation2d turretPosition, Translation3d target, Rotation2d robotHeading) {
     Translation2d turretToTarget =
         new Translation2d(target.getX(), target.getY()).minus(turretPosition);
-    double turretToTargetDistance = turretToTarget.getNorm();
+    Rotation2d turretAngle = turretToTarget.getAngle().minus(robotHeading);
 
-    // Calculate field relative turret velocity for motion compensation (6328-style)
-    double robotAngle = estimatedPose.getRotation().getRadians();
-    double turretVelocityX =
-        robotVelocity.vxMetersPerSecond
-            + robotVelocity.omegaRadiansPerSecond
-                * (turretOffset.getY() * Math.cos(robotAngle)
-                    - turretOffset.getX() * Math.sin(robotAngle));
-    double turretVelocityY =
-        robotVelocity.vyMetersPerSecond
-            + robotVelocity.omegaRadiansPerSecond
-                * (turretOffset.getX() * Math.cos(robotAngle)
-                    - turretOffset.getY() * Math.sin(robotAngle));
+    double hoodAngleRad = Math.toRadians(Constants.Aiming.NEUTRAL_ZONE_HOOD_ANGLE_DEG);
+    double shooterRPS = Constants.ShooterConstants.NEUTRAL_ZONE_SPEED;
 
-    // Account for imparted velocity by robot to game piece (6328-style)
-    double timeOfFlight = timeOfFlightMap.get(turretToTargetDistance);
-    double offsetX = -turretVelocityX * timeOfFlight;
-    double offsetY = -turretVelocityY * timeOfFlight;
+    Logger.recordOutput("ShooterSetpoint/NeutralZone/Speed", shooterRPS);
+    Logger.recordOutput("ShooterSetpoint/NeutralZone/HoodAngleDeg", Math.toDegrees(hoodAngleRad));
 
-    // Calculate lookahead target position
+    return new ShooterSetpoint(
+        shooterRPS, turretAngle.getRadians(), 0.0, hoodAngleRad, 0.0, true, true);
+  }
+
+  /**
+   * Calculate a normal hub shot with full motion compensation.
+   *
+   * <p>Motion compensation flow:
+   *
+   * <ol>
+   *   <li>Calculate turret velocity in field frame (translation + rotation cross product)
+   *   <li>Look up time-of-flight for current distance
+   *   <li>Offset target by -velocity * timeOfFlight (where the target will "appear" to be)
+   *   <li>Compute turret angle and hood angle from corrected distance
+   *   <li>Compute feedforward angular velocities via filtered finite differences
+   * </ol>
+   */
+  private static ShooterSetpoint calculateHubShot(
+      Translation2d turretPosition,
+      Translation3d target,
+      ChassisSpeeds robotVelocity,
+      Pose2d estimatedPose,
+      Translation2d turretOffset,
+      Rotation2d robotHeading) {
+
+    // Distance from turret to target (before motion compensation)
+    Translation2d turretToTarget =
+        new Translation2d(target.getX(), target.getY()).minus(turretPosition);
+    double rawDistance = turretToTarget.getNorm();
+
+    // ── Turret velocity in field frame ──
+    // v_turret = v_robot + ω × R(θ) * turretOffset
+    // For 2D cross product ω × (x, y) = (-ωy, ωx):
+    //   rotated offset = R(θ) * turretOffset
+    //   v_turret_x = vx_robot + ω * (-rotatedOffset.y)
+    //   v_turret_y = vy_robot + ω * ( rotatedOffset.x)
+    Translation2d rotatedOffset = turretOffset.rotateBy(robotHeading);
+    double omega = robotVelocity.omegaRadiansPerSecond;
+    double turretVelocityX = robotVelocity.vxMetersPerSecond - omega * rotatedOffset.getY();
+    double turretVelocityY = robotVelocity.vyMetersPerSecond + omega * rotatedOffset.getX();
+
+    // ── Motion compensation ──
+    // The game piece inherits the turret's velocity, so we offset the target
+    // by -turretVelocity * timeOfFlight to aim where the target will effectively be.
+    double timeOfFlight = timeOfFlightMap.get(rawDistance);
     Translation2d lookaheadTarget =
-        new Translation2d(target.getX() + offsetX, target.getY() + offsetY);
+        new Translation2d(
+            target.getX() - turretVelocityX * timeOfFlight,
+            target.getY() - turretVelocityY * timeOfFlight);
+
     Translation2d lookaheadTurretToTarget = lookaheadTarget.minus(turretPosition);
-    double lookaheadDistance = lookaheadTurretToTarget.getNorm();
+    double compensatedDistance = lookaheadTurretToTarget.getNorm();
 
-    // Calculate turret angle (field-relative angle to target)
-    Rotation2d turretAngleFieldRelative = lookaheadTurretToTarget.getAngle();
+    // ── Turret angle (robot-relative) ──
+    Rotation2d turretAngle = lookaheadTurretToTarget.getAngle().minus(robotHeading);
 
-    // Convert to robot-relative (current project's approach)
-    Rotation2d turretAngle = turretAngleFieldRelative.minus(robotHeading);
+    // ── Hood angle and flywheel speed from interpolation maps ──
+    double hoodAngleRad = hoodAngleMap.get(compensatedDistance).getRadians();
+    double shooterRPS = flywheelSpeedMap.get(compensatedDistance);
 
-    // Get hood angle from interpolation map (6328-style)
-    double hoodAngle = shotHoodAngleMap.get(lookaheadDistance).getRadians();
-
-    // Calculate feedforward velocities (6328-style with filters)
-    double turretVelocity = 0.0;
-    double hoodVelocity = 0.0;
-
+    // ── Feedforward angular velocities (filtered finite differences) ──
+    double turretFF = 0.0;
+    double hoodFF = 0.0;
     if (lastTurretAngle != null) {
-      turretVelocity =
-          turretAngleFilter.calculate(
-              turretAngle.minus(lastTurretAngle).getRadians() / 0.02); // Assuming 20ms loop
+      turretFF =
+          turretAngleFilter.calculate(turretAngle.minus(lastTurretAngle).getRadians() / 0.02);
     }
     if (!Double.isNaN(lastHoodAngle)) {
-      hoodVelocity = hoodAngleFilter.calculate((hoodAngle - lastHoodAngle) / 0.02);
+      hoodFF = hoodAngleFilter.calculate((hoodAngleRad - lastHoodAngle) / 0.02);
     }
-
     lastTurretAngle = turretAngle;
-    lastHoodAngle = hoodAngle;
+    lastHoodAngle = hoodAngleRad;
 
-    // Get shooter speed from interpolation map (6328-style)
-    double shooterSpeed = shotFlywheelSpeedMap.get(lookaheadDistance);
+    // ── Logging ──
+    Logger.recordOutput("ShooterSetpoint/Distance", compensatedDistance);
+    Logger.recordOutput("ShooterSetpoint/ShooterRPS", shooterRPS);
+    Logger.recordOutput("ShooterSetpoint/HoodAngleDeg", Math.toDegrees(hoodAngleRad));
+    Logger.recordOutput("ShooterSetpoint/TurretAngleDeg", turretAngle.getDegrees());
+    Logger.recordOutput("ShooterSetpoint/TurretFF", turretFF);
+    Logger.recordOutput("ShooterSetpoint/HoodFF", hoodFF);
 
-    // Log normal hub shot values
-    Logger.recordOutput("ShooterSetpoint/NormalShot/Speed", shooterSpeed);
-    Logger.recordOutput("ShooterSetpoint/NormalShot/Distance", lookaheadDistance);
-    Logger.recordOutput("ShooterSetpoint/NormalShot/HoodAngleDeg", Math.toDegrees(hoodAngle));
+    // ── Validity check ──
+    boolean isValid =
+        compensatedDistance >= Constants.Aiming.MIN_SHOT_DISTANCE
+            && compensatedDistance <= Constants.Aiming.MAX_SHOT_DISTANCE;
 
-    // Apply override if set
-    if (overrideShooterRPS.isPresent()) {
-      shooterSpeed = overrideShooterRPS.get();
-    }
-
-    // Check if shot is within valid range
-    boolean isValid = lookaheadDistance >= minDistance && lookaheadDistance <= maxDistance;
-
-    // Create and cache the setpoint
-    latestParameters =
-        new ShooterSetpoint(
-            shooterSpeed,
-            turretAngle.getRadians(),
-            turretVelocity,
-            hoodAngle,
-            hoodVelocity,
-            isValid);
-
-    return latestParameters;
-  }
-
-  // ===== Configuration Methods =====
-
-  /** Set shooter RPS override for testing. */
-  public static void setOverrideRPS(double rps) {
-    overrideShooterRPS = Optional.of(rps);
-  }
-
-  /** Clear shooter RPS override. */
-  public static void clearOverrideRPS() {
-    overrideShooterRPS = Optional.empty();
-  }
-
-  /** Configure the valid shot distance range. */
-  public static void setDistanceRange(double min, double max) {
-    minDistance = min;
-    maxDistance = max;
-  }
-
-  /** Configure the prediction lookahead time (phase delay). */
-  public static void setPhaseDelay(double delaySeconds) {
-    phaseDelay = delaySeconds;
+    return new ShooterSetpoint(
+        shooterRPS, turretAngle.getRadians(), turretFF, hoodAngleRad, hoodFF, isValid);
   }
 }

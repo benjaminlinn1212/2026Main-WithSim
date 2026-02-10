@@ -11,13 +11,11 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.auto.PathfindingAuto;
@@ -58,10 +56,10 @@ import frc.robot.subsystems.turret.TurretIO;
 import frc.robot.subsystems.turret.TurretIOSim;
 import frc.robot.subsystems.turret.TurretIOTalonFX;
 import frc.robot.subsystems.turret.TurretSubsystem;
+import frc.robot.subsystems.vision.VisionIOHardwareLimelight;
+import frc.robot.subsystems.vision.VisionSubsystem;
 import frc.robot.util.ShooterSetpoint;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
@@ -87,6 +85,9 @@ public class RobotContainer {
   private final ClimbSubsystem climb;
   private final Superstructure superstructure;
 
+  @SuppressWarnings("unused")
+  private final VisionSubsystem vision;
+
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
 
@@ -96,11 +97,6 @@ public class RobotContainer {
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
-
-  // Store PathfindingAuto instances for warmup (mapped by the command they create)
-  private final Map<String, PathfindingAuto> pathfindingAutos = new HashMap<>();
-  private Command lastSelectedCommand = null;
-  private Command lastWarmupCommand = null;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -201,6 +197,27 @@ public class RobotContainer {
     superstructure =
         new Superstructure(shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb);
 
+    // Instantiate Vision with pose consumer that feeds into the drive's pose estimator
+    switch (Constants.currentMode) {
+      case REAL:
+        vision =
+            new VisionSubsystem(
+                new VisionIOHardwareLimelight(robotState),
+                robotState,
+                estimate ->
+                    swerveIO
+                        .getDriveIO()
+                        .addVisionMeasurement(
+                            estimate.getVisionRobotPoseMeters(),
+                            estimate.getTimestampSeconds(),
+                            estimate.getVisionMeasurementStdDevs()));
+        break;
+      default:
+        // SIM and REPLAY: no-op vision IO
+        vision = new VisionSubsystem(inputs -> {}, robotState, estimate -> {});
+        break;
+    }
+
     // Initialize SmartDashboard entry for auto sequence input (Team 254 style)
     // Put under Auto subtable for better organization
     SmartDashboard.putString("Auto/Sequence Input", "");
@@ -210,36 +227,26 @@ public class RobotContainer {
     configureAutoBuilder();
 
     // ===== CONFIGURE AUTO CHOOSER =====
-    // Add sequence-based autos to chooser (using 254-style static factory methods)
-    // Use Commands.defer() to delay command creation until auto is selected
-    // Store PathfindingAuto instances for warmup
-    PathfindingAuto abcAuto = new PathfindingAuto(swerveIO, superstructure, robotState, "ABC");
-    pathfindingAutos.put("ABC Sequence", abcAuto);
+    // Each auto is created via Commands.defer() so the command is fresh each time.
+    // No separate warmup instances needed — PathPlanner handles caching internally.
     autoChooser.addOption(
         "ABC Sequence",
         Commands.defer(
             () -> new PathfindingAuto(swerveIO, superstructure, robotState, "ABC"),
             Set.of(swerveIO)));
 
-    PathfindingAuto abcdAuto = PathfindingAuto.allWaypoints(swerveIO, superstructure, robotState);
-    pathfindingAutos.put("ABCD Full", abcdAuto);
     autoChooser.addOption(
         "ABCD Full",
         Commands.defer(
             () -> PathfindingAuto.allWaypoints(swerveIO, superstructure, robotState),
             Set.of(swerveIO)));
 
-    PathfindingAuto abFastAuto = PathfindingAuto.fastSequence(swerveIO, superstructure, robotState);
-    pathfindingAutos.put("AB Fast", abFastAuto);
     autoChooser.addOption(
         "AB Fast",
         Commands.defer(
             () -> PathfindingAuto.fastSequence(swerveIO, superstructure, robotState),
             Set.of(swerveIO)));
 
-    PathfindingAuto withIntakesAuto =
-        PathfindingAuto.withIntakes(swerveIO, superstructure, robotState);
-    pathfindingAutos.put("With Intakes", withIntakesAuto);
     autoChooser.addOption(
         "With Intakes",
         Commands.defer(
@@ -247,15 +254,10 @@ public class RobotContainer {
             Set.of(swerveIO)));
 
     // ===== TEST AUTOS =====
-    PathfindingAuto testAuto = new PathfindingAuto(swerveIO, superstructure, robotState, "T");
-    pathfindingAutos.put("Test Obstacle Avoidance", testAuto);
     autoChooser.addOption(
         "Test Obstacle Avoidance",
         Commands.defer(
-            () -> {
-              System.out.println("[RobotContainer] Creating Test Obstacle Avoidance command...");
-              return new PathfindingAuto(swerveIO, superstructure, robotState, "T");
-            },
+            () -> new PathfindingAuto(swerveIO, superstructure, robotState, "T"),
             Set.of(swerveIO)));
 
     // ===== DASHBOARD INPUT AUTO (Team 254 Style) =====
@@ -279,7 +281,7 @@ public class RobotContainer {
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
     // Create a ShooterSetpoint supplier that uses robotState for calculations
-    var shooterSetpointSupplier = ShooterSetpoint.speakerSetpointSupplier(robotState);
+    var shooterSetpointSupplier = ShooterSetpoint.createSupplier(robotState);
 
     // Connect all aiming subsystems to use the same ShooterSetpoint
     turret.setShooterSetpointSupplier(shooterSetpointSupplier);
@@ -313,9 +315,11 @@ public class RobotContainer {
               new PIDConstants(Constants.AutoConstants.kPThetaController, 0.0, 0.0) // Rotation PID
               ),
           config, // Robot configuration
-          () ->
-              false, // Should flip path based on alliance (set to true if you want red alliance to
-          // mirror)
+          () -> {
+            // Flip paths for red alliance
+            var alliance = DriverStation.getAlliance();
+            return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+          },
           swerveIO // Drive subsystem requirement
           );
 
@@ -339,7 +343,7 @@ public class RobotContainer {
   }
 
   /** Configure button bindings for teleop mode. This is the normal driving configuration. */
-  public void configureTeleopBindings() {
+  private void configureTeleopBindings() {
     System.out.println("[RobotContainer] Configuring teleop bindings...");
 
     // ===== DRIVE CONTROLS =====
@@ -358,152 +362,40 @@ public class RobotContainer {
                   edu.wpi.first.math.MathUtil.applyDeadband(
                       -controller.getRightX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
 
-              double vxMetersPerSec = leftY * 5.0; // Max 5 m/s
-              double vyMetersPerSec = leftX * 5.0;
-              double omegaRadPerSec = rightX * Math.PI * 2;
+              double vxMetersPerSec = leftY * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS;
+              double vyMetersPerSec = leftX * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS;
+              double omegaRadPerSec =
+                  rightX * Constants.DriveConstants.MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC;
               swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
             swerveIO));
 
-    // Right bumper: Reset pose
+    // Left bumper: Reset pose
     controller
-        .rightBumper()
+        .leftBumper()
         .onTrue(
             Commands.runOnce(
-                    () -> swerveIO.setPose(new Pose2d(8.0, 4.0, Rotation2d.fromDegrees(0))),
-                    swerveIO)
+                    () -> swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE), swerveIO)
                 .ignoringDisable(true));
 
-    // ===== CLIMB VOLTAGE CONTROLS (moved from test mode) =====
+    // ===== CLIMB STATE CONTROLS =====
 
-    // POV Up: Left Front Release (positive voltage)
-    controller
-        .povUp()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setLeftFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setLeftFrontMotorVoltage(0.0);
-                }));
+    // POV Up: Enter climb mode
+    // controller.povUp().onTrue(superstructure.enterClimbMode());
 
-    // POV Down: Left Front Pull (negative voltage)
-    controller
-        .povDown()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setLeftFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setLeftFrontMotorVoltage(0.0);
-                }));
+    // POV Down: Exit climb mode
+    // controller.povDown().onTrue(superstructure.exitClimbMode());
 
-    // POV Left: Left Back Release (positive voltage)
-    controller
-        .povLeft()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setLeftBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setLeftBackMotorVoltage(0.0);
-                }));
+    // POV Right: Next climb state (path-following)
+    // controller.povRight().onTrue(superstructure.nextClimbState());
 
-    // POV Right: Left Back Pull (negative voltage)
-    controller
-        .povRight()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setLeftBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setLeftBackMotorVoltage(0.0);
-                }));
-
-    // Y Button: Right Front Release (positive voltage)
-    controller
-        .y()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setRightFrontMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setRightFrontMotorVoltage(0.0);
-                }));
-
-    // A Button: Right Front Pull (negative voltage)
-    controller
-        .a()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setRightFrontMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setRightFrontMotorVoltage(0.0);
-                }));
-
-    // X Button: Right Back Release (positive voltage)
-    controller
-        .x()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setRightBackMotorVoltage(Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setRightBackMotorVoltage(0.0);
-                }));
-
-    // B Button: Right Back Pull (negative voltage)
-    controller
-        .b()
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  climb.setRightBackMotorVoltage(-Constants.ClimbConstants.TEST_MODE_VOLTAGE);
-                },
-                climb))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  climb.setRightBackMotorVoltage(0.0);
-                }));
-
-    // Left bumper: Stop all climb motors
-    controller.leftBumper().onTrue(Commands.runOnce(() -> climb.stopMotors(), climb));
+    // POV Left: Previous climb state (path-following)
+    // controller.povLeft().onTrue(superstructure.previousClimbState());
 
     // ===== SHOOTER & HOOD TUNING CONTROLS =====
-    // Right Bumper + A: Increase Shooter RPS
+    // A: Increase Shooter RPS
     controller
-        .rightBumper()
-        .and(controller.a())
+        .a()
         .onTrue(
             Commands.runOnce(
                 () -> {
@@ -513,10 +405,9 @@ public class RobotContainer {
                   SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
                 }));
 
-    // Right Bumper + B: Decrease Shooter RPS
+    // B: Decrease Shooter RPS
     controller
-        .rightBumper()
-        .and(controller.b())
+        .b()
         .onTrue(
             Commands.runOnce(
                 () -> {
@@ -527,10 +418,9 @@ public class RobotContainer {
                   SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
                 }));
 
-    // Right Bumper + X: Increase Hood Angle
+    // X: Increase Hood Angle
     controller
-        .rightBumper()
-        .and(controller.x())
+        .x()
         .onTrue(
             Commands.runOnce(
                 () -> {
@@ -543,10 +433,9 @@ public class RobotContainer {
                   SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
                 }));
 
-    // Right Bumper + Y: Decrease Hood Angle
+    // Y: Decrease Hood Angle
     controller
-        .rightBumper()
-        .and(controller.y())
+        .y()
         .onTrue(
             Commands.runOnce(
                 () -> {
@@ -559,7 +448,7 @@ public class RobotContainer {
                   SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
                 }));
 
-    // Right Bumper alone: Stop shooter and reset hood
+    // Right Bumper: Stop shooter and reset hood
     controller
         .rightBumper()
         .onTrue(
@@ -600,40 +489,11 @@ public class RobotContainer {
   }
 
   /**
-   * Run warmup for the selected autonomous command. Called during disabledPeriodic to preload
-   * pathfinding computations while the robot is disabled.
+   * Warmup is no longer needed — PathPlanner caches AD* computations internally and
+   * Commands.defer() creates fresh command instances at schedule time. This method is kept as a
+   * no-op for compatibility with Robot.java calls.
    */
   public void runAutoWarmup() {
-    // Get the currently selected command
-    Command selectedCommand = autoChooser.get();
-
-    // Only warmup if selection changed
-    if (selectedCommand == null || selectedCommand == lastSelectedCommand) {
-      return;
-    }
-
-    lastSelectedCommand = selectedCommand;
-
-    // Find the matching PathfindingAuto by trying all stored ones
-    // This is a workaround since we can't easily get the name from LoggedDashboardChooser
-    for (Map.Entry<String, PathfindingAuto> entry : pathfindingAutos.entrySet()) {
-      PathfindingAuto auto = entry.getValue();
-      String autoName = entry.getKey();
-
-      // Get warmup command and schedule it
-      Command warmupCommand = auto.getWarmupCommand();
-      if (warmupCommand != null) {
-        // Cancel previous warmup if it's still running
-        if (lastWarmupCommand != null && lastWarmupCommand.isScheduled()) {
-          lastWarmupCommand.cancel();
-        }
-
-        // Schedule new warmup command (runs .ignoringDisable(true))
-        System.out.println("[RobotContainer] Starting warmup for: " + autoName);
-        CommandScheduler.getInstance().schedule(warmupCommand);
-        lastWarmupCommand = warmupCommand;
-        break; // Only warmup one auto at a time
-      }
-    }
+    // No-op: PathPlanner handles path caching internally
   }
 }

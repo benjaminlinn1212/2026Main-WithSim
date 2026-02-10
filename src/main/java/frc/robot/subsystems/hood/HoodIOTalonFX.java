@@ -120,8 +120,14 @@ public class HoodIOTalonFX implements HoodIO {
     double mechanismRotations = Units.radiansToRotations(mechanismAngleRad);
     double motorRotations = mechanismRotations / Constants.HoodConstants.GEAR_RATIO;
 
-    // MotionMagic uses configured cruise velocity/acceleration, feedforward is ignored
-    motor.setControl(positionControl.withPosition(motorRotations));
+    // Convert velocity feedforward from rad/s to motor volts:
+    // rad/s → mechanism rot/s → motor rot/s → volts (via KV)
+    double mechanismRotPerSec = Units.radiansToRotations(radPerSecond);
+    double motorRotPerSec = mechanismRotPerSec / Constants.HoodConstants.GEAR_RATIO;
+    double feedforwardVolts = motorRotPerSec * Constants.HoodConstants.KV;
+
+    motor.setControl(
+        positionControl.withPosition(motorRotations).withFeedForward(feedforwardVolts));
   }
 
   @Override

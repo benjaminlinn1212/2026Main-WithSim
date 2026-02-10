@@ -108,15 +108,16 @@ public class TurretSubsystem extends SubsystemBase {
                   ShooterSetpoint setpoint = setpointSupplier.get();
 
                   // Extract turret angle and feedforward from setpoint
-                  double targetRad = setpoint.getTurretRadiansFromCenter();
-                  double feedforwardRadPerSec = setpoint.getTurretFeedforward();
+                  double targetRad = setpoint.getTurretAngleRad();
+                  double feedforwardRadPerSec = setpoint.getTurretFeedforwardRadPerSec();
 
                   // Apply wrapping logic to target
                   double wrappedTarget = adjustSetpointForWrap(targetRad);
 
                   // Log setpoint validity and shot type
-                  Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.getIsValid());
-                  Logger.recordOutput("Turret/Aiming/IsNeutralShoot", setpoint.getIsNeutralShoot());
+                  Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.isValid());
+                  Logger.recordOutput(
+                      "Turret/Aiming/IsNeutralZoneShot", setpoint.isNeutralZoneShot());
 
                   // Convert feedforward velocity to volts for motor control
                   // Phoenix 6 SensorToMechanismRatio handles unit conversion automatically
@@ -237,7 +238,7 @@ public class TurretSubsystem extends SubsystemBase {
   /** Checks if turret is at the desired setpoint within tolerance. */
   public boolean atSetpoint() {
     return Math.abs(getCurrentPosition() - positionSetpointRad)
-        < Constants.TurretConstants.AIMING_TOLERANCE_ROT;
+        < Constants.TurretConstants.AIMING_TOLERANCE_RAD;
   }
 
   /** Command for open-loop duty cycle control (for testing). */

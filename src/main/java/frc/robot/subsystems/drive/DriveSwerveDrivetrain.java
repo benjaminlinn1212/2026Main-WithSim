@@ -12,6 +12,7 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 import frc.robot.RobotState;
 
 /**
@@ -33,9 +34,14 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
 
   @Override
   public void periodic() {
-    // Update chassis speeds in RobotState
-    var speeds = driveIO.getState().Speeds;
-    robotState.updateChassisSpeeds(speeds, speeds); // Field and robot relative are same from CTRE
+    // CTRE's SwerveDriveState.Speeds are robot-relative
+    var robotRelativeSpeeds = driveIO.getState().Speeds;
+
+    // Compute field-relative speeds by rotating by robot heading
+    var heading = getPose().getRotation();
+    var fieldRelativeSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(robotRelativeSpeeds, heading);
+
+    robotState.updateChassisSpeeds(fieldRelativeSpeeds, robotRelativeSpeeds);
 
     // Log robot state
     robotState.log();
@@ -122,12 +128,10 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
    * @return PathConstraints for autonomous navigation
    */
   public com.pathplanner.lib.path.PathConstraints getPathConstraints() {
-    // Moderate constraints for safe auto navigation
     return new com.pathplanner.lib.path.PathConstraints(
-        3.0, // Max velocity (m/s)
-        3.0, // Max acceleration (m/s²)
-        Math.toRadians(360), // Max angular velocity (rad/s)
-        Math.toRadians(540) // Max angular acceleration (rad/s²)
-        );
+        Constants.AutoConstants.PATHFINDING_MAX_VELOCITY_MPS,
+        Constants.AutoConstants.PATHFINDING_MAX_ACCELERATION_MPS2,
+        Constants.AutoConstants.PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC,
+        Constants.AutoConstants.PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2);
   }
 }

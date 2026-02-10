@@ -10,7 +10,9 @@ package frc.robot.subsystems.vision;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
@@ -62,7 +64,6 @@ public class VisionSubsystem extends SubsystemBase {
     // Process each camera
     if (inputs.frontCameraSeesTarget) {
       updateVision(
-          inputs.frontCameraFiducialObservations,
           inputs.frontCameraMegatagPoseEstimate,
           inputs.frontCameraMegatag2PoseEstimate,
           false,
@@ -71,7 +72,6 @@ public class VisionSubsystem extends SubsystemBase {
 
     if (inputs.backCameraSeesTarget) {
       updateVision(
-          inputs.backCameraFiducialObservations,
           inputs.backCameraMegatagPoseEstimate,
           inputs.backCameraMegatag2PoseEstimate,
           false,
@@ -80,7 +80,6 @@ public class VisionSubsystem extends SubsystemBase {
 
     if (inputs.turretCameraSeesTarget) {
       updateVision(
-          inputs.turretCameraFiducialObservations,
           inputs.turretCameraMegatagPoseEstimate,
           inputs.turretCameraMegatag2PoseEstimate,
           true,
@@ -89,7 +88,6 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   private void updateVision(
-      FiducialObservation[] fiducialObservations,
       MegatagPoseEstimate megatagPoseEstimate,
       MegatagPoseEstimate megatag2PoseEstimate,
       boolean isTurretCamera,
@@ -141,7 +139,7 @@ public class VisionSubsystem extends SubsystemBase {
   private Optional<VisionFieldPoseEstimate> processMegatag2PoseEstimate(
       MegatagPoseEstimate poseEstimate, boolean isTurretCamera, String logPreface) {
 
-    if (poseEstimate == null || poseEstimate.fieldToCamera == null) {
+    if (poseEstimate == null || poseEstimate.fieldPose == null) {
       return Optional.empty();
     }
 
@@ -203,7 +201,7 @@ public class VisionSubsystem extends SubsystemBase {
   private Optional<VisionFieldPoseEstimate> processMegatagPoseEstimate(
       MegatagPoseEstimate poseEstimate, boolean isTurretCamera, String logPreface) {
 
-    if (poseEstimate == null || poseEstimate.fieldToCamera == null) {
+    if (poseEstimate == null || poseEstimate.fieldPose == null) {
       return Optional.empty();
     }
 
@@ -258,51 +256,52 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   /**
-   * Calculate field-to-robot pose from vision data. For turret cameras, this accounts for: 1.
-   * Field-to-camera (from Limelight MegaTag) 2. Camera-to-turret (camera offset from turret center)
-   * 3. Turret-to-robot (turret rotation and position on robot)
+   * Calculate field-to-robot pose from vision data.
+   *
+   * <p>For drivetrain cameras: Limelight has camerapose_robotspace_set configured, so
+   * botpose_wpiblue directly returns field-to-robot.
+   *
+   * <p>For turret camera: Limelight receives SetRobotOrientation with the turret's field heading
+   * but has no camerapose_robotspace_set, so botpose_wpiblue returns the camera's field pose. We
+   * chain: field→camera → camera→turret → turret→robot to get field-to-robot.
    */
   private Optional<Pose2d> getFieldToRobotEstimate(
       MegatagPoseEstimate poseEstimate, boolean isTurretCamera) {
 
-    var fieldToCamera = poseEstimate.fieldToCamera;
-    if (fieldToCamera.getX() == 0.0) {
+    var fieldPose = poseEstimate.fieldPose;
+    if (fieldPose.getX() == 0.0) {
       return Optional.empty();
     }
 
     if (isTurretCamera) {
       // Get turret rotation at the timestamp of this vision measurement
-      var robotToTurretObservation = state.getRobotToTurret(poseEstimate.timestampSeconds);
-      if (robotToTurretObservation.isEmpty()) {
+      var robotToTurretRotation = state.getRobotToTurret(poseEstimate.timestampSeconds);
+      if (robotToTurretRotation.isEmpty()) {
         return Optional.empty();
       }
 
-      // Transform chain: Field -> Camera -> Turret -> Robot
-      // 1. Get camera-to-turret transform (inverse of turret-to-camera)
-      var turretToCameraTransform = state.getTurretToCamera(true);
-      var cameraToTurretTransform = turretToCameraTransform.inverse();
+      // Transform chain: Field → Camera → Turret Center → Robot Center
 
-      // 2. Get field-to-turret
-      var fieldToTurretPose = fieldToCamera.plus(cameraToTurretTransform);
+      // Step 1: Camera → Turret (inverse of turret-to-camera offset)
+      var turretToCamera2d = state.getTurretToCamera(true);
+      var cameraToTurret2d = turretToCamera2d.inverse();
+      var fieldToTurret = fieldPose.plus(cameraToTurret2d);
 
-      // 3. Account for turret rotation to get field-to-robot
-      // The turret is at turret_to_robot_center offset from robot center
-      var turretToRobot =
-          new Transform2d(
-              Constants.Vision.TURRET_TO_ROBOT_CENTER
-                  .unaryMinus(), // Negative because we go turret->robot
-              robotToTurretObservation
-                  .get()
-                  .unaryMinus()); // Negative to get turret->robot rotation
+      // Step 2: Turret → Robot
+      // The turret offset in robot frame is TURRET_TO_ROBOT_CENTER (turret is forward of robot).
+      // To go turret→robot, the translation in turret frame is:
+      //   (-offset).rotateBy(-robotToTurret)
+      // because we need to express "robot center relative to turret center" in turret coordinates.
+      Rotation2d turretToRobotRotation = robotToTurretRotation.get().unaryMinus();
+      Translation2d turretToRobotTranslation =
+          Constants.Vision.TURRET_TO_ROBOT_CENTER.unaryMinus().rotateBy(turretToRobotRotation);
+      var turretToRobot = new Transform2d(turretToRobotTranslation, turretToRobotRotation);
 
-      var fieldToRobotEstimate = fieldToTurretPose.plus(turretToRobot);
-
-      return Optional.of(fieldToRobotEstimate);
+      return Optional.of(fieldToTurret.plus(turretToRobot));
     } else {
-      // Drivetrain camera - camera is fixed to robot body
-      // Field -> Camera is directly Field -> Robot
-      // The limelight already accounts for the camera position via camerapose_robotspace_set
-      return Optional.of(fieldToCamera);
+      // Drivetrain camera — camerapose_robotspace_set is configured, so
+      // botpose_wpiblue already returns field-to-robot directly
+      return Optional.of(fieldPose);
     }
   }
 }

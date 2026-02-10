@@ -82,12 +82,12 @@ public class HoodSubsystem extends SubsystemBase {
                   ShooterSetpoint setpoint = setpointSupplier.get();
 
                   // Extract hood angle from setpoint
-                  return setpoint.getHoodRadians();
+                  return setpoint.getHoodAngleRad();
                 },
                 () -> {
                   // Extract hood feedforward from setpoint
                   ShooterSetpoint setpoint = setpointSupplier.get();
-                  return setpoint.getHoodFeedforward();
+                  return setpoint.getHoodFeedforwardRadPerSec();
                 }))
         .withName("Hood Aim Hub");
   }

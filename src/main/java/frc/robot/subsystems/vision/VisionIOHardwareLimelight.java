@@ -13,26 +13,24 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 import frc.robot.Constants;
 import frc.robot.LimelightHelpers;
 import frc.robot.RobotState;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class VisionIOHardwareLimelight implements VisionIO {
-  NetworkTable frontTable =
+  private final NetworkTable frontTable =
       NetworkTableInstance.getDefault().getTable(Constants.Vision.FRONT_LIMELIGHT_NAME);
-  NetworkTable backTable =
+  private final NetworkTable backTable =
       NetworkTableInstance.getDefault().getTable(Constants.Vision.BACK_LIMELIGHT_NAME);
-  NetworkTable turretTable =
+  private final NetworkTable turretTable =
       NetworkTableInstance.getDefault().getTable(Constants.Vision.TURRET_LIMELIGHT_NAME);
 
-  RobotState robotState;
-  AtomicReference<VisionIOInputs> latestInputs = new AtomicReference<>(new VisionIOInputs());
+  private final RobotState robotState;
 
   public VisionIOHardwareLimelight(RobotState robotState) {
     this.robotState = robotState;
-    setLLSettings();
+    configureDrivetrainCameras();
   }
 
-  private void setLLSettings() {
-    // Configure camera poses relative to robot
+  /** Set camerapose_robotspace_set for drivetrain-mounted cameras (one-time at startup). */
+  private void configureDrivetrainCameras() {
     double[] frontCamerapose = {
       Constants.Vision.FRONT_CAMERA_TO_ROBOT.getX(),
       Constants.Vision.FRONT_CAMERA_TO_ROBOT.getY(),
@@ -52,51 +50,50 @@ public class VisionIOHardwareLimelight implements VisionIO {
       Units.radiansToDegrees(Constants.Vision.BACK_CAMERA_TO_ROBOT.getRotation().getZ())
     };
     backTable.getEntry("camerapose_robotspace_set").setDoubleArray(backCamerapose);
-
-    // Turret camera orientation will be updated dynamically
-    updateTurretCameraOrientation();
   }
 
-  private void updateTurretCameraOrientation() {
-    // Update robot orientation for non-turret cameras
-    var gyroAngle = robotState.getLatestFieldToRobot().getValue().getRotation();
-    var gyroAngularVelocity =
+  /**
+   * Send robot/turret orientation to all Limelights for MegaTag2.
+   *
+   * <p>Drivetrain cameras receive the robot's field heading. The turret camera receives the
+   * turret's field heading (robot heading + turret angle) so the Limelight can solve for the
+   * camera's field pose.
+   */
+  private void updateOrientations() {
+    var robotHeading = robotState.getLatestFieldToRobot().getValue().getRotation();
+    double robotOmegaDegPerSec =
         Units.radiansToDegrees(
             robotState.getLatestRobotRelativeChassisSpeed().omegaRadiansPerSecond);
 
+    // Drivetrain cameras — send robot heading
     LimelightHelpers.SetRobotOrientation(
         Constants.Vision.FRONT_LIMELIGHT_NAME,
-        gyroAngle.getDegrees(),
-        gyroAngularVelocity,
+        robotHeading.getDegrees(),
+        robotOmegaDegPerSec,
         0,
         0,
         0,
         0);
     LimelightHelpers.SetRobotOrientation(
         Constants.Vision.BACK_LIMELIGHT_NAME,
-        gyroAngle.getDegrees(),
-        gyroAngularVelocity,
+        robotHeading.getDegrees(),
+        robotOmegaDegPerSec,
         0,
         0,
         0,
         0);
 
-    // For turret camera, send field-to-turret orientation
-    var fieldToTurretRotation =
-        robotState
-            .getLatestFieldToRobot()
-            .getValue()
-            .getRotation()
-            .rotateBy(robotState.getLatestRobotToTurret().getValue());
-    var fieldToTurretVelocity =
+    // Turret camera — send turret's field-relative heading
+    var turretFieldHeading = robotHeading.rotateBy(robotState.getLatestRobotToTurret().getValue());
+    double turretOmegaDegPerSec =
         Units.radiansToDegrees(
             robotState.getLatestTurretAngularVelocity()
                 + robotState.getLatestRobotRelativeChassisSpeed().omegaRadiansPerSecond);
 
     LimelightHelpers.SetRobotOrientation(
         Constants.Vision.TURRET_LIMELIGHT_NAME,
-        fieldToTurretRotation.getDegrees(),
-        fieldToTurretVelocity,
+        turretFieldHeading.getDegrees(),
+        turretOmegaDegPerSec,
         0,
         0,
         0,
@@ -105,8 +102,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
 
   @Override
   public void readInputs(VisionIOInputs inputs) {
-    // Update camera orientations before reading
-    updateTurretCameraOrientation();
+    updateOrientations();
 
     // Front camera
     inputs.frontCameraSeesTarget = frontTable.getEntry("tv").getDouble(0) == 1.0;
@@ -118,10 +114,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
           LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
               Constants.Vision.FRONT_LIMELIGHT_NAME);
       inputs.frontCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.frontCameraMegatagCount = megatag.tagCount;
       inputs.frontCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      inputs.frontCameraFiducialObservations =
-          FiducialObservation.fromLimelight(megatag.rawFiducials);
     }
 
     // Back camera
@@ -134,10 +127,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
           LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
               Constants.Vision.BACK_LIMELIGHT_NAME);
       inputs.backCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.backCameraMegatagCount = megatag.tagCount;
       inputs.backCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      inputs.backCameraFiducialObservations =
-          FiducialObservation.fromLimelight(megatag.rawFiducials);
     }
 
     // Turret camera
@@ -150,68 +140,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
           LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
               Constants.Vision.TURRET_LIMELIGHT_NAME);
       inputs.turretCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.turretCameraMegatagCount = megatag.tagCount;
       inputs.turretCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      inputs.turretCameraFiducialObservations =
-          FiducialObservation.fromLimelight(megatag.rawFiducials);
     }
-  }
-
-  @Override
-  public void pollNetworkTables() {
-    VisionIOInputs inputs = new VisionIOInputs();
-
-    // Update camera orientations
-    updateTurretCameraOrientation();
-
-    // Front camera
-    inputs.frontCameraSeesTarget = frontTable.getEntry("tv").getDouble(0) == 1.0;
-    if (inputs.frontCameraSeesTarget) {
-      var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag1(
-              Constants.Vision.FRONT_LIMELIGHT_NAME);
-      var megatag2 =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
-              Constants.Vision.FRONT_LIMELIGHT_NAME);
-      inputs.frontCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.frontCameraMegatagCount = megatag.tagCount;
-      inputs.frontCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      inputs.frontCameraFiducialObservations =
-          FiducialObservation.fromLimelight(megatag.rawFiducials);
-    }
-
-    // Back camera
-    inputs.backCameraSeesTarget = backTable.getEntry("tv").getDouble(0) == 1.0;
-    if (inputs.backCameraSeesTarget) {
-      var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag1(
-              Constants.Vision.BACK_LIMELIGHT_NAME);
-      var megatag2 =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
-              Constants.Vision.BACK_LIMELIGHT_NAME);
-      inputs.backCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.backCameraMegatagCount = megatag.tagCount;
-      inputs.backCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      inputs.backCameraFiducialObservations =
-          FiducialObservation.fromLimelight(megatag.rawFiducials);
-    }
-
-    // Turret camera
-    inputs.turretCameraSeesTarget = turretTable.getEntry("tv").getDouble(0) == 1.0;
-    if (inputs.turretCameraSeesTarget) {
-      var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag1(
-              Constants.Vision.TURRET_LIMELIGHT_NAME);
-      var megatag2 =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
-              Constants.Vision.TURRET_LIMELIGHT_NAME);
-      inputs.turretCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.turretCameraMegatagCount = megatag.tagCount;
-      inputs.turretCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      inputs.turretCameraFiducialObservations =
-          FiducialObservation.fromLimelight(megatag.rawFiducials);
-    }
-
-    latestInputs.set(inputs);
   }
 }

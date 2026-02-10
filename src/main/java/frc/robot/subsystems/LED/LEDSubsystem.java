@@ -40,11 +40,12 @@ public class LEDSubsystem extends SubsystemBase {
           .withFrameRate(Hertz.of(1));
 
   // Robot State Animations with Colors
+  // All animations use slot 0 so setting a new one automatically replaces the previous.
 
   // Green - Stowed/Idle state
   private final ColorFlowAnimation m_stowedAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(0, 255, 0, 0)) // Green
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(15));
@@ -52,7 +53,7 @@ public class LEDSubsystem extends SubsystemBase {
   // Blue - Intaking
   private final ColorFlowAnimation m_intakingAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(0, 0, 255, 0)) // Blue
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(30));
@@ -60,7 +61,7 @@ public class LEDSubsystem extends SubsystemBase {
   // Yellow - Has game piece / Holding
   private final ColorFlowAnimation m_holdingAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(255, 255, 0, 0)) // Yellow
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(20));
@@ -68,7 +69,7 @@ public class LEDSubsystem extends SubsystemBase {
   // Orange - Preparing to shoot / Aiming
   private final ColorFlowAnimation m_aimingAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(255, 165, 0, 0)) // Orange
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(35));
@@ -76,7 +77,7 @@ public class LEDSubsystem extends SubsystemBase {
   // Red - Shooting
   private final ColorFlowAnimation m_shootingAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(255, 0, 0, 0)) // Red
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(40));
@@ -84,7 +85,7 @@ public class LEDSubsystem extends SubsystemBase {
   // Purple - Climbing
   private final ColorFlowAnimation m_climbingAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(128, 0, 255, 0)) // Purple
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(20));
@@ -92,7 +93,7 @@ public class LEDSubsystem extends SubsystemBase {
   // Rainbow - All good / Teleop
   private final RainbowAnimation m_rainbowAnimation =
       new RainbowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withBrightness(0.8)
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(25));
@@ -100,7 +101,7 @@ public class LEDSubsystem extends SubsystemBase {
   // White - Error/Disabled
   private final ColorFlowAnimation m_errorAnimation =
       new ColorFlowAnimation(0, 68)
-          .withSlot(1)
+          .withSlot(0)
           .withColor(new RGBWColor(255, 255, 255, 0)) // White
           .withDirection(AnimationDirectionValue.Forward)
           .withFrameRate(Hertz.of(10));

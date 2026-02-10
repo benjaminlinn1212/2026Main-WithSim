@@ -200,5 +200,9 @@ public class ClimbIOSim implements ClimbIO {
     this.rightBackAppliedVolts = 0.0;
     this.leftFrontAppliedVolts = 0.0;
     this.leftBackAppliedVolts = 0.0;
+    this.rightFrontVelocityRotPerSec = 0.0;
+    this.rightBackVelocityRotPerSec = 0.0;
+    this.leftFrontVelocityRotPerSec = 0.0;
+    this.leftBackVelocityRotPerSec = 0.0;
   }
 }

@@ -1,6 +1,5 @@
 package frc.robot.subsystems.shooter;
 
-import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.VelocityVoltage;
@@ -61,7 +60,7 @@ public class ShooterIOTalonFX implements ShooterIO {
     // Motor Inversion
     configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;
 
-    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
+    // PID and Feedforward (VelocityVoltage control)
     configuration.Slot0 =
         new Slot0Configs()
             .withKP(ShooterConstants.KP)
@@ -69,16 +68,7 @@ public class ShooterIOTalonFX implements ShooterIO {
             .withKD(ShooterConstants.KD)
             .withKS(ShooterConstants.KS)
             .withKV(ShooterConstants.KV)
-            .withKA(ShooterConstants.KA)
-            .withGravityType(com.ctre.phoenix6.signals.GravityTypeValue.Elevator_Static)
-            .withKG(ShooterConstants.KG);
-
-    // Motion Magic
-    configuration.MotionMagic =
-        new MotionMagicConfigs()
-            .withMotionMagicCruiseVelocity(ShooterConstants.CRUISE_VELOCITY)
-            .withMotionMagicAcceleration(ShooterConstants.ACCELERATION)
-            .withMotionMagicJerk(ShooterConstants.JERK);
+            .withKA(ShooterConstants.KA);
 
     // Current Limits
     configuration.CurrentLimits.StatorCurrentLimit = ShooterConstants.STATOR_CURRENT_LIMIT;
@@ -86,8 +76,6 @@ public class ShooterIOTalonFX implements ShooterIO {
     configuration.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;
     configuration.CurrentLimits.SupplyCurrentLimitEnable = true;
     configuration.CurrentLimits.SupplyCurrentLowerTime = ShooterConstants.SUPPLY_CURRENT_LOWER_TIME;
-
-    configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;
 
     return configuration;
   }

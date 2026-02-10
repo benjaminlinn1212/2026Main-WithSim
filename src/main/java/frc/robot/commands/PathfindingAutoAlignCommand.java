@@ -8,6 +8,7 @@ import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.Constants;
 import frc.robot.RobotState;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import java.util.function.Function;
@@ -106,18 +107,16 @@ public class PathfindingAutoAlignCommand extends Command {
   }
 
   /**
-   * Get path constraints for pathfinding. Uses moderate speed for safe autonomous navigation.
+   * Get path constraints for pathfinding. Uses constants for single source of truth.
    *
    * @return PathConstraints for pathfinding
    */
   private PathConstraints getPathConstraints() {
-    // Moderate constraints for safe auto navigation
     return new PathConstraints(
-        3.0, // Max velocity (m/s)
-        3.0, // Max acceleration (m/s²)
-        Math.toRadians(360), // Max angular velocity (rad/s)
-        Math.toRadians(540) // Max angular acceleration (rad/s²)
-        );
+        Constants.AutoConstants.PATHFINDING_MAX_VELOCITY_MPS,
+        Constants.AutoConstants.PATHFINDING_MAX_ACCELERATION_MPS2,
+        Constants.AutoConstants.PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC,
+        Constants.AutoConstants.PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2);
   }
 
   @Override

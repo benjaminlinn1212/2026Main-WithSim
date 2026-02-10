@@ -100,7 +100,7 @@ public class ShooterSubsystem extends SubsystemBase {
    */
   public boolean isReady() {
     ShooterSetpoint setpoint = setpointSupplier.get();
-    return atVelocity(setpoint.getShooterRPS()) && setpoint.getIsValid();
+    return atVelocity(setpoint.getShooterRPS()) && setpoint.isValid();
   }
 
   /** Check if shooter is stopped (for climb readiness) */

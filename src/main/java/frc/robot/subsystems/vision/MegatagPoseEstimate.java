@@ -11,7 +11,14 @@ import edu.wpi.first.math.geometry.Pose2d;
 import frc.robot.LimelightHelpers;
 
 public class MegatagPoseEstimate {
-  public Pose2d fieldToCamera;
+  /**
+   * The pose returned by the Limelight's botpose estimator. For drivetrain cameras (with
+   * camerapose_robotspace_set configured), this is field-to-robot. For the turret camera (with
+   * SetRobotOrientation set to turret heading), this is the field-to-"turret-body" pose that needs
+   * further transformation to get field-to-robot.
+   */
+  public Pose2d fieldPose;
+
   public double timestampSeconds;
   public double latency;
   public int[] fiducialIds;
@@ -21,7 +28,7 @@ public class MegatagPoseEstimate {
 
   public static MegatagPoseEstimate fromLimelight(LimelightHelpers.PoseEstimate estimate) {
     MegatagPoseEstimate rv = new MegatagPoseEstimate();
-    rv.fieldToCamera = estimate.pose;
+    rv.fieldPose = estimate.pose;
     rv.timestampSeconds = estimate.timestampSeconds;
     rv.latency = estimate.latency;
     rv.avgTagArea = estimate.avgTagArea;

@@ -29,14 +29,32 @@ import frc.robot.Constants.ClimbConstants;
  */
 public class ClimbIK {
 
+  /** Cable length result (absolute lengths in meters) */
+  public static class CableLengths {
+    public final double frontLengthMeters;
+    public final double backLengthMeters;
+    public final double jointX;
+    public final double jointY;
+
+    public CableLengths(
+        double frontLengthMeters, double backLengthMeters, double jointX, double jointY) {
+      this.frontLengthMeters = frontLengthMeters;
+      this.backLengthMeters = backLengthMeters;
+      this.jointX = jointX;
+      this.jointY = jointY;
+    }
+  }
+
   // ===========================================================================
   // Result Classes
   // ===========================================================================
 
   /** IK solution for one side (4 motors total, 2 per side) */
   public static class ClimbSideIKResult {
-    public final double frontMotorRotations; // Cable 1
-    public final double backMotorRotations; // Cable 2
+    public final double
+        frontMotorRotations; // Cable 1 (mechanism/drum rotations, IO converts to motor)
+    public final double
+        backMotorRotations; // Cable 2 (mechanism/drum rotations, IO converts to motor)
     public final boolean isValid;
 
     // Debug info
@@ -96,6 +114,10 @@ public class ClimbIK {
     final double q = ClimbConstants.CABLE_2_OFFSET_METERS; // Cable 2 attachment offset
     final double eps = 1e-9;
 
+    if (!isWithinWorkspace(xe, ye)) {
+      return ClimbSideIKResult.invalid();
+    }
+
     // Vector from W2=(a,0) to E=(xe,ye)
     final double dx = xe - a;
     final double dy = ye;
@@ -147,13 +169,19 @@ public class ClimbIK {
     final double l1 = Math.hypot(px, py); // Cable 1: P to W1=(0,0)
     final double l2 = Math.hypot(qx - a, qy); // Cable 2: Q to W2=(a,0)
 
+    // Joint angle limits disabled for testing reachability
+
     // ─── Convert Cable Lengths to Motor Rotations ───
     // Step 1: Cable length to drum rotations
     // rotations = length / circumference
-    final double drumRotations_front = l1 / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
-    final double drumRotations_back = l2 / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
+    final double l1Delta = l1 - ClimbConstants.FRONT_CABLE_INITIAL_LENGTH_METERS;
+    final double l2Delta = l2 - ClimbConstants.BACK_CABLE_INITIAL_LENGTH_METERS;
+
+    final double drumRotations_front = l1Delta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
+    final double drumRotations_back = l2Delta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
 
     // Step 2: Drum rotations = mechanism rotations (we return mechanism rotations)
+    // Negative rotations are allowed (cable shorter than initial length)
     // The IO layer (ClimbIOTalonFX) handles conversion to motor rotations
     // since SensorToMechanismRatio is now 1.0 per CTRE recommendation
     final double frontMotorRotations = drumRotations_front;
@@ -195,16 +223,6 @@ public class ClimbIK {
     return new ClimbIKResult(leftResult, rightResult);
   }
 
-  /**
-   * Calculate IK for both sides using same target (symmetric climb).
-   *
-   * @param targetPosition Target position for both sides
-   * @return Complete IK solution
-   */
-  public static ClimbIKResult calculateSymmetric(Translation2d targetPosition) {
-    return calculateBothSides(targetPosition, targetPosition);
-  }
-
   // ===========================================================================
   // Validation & Limits
   // ===========================================================================
@@ -216,8 +234,119 @@ public class ClimbIK {
    * @return true if reachable
    */
   public static boolean isPositionReachable(Translation2d position) {
+    if (!isWithinWorkspace(position.getX(), position.getY())) {
+      return false;
+    }
     ClimbSideIKResult result = calculateIK(position);
     return result.isValid;
+  }
+
+  private static boolean isWithinWorkspace(double x, double y) {
+    return x >= ClimbConstants.WORKSPACE_MIN_X_METERS
+        && x <= ClimbConstants.WORKSPACE_MAX_X_METERS
+        && y >= ClimbConstants.WORKSPACE_MIN_Y_METERS
+        && y <= ClimbConstants.WORKSPACE_MAX_Y_METERS;
+  }
+
+  /** Calculate absolute cable lengths (meters) for a given end effector position. */
+  public static CableLengths calculateCableLengths(double xe, double ye) {
+    final double a = ClimbConstants.WINCH_SEPARATION_METERS;
+    final double b = ClimbConstants.LINK_1_LENGTH_METERS;
+    final double c = ClimbConstants.LINK_2_LENGTH_METERS;
+    final double p = ClimbConstants.CABLE_1_OFFSET_METERS;
+    final double q = ClimbConstants.CABLE_2_OFFSET_METERS;
+
+    final double dx = xe - a;
+    final double dy = ye;
+    final double r = Math.hypot(dx, dy);
+    if (r <= 1e-9 || r > b + c || r < Math.abs(b - c)) {
+      return null;
+    }
+
+    final double d = (b * b - c * c + r * r) / (2.0 * r);
+    double h2 = b * b - d * d;
+    if (h2 < 0 && h2 > -1e-10) h2 = 0;
+    if (h2 < 0) return null;
+    final double h = Math.sqrt(h2);
+
+    final double ux = dx / r;
+    final double uy = dy / r;
+    final double upx = -uy;
+    final double upy = ux;
+
+    final double xj = a + d * ux + h * upx;
+    final double yj = d * uy + h * upy;
+
+    final double t1 = p / b;
+    final double px = xj + t1 * (a - xj);
+    final double py = yj + t1 * (0 - yj);
+    final double t2 = q / c;
+    final double qx = xe + t2 * (xj - xe);
+    final double qy = ye + t2 * (yj - ye);
+
+    final double l1 = Math.hypot(px, py);
+    final double l2 = Math.hypot(qx - a, qy);
+    return new CableLengths(l1, l2, xj, yj);
+  }
+
+  /** Convert mechanism rotations to absolute cable lengths (meters). */
+  public static CableLengths lengthsFromRotations(double frontRotations, double backRotations) {
+    double l1 =
+        frontRotations * ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS
+            + ClimbConstants.FRONT_CABLE_INITIAL_LENGTH_METERS;
+    double l2 =
+        backRotations * ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS
+            + ClimbConstants.BACK_CABLE_INITIAL_LENGTH_METERS;
+    return new CableLengths(l1, l2, 0.0, 0.0);
+  }
+
+  /**
+   * Forward kinematics using numeric solve (Newton) to estimate end effector from cable lengths.
+   */
+  public static Translation2d estimateEndEffectorPosition(
+      double frontRotations, double backRotations, Translation2d initialGuess) {
+    CableLengths target = lengthsFromRotations(frontRotations, backRotations);
+    double x = initialGuess.getX();
+    double y = initialGuess.getY();
+
+    for (int i = 0; i < 15; i++) {
+      CableLengths current = calculateCableLengths(x, y);
+      if (current == null) {
+        return null;
+      }
+
+      double e1 = current.frontLengthMeters - target.frontLengthMeters;
+      double e2 = current.backLengthMeters - target.backLengthMeters;
+      double err = Math.hypot(e1, e2);
+      if (err < ClimbConstants.IK_POSITION_TOLERANCE_METERS) {
+        return new Translation2d(x, y);
+      }
+
+      double h = 1e-4;
+      CableLengths fx = calculateCableLengths(x + h, y);
+      CableLengths fy = calculateCableLengths(x, y + h);
+      if (fx == null || fy == null) {
+        return null;
+      }
+
+      double dL1dx = (fx.frontLengthMeters - current.frontLengthMeters) / h;
+      double dL2dx = (fx.backLengthMeters - current.backLengthMeters) / h;
+      double dL1dy = (fy.frontLengthMeters - current.frontLengthMeters) / h;
+      double dL2dy = (fy.backLengthMeters - current.backLengthMeters) / h;
+
+      double det = dL1dx * dL2dy - dL1dy * dL2dx;
+      if (Math.abs(det) < 1e-9) {
+        return null;
+      }
+
+      double dx = (-e1 * dL2dy + e2 * dL1dy) / det;
+      double dy = (-dL1dx * e2 + dL2dx * e1) / det;
+
+      x += dx;
+      y += dy;
+    }
+
+    return null;
   }
 
   // ===========================================================================
@@ -226,8 +355,8 @@ public class ClimbIK {
 
   /** Result containing motor velocities for velocity control */
   public static class ClimbSideVelocityResult {
-    public final double frontMotorVelocity; // Front motor velocity (rot/s)
-    public final double backMotorVelocity; // Back motor velocity (rot/s)
+    public final double frontMotorVelocity; // Front motor velocity (mechanism rot/s, IO converts)
+    public final double backMotorVelocity; // Back motor velocity (mechanism rot/s, IO converts)
     public final boolean isValid;
 
     public ClimbSideVelocityResult(
@@ -280,22 +409,22 @@ public class ClimbIK {
       return ClimbSideVelocityResult.invalid();
     }
 
-    // Calculate partial derivatives using finite differences
-    // ∂(frontMotor) / ∂x
-    ClimbSideIKResult posX = calculateIK(position.getX() + h, position.getY());
-    if (!posX.isValid) {
+    // Calculate partial derivatives using central differences
+    ClimbSideIKResult posXPlus = calculateIK(position.getX() + h, position.getY());
+    ClimbSideIKResult posXMinus = calculateIK(position.getX() - h, position.getY());
+    if (!posXPlus.isValid || !posXMinus.isValid) {
       return ClimbSideVelocityResult.invalid();
     }
-    double dFront_dx = (posX.frontMotorRotations - current.frontMotorRotations) / h;
-    double dBack_dx = (posX.backMotorRotations - current.backMotorRotations) / h;
+    double dFront_dx = (posXPlus.frontMotorRotations - posXMinus.frontMotorRotations) / (2.0 * h);
+    double dBack_dx = (posXPlus.backMotorRotations - posXMinus.backMotorRotations) / (2.0 * h);
 
-    // ∂(frontMotor) / ∂y
-    ClimbSideIKResult posY = calculateIK(position.getX(), position.getY() + h);
-    if (!posY.isValid) {
+    ClimbSideIKResult posYPlus = calculateIK(position.getX(), position.getY() + h);
+    ClimbSideIKResult posYMinus = calculateIK(position.getX(), position.getY() - h);
+    if (!posYPlus.isValid || !posYMinus.isValid) {
       return ClimbSideVelocityResult.invalid();
     }
-    double dFront_dy = (posY.frontMotorRotations - current.frontMotorRotations) / h;
-    double dBack_dy = (posY.backMotorRotations - current.backMotorRotations) / h;
+    double dFront_dy = (posYPlus.frontMotorRotations - posYMinus.frontMotorRotations) / (2.0 * h);
+    double dBack_dy = (posYPlus.backMotorRotations - posYMinus.backMotorRotations) / (2.0 * h);
 
     // Apply chain rule: dθ/dt = (∂θ/∂x)(dx/dt) + (∂θ/∂y)(dy/dt)
     double frontMotorVel = dFront_dx * velocity.getX() + dFront_dy * velocity.getY();
@@ -321,5 +450,39 @@ public class ClimbIK {
     ClimbSideVelocityResult leftResult = calculateVelocityIK(leftPosition, leftVelocity);
     ClimbSideVelocityResult rightResult = calculateVelocityIK(rightPosition, rightVelocity);
     return new ClimbVelocityResult(leftResult, rightResult);
+  }
+
+  /**
+   * Calculate gravity compensation feedforward for each motor using J^T * F_gravity.
+   *
+   * <p>When pulling (robot hanging), gravity acts downward on the end effector as F = (0, -weight).
+   * The required motor feedforward voltages are proportional to J^T * F_gravity. This ensures each
+   * motor contributes the correct amount of torque based on the current mechanism geometry.
+   *
+   * @param position Current end effector position (m)
+   * @param gravityVoltage Voltage scale factor representing gravitational load (V)
+   * @return Motor feedforward voltages [frontFF, backFF], or [0,0] if invalid
+   */
+  public static double[] calculateGravityFeedforward(
+      Translation2d position, double gravityVoltage) {
+    final double h = 0.001;
+
+    ClimbSideIKResult posYPlus = calculateIK(position.getX(), position.getY() + h);
+    ClimbSideIKResult posYMinus = calculateIK(position.getX(), position.getY() - h);
+    if (!posYPlus.isValid || !posYMinus.isValid) {
+      return new double[] {0.0, 0.0};
+    }
+
+    // J^T * F_gravity = J^T * (0, -weight)
+    // Only the Y column of the Jacobian matters since Fx=0
+    double dFront_dy = (posYPlus.frontMotorRotations - posYMinus.frontMotorRotations) / (2.0 * h);
+    double dBack_dy = (posYPlus.backMotorRotations - posYMinus.backMotorRotations) / (2.0 * h);
+
+    // Gravity pulls down (-Y), cables must resist (+Y), so feedforward opposes gravity
+    // tau = J^T * F -> voltage ~ -dtheta/dy * (-weight) = dtheta/dy * weight
+    double frontFF = dFront_dy * gravityVoltage;
+    double backFF = dBack_dy * gravityVoltage;
+
+    return new double[] {frontFF, backFF};
   }
 }

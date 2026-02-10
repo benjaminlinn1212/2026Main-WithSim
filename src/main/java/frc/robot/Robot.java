@@ -137,10 +137,6 @@ public class Robot extends LoggedRobot {
     if (autonomousCommand != null) {
       autonomousCommand.cancel();
     }
-
-    // Reconfigure button bindings when entering teleop from test mode
-    // This ensures normal teleop bindings are restored
-    robotContainer.configureTeleopBindings();
   }
 
   /** This function is called periodically during operator control. */

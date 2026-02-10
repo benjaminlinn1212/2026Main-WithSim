@@ -69,14 +69,12 @@ public class ClimbPathPlanner {
   // Path Generation - Various interpolation methods
   // ===========================================================================
 
-  /** Path interpolation types */
+  /** Path interpolation types. */
   public enum PathType {
-    /** Linear interpolation - straight line between points */
+    /** Linear interpolation - straight line between points. */
     LINEAR,
-    /** Smooth interpolation using cubic splines */
-    SMOOTH,
-    /** Trapezoidal velocity profile */
-    TRAPEZOID
+    /** Smooth interpolation using quintic splines. */
+    SMOOTH
   }
 
   /**
@@ -99,70 +97,6 @@ public class ClimbPathPlanner {
     }
 
     return new ClimbPath(waypoints, duration, PathType.LINEAR);
-  }
-
-  /**
-   * Create a smooth path through multiple waypoints using spline-like interpolation.
-   *
-   * @param waypoints List of waypoints to pass through
-   * @param duration Total time to complete the path (seconds)
-   * @return Planned path with interpolated points
-   */
-  public static ClimbPath createSmoothPath(List<Translation2d> waypoints, double duration) {
-    if (waypoints.size() < 2) {
-      throw new IllegalArgumentException("Need at least 2 waypoints for a path");
-    }
-
-    List<Translation2d> smoothedPath = new ArrayList<>();
-    int pointsPerSegment = 10; // Resolution between waypoints
-
-    for (int i = 0; i < waypoints.size() - 1; i++) {
-      Translation2d current = waypoints.get(i);
-      Translation2d next = waypoints.get(i + 1);
-
-      for (int j = 0; j < pointsPerSegment; j++) {
-        double t = (double) j / pointsPerSegment;
-        // Simple linear interpolation (can be upgraded to cubic later)
-        Translation2d point = current.interpolate(next, smoothEaseInOut(t));
-        smoothedPath.add(point);
-      }
-    }
-    // Add final waypoint
-    smoothedPath.add(waypoints.get(waypoints.size() - 1));
-
-    return new ClimbPath(smoothedPath, duration, PathType.SMOOTH);
-  }
-
-  /**
-   * Create a cubic Bezier curve path through waypoints with control points.
-   *
-   * <p>A Bezier curve provides smooth, continuous curves that pass through waypoints with
-   * controllable curvature using control points.
-   *
-   * @param start Starting position
-   * @param controlPoint1 First control point (influences curve near start)
-   * @param controlPoint2 Second control point (influences curve near end)
-   * @param end Ending position
-   * @param duration Total time to complete the path (seconds)
-   * @return Planned Bezier curve path
-   */
-  public static ClimbPath createBezierPath(
-      Translation2d start,
-      Translation2d controlPoint1,
-      Translation2d controlPoint2,
-      Translation2d end,
-      double duration) {
-
-    List<Translation2d> bezierPath = new ArrayList<>();
-    int numSamples = 50; // Resolution of the curve
-
-    for (int i = 0; i <= numSamples; i++) {
-      double t = (double) i / numSamples;
-      Translation2d point = calculateCubicBezier(start, controlPoint1, controlPoint2, end, t);
-      bezierPath.add(point);
-    }
-
-    return new ClimbPath(bezierPath, duration, PathType.SMOOTH);
   }
 
   /**
@@ -225,6 +159,18 @@ public class ClimbPathPlanner {
     // Generate trajectory using WPILib's quintic spline interpolation
     Trajectory trajectory = TrajectoryGenerator.generateTrajectory(poses, config);
 
+    // Check for failed trajectory generation. WPILib returns kDoNothingTrajectory (1 state
+    // at time=0, position=(0,0)) when quintic splines fail with MalformedSplineException.
+    // This happens with close/collinear waypoints. Fall back to linear interpolation.
+    if (trajectory.getStates().size() <= 1 || trajectory.getTotalTimeSeconds() <= 1e-6) {
+      return createLinearPath(waypoints.get(0), waypoints.get(waypoints.size() - 1), duration, 20);
+    }
+
+    // If a specific duration is requested, time-scale the trajectory
+    if (duration > 1e-6) {
+      trajectory = scaleTrajectoryDuration(trajectory, duration);
+    }
+
     // Extract waypoints from trajectory for visualization
     List<Translation2d> trajectoryPoints =
         trajectory.getStates().stream()
@@ -237,70 +183,26 @@ public class ClimbPathPlanner {
     return new ClimbPath(trajectoryPoints, actualDuration, PathType.SMOOTH, trajectory);
   }
 
-  /**
-   * Calculate a point on a cubic Bezier curve. Formula: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 +
-   * 3(1-t)*t^2*P2 + t^3*P3
-   *
-   * @param p0 Start point
-   * @param p1 First control point
-   * @param p2 Second control point
-   * @param p3 End point
-   * @param t Parameter [0, 1]
-   * @return Point on the Bezier curve at parameter t
-   */
-  private static Translation2d calculateCubicBezier(
-      Translation2d p0, Translation2d p1, Translation2d p2, Translation2d p3, double t) {
-    double u = 1 - t;
-    double tt = t * t;
-    double uu = u * u;
-    double uuu = uu * u;
-    double ttt = tt * t;
+  /** Scale trajectory timing to match the desired duration (keeps path geometry). */
+  private static Trajectory scaleTrajectoryDuration(Trajectory trajectory, double desiredSeconds) {
+    double actualSeconds = trajectory.getTotalTimeSeconds();
+    if (actualSeconds <= 1e-6 || desiredSeconds <= 1e-6) {
+      return trajectory;
+    }
 
-    // Bezier formula: (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
-    Translation2d point = p0.times(uuu);
-    point = point.plus(p1.times(3 * uu * t));
-    point = point.plus(p2.times(3 * u * tt));
-    point = point.plus(p3.times(ttt));
-
-    return point;
-  }
-
-  /**
-   * Create a path with trapezoidal velocity profile for smooth acceleration/deceleration. Uses
-   * WPILib's trajectory generation for proper time-parameterization.
-   *
-   * @param start Starting position
-   * @param end Ending position
-   * @param maxVelocity Maximum velocity (m/s)
-   * @param maxAcceleration Maximum acceleration (m/s^2)
-   * @return Planned path with trapezoidal profile
-   */
-  public static ClimbPath createTrapezoidPath(
-      Translation2d start, Translation2d end, double maxVelocity, double maxAcceleration) {
-
-    // Calculate heading from start to end
-    Translation2d direction = end.minus(start);
-    Rotation2d heading = new Rotation2d(direction.getX(), direction.getY());
-
-    // Create trajectory config
-    TrajectoryConfig config = new TrajectoryConfig(maxVelocity, maxAcceleration);
-
-    // Generate trajectory (simple 2-point path)
-    Trajectory trajectory =
-        TrajectoryGenerator.generateTrajectory(
-            new Pose2d(start, heading),
-            List.of(), // No interior waypoints
-            new Pose2d(end, heading),
-            config);
-
-    // Extract waypoints from trajectory
-    List<Translation2d> waypoints =
-        trajectory.getStates().stream()
-            .map(state -> state.poseMeters.getTranslation())
-            .collect(Collectors.toList());
-
-    return new ClimbPath(
-        waypoints, trajectory.getTotalTimeSeconds(), PathType.TRAPEZOID, trajectory);
+    double timeScale = desiredSeconds / actualSeconds;
+    List<Trajectory.State> scaledStates = new ArrayList<>();
+    for (Trajectory.State state : trajectory.getStates()) {
+      Trajectory.State scaled = new Trajectory.State();
+      scaled.timeSeconds = state.timeSeconds * timeScale;
+      scaled.velocityMetersPerSecond = state.velocityMetersPerSecond / timeScale;
+      scaled.accelerationMetersPerSecondSq =
+          state.accelerationMetersPerSecondSq / (timeScale * timeScale);
+      scaled.poseMeters = state.poseMeters;
+      scaled.curvatureRadPerMeter = state.curvatureRadPerMeter;
+      scaledStates.add(scaled);
+    }
+    return new Trajectory(scaledStates);
   }
 
   /**
@@ -384,72 +286,10 @@ public class ClimbPathPlanner {
   }
 
   /**
-   * Create a symmetric path for both sides of the climb.
-   *
-   * @param start Starting position
-   * @param end Ending position
-   * @param duration Path duration
-   * @return Pair of identical paths [left, right]
-   */
-  public static ClimbPath[] createSymmetricPath(
-      Translation2d start, Translation2d end, double duration) {
-    ClimbPath path = createLinearPath(start, end, duration, 20);
-    return new ClimbPath[] {path, path};
-  }
-
-  /**
-   * Create independent paths for left and right sides.
-   *
-   * @param leftStart Left side starting position
-   * @param leftEnd Left side ending position
-   * @param rightStart Right side starting position
-   * @param rightEnd Right side ending position
-   * @param duration Path duration
-   * @return Array of [leftPath, rightPath]
-   */
-  public static ClimbPath[] createIndependentPaths(
-      Translation2d leftStart,
-      Translation2d leftEnd,
-      Translation2d rightStart,
-      Translation2d rightEnd,
-      double duration) {
-    ClimbPath leftPath = createLinearPath(leftStart, leftEnd, duration, 20);
-    ClimbPath rightPath = createLinearPath(rightStart, rightEnd, duration, 20);
-    return new ClimbPath[] {leftPath, rightPath};
-  }
-
-  /**
-   * Smooth ease-in-out function for more natural motion. Uses smoothstep function: 3t^2 - 2t^3
-   *
-   * @param t Input value [0, 1]
-   * @return Smoothed value [0, 1]
-   */
-  private static double smoothEaseInOut(double t) {
-    return t * t * (3.0 - 2.0 * t);
-  }
-
-  /**
-   * Calculate the total distance of a path.
-   *
-   * @param path Path to measure
-   * @return Total path length in meters
-   */
-  public static double calculatePathLength(ClimbPath path) {
-    double totalLength = 0.0;
-    List<Translation2d> waypoints = path.getWaypoints();
-
-    for (int i = 0; i < waypoints.size() - 1; i++) {
-      totalLength += waypoints.get(i).getDistance(waypoints.get(i + 1));
-    }
-
-    return totalLength;
-  }
-
-  /**
    * Executes a planned path in real-time.
    *
    * <p>Provides current position and velocity targets for Jacobian-based control. Used by
-   * ClimbSubsystem.followWaypointPath()
+   * ClimbSubsystem.runPath()
    */
   public static class PathExecutor {
     private final ClimbPath leftPath;
@@ -492,32 +332,39 @@ public class ClimbPathPlanner {
     public Translation2d[] getCurrentVelocities() {
       double elapsed = timer.get();
 
-      // If we have trajectories, use their velocity data directly
+      // If we have trajectories, compute velocity by sampling translation derivative
       if (leftPath.hasTrajectory() && rightPath.hasTrajectory()) {
-        double leftTime = Math.min(elapsed, leftPath.getTrajectory().getTotalTimeSeconds());
-        double rightTime = Math.min(elapsed, rightPath.getTrajectory().getTotalTimeSeconds());
+        double leftTotal = leftPath.getTrajectory().getTotalTimeSeconds();
+        double rightTotal = rightPath.getTrajectory().getTotalTimeSeconds();
+        double dt = 0.01;
 
-        Trajectory.State leftState = leftPath.getTrajectory().sample(leftTime);
-        Trajectory.State rightState = rightPath.getTrajectory().sample(rightTime);
+        double leftTime = Math.min(elapsed, leftTotal);
+        double rightTime = Math.min(elapsed, rightTotal);
+        double leftNext = Math.min(leftTime + dt, leftTotal);
+        double rightNext = Math.min(rightTime + dt, rightTotal);
 
-        // Convert velocity magnitude + heading to velocity vector
-        double leftVelX =
-            leftState.velocityMetersPerSecond * leftState.poseMeters.getRotation().getCos();
-        double leftVelY =
-            leftState.velocityMetersPerSecond * leftState.poseMeters.getRotation().getSin();
-        double rightVelX =
-            rightState.velocityMetersPerSecond * rightState.poseMeters.getRotation().getCos();
-        double rightVelY =
-            rightState.velocityMetersPerSecond * rightState.poseMeters.getRotation().getSin();
+        Translation2d leftPos =
+            leftPath.getTrajectory().sample(leftTime).poseMeters.getTranslation();
+        Translation2d leftPosNext =
+            leftPath.getTrajectory().sample(leftNext).poseMeters.getTranslation();
+        Translation2d rightPos =
+            rightPath.getTrajectory().sample(rightTime).poseMeters.getTranslation();
+        Translation2d rightPosNext =
+            rightPath.getTrajectory().sample(rightNext).poseMeters.getTranslation();
 
-        return new Translation2d[] {
-          new Translation2d(leftVelX, leftVelY), new Translation2d(rightVelX, rightVelY)
-        };
+        Translation2d leftVel = leftPosNext.minus(leftPos).div(Math.max(1e-6, leftNext - leftTime));
+        Translation2d rightVel =
+            rightPosNext.minus(rightPos).div(Math.max(1e-6, rightNext - rightTime));
+
+        return new Translation2d[] {leftVel, rightVel};
       }
 
       // Fallback: numerical derivative (for legacy paths)
       double dt = 0.02; // 20ms lookahead
       double maxDuration = Math.max(leftPath.getTotalDuration(), rightPath.getTotalDuration());
+      if (maxDuration <= dt) {
+        return new Translation2d[] {new Translation2d(), new Translation2d()};
+      }
       double clampedElapsed = Math.min(elapsed, maxDuration - dt);
 
       Translation2d leftCurrent = getPositionAtTime(leftPath, clampedElapsed);

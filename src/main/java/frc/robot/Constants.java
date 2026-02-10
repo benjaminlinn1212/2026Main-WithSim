@@ -14,16 +14,10 @@ import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.apriltag.AprilTagFields;
-import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.RobotBase;
@@ -88,36 +82,10 @@ public final class Constants {
             new Translation3d(0.15, 0.0, 0.30), // 15cm forward from turret axis, 30cm up
             new Rotation3d(0, Units.degreesToRadians(-15), 0)); // Pitched down 15 degrees
 
-    // Turret position relative to robot center
-    // This allows us to account for turret not being at robot center
+    // Turret position relative to robot center (should match TurretConstants offset)
+    // Positive X = forward, Positive Y = left (meters)
     public static final Translation2d TURRET_TO_ROBOT_CENTER =
-        new Translation2d(0.0, 0.0); // Adjust if turret is offset
-
-    // Limelight Configuration (supports one or multiple cameras)
-    public static class LimelightCamera {
-      public final String name;
-      public final Transform3d robotToCamera;
-
-      public LimelightCamera(String name, Transform3d robotToCamera) {
-        this.name = name;
-        this.robotToCamera = robotToCamera;
-      }
-    }
-
-    // Add your Limelights here - example with front and back cameras
-    public static final LimelightCamera[] LIMELIGHT_CAMERAS = {
-      new LimelightCamera(FRONT_LIMELIGHT_NAME, FRONT_CAMERA_TO_ROBOT),
-      new LimelightCamera(BACK_LIMELIGHT_NAME, BACK_CAMERA_TO_ROBOT),
-    };
-
-    // The layout of the AprilTags on the field
-    public static final AprilTagFieldLayout TAG_LAYOUT =
-        AprilTagFieldLayout.loadField(AprilTagFields.kDefaultField);
-
-    // The standard deviations of our vision estimated poses, which affect correction rate
-    // (X, Y, Theta) - smaller values = trust vision more
-    public static final Matrix<N3, N1> SINGLE_TAG_STD_DEVS = VecBuilder.fill(4, 4, 8);
-    public static final Matrix<N3, N1> MULTI_TAG_STD_DEVS = VecBuilder.fill(0.5, 0.5, 1);
+        TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
   }
 
   public static class AutoConstants {
@@ -126,6 +94,18 @@ public final class Constants {
     // We use 254's translation value as our baseline
     public static final double kPLTEController = 3.0; // Translation (along/cross track combined)
     public static final double kPThetaController = 5.0; // Rotation error
+
+    // PathPlanner pathfinding constraints (single source of truth)
+    public static final double PATHFINDING_MAX_VELOCITY_MPS = 3.0;
+    public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 3.0;
+    public static final double PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC = Math.toRadians(360);
+    public static final double PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2 =
+        Math.toRadians(540);
+
+    // Default pose for gyro/pose reset
+    public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =
+        new edu.wpi.first.math.geometry.Pose2d(
+            0.0, 0.0, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
   }
 
   public static class DriveConstants {
@@ -136,6 +116,10 @@ public final class Constants {
     public static final double BUMPER_WIDTH_INCHES = 32.0;
     public static final int DRIVE_MOTOR_COUNT = 1;
     public static final double WHEEL_COEFFICIENT_OF_FRICTION = 1.2;
+
+    // Teleop Speed Limits
+    public static final double MAX_TELEOP_SPEED_MPS = 5.0; // meters per second
+    public static final double MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC = Math.PI * 2; // rad/s
 
     public static final double JOYSTICK_DEADBAND = 0.05;
     public static final LinearVelocity JOYSTICK_POV_VELOCITY = MetersPerSecond.of(0.2);
@@ -358,8 +342,8 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 80.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Position Tolerance
-    public static final double AIMING_TOLERANCE_ROT = Units.degreesToRadians(2.0) / (2 * Math.PI);
+    // Position Tolerance (radians)
+    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
 
     // Position Setpoints (radians)
     public static final double STOW_POSITION = 0.0; // Forward
@@ -381,12 +365,6 @@ public final class Constants {
     public static final double KS = 0.25; // Static friction
     public static final double KV = 0.12; // Velocity feedforward
     public static final double KA = 0.01; // Acceleration feedforward
-    public static final double KG = 0.0; // Gravity feedforward
-
-    // Motion Magic Constants
-    public static final double CRUISE_VELOCITY = 80.0; // rotations per second
-    public static final double ACCELERATION = 160.0; // rotations per second^2
-    public static final double JERK = 1600.0; // rotations per second^3
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
@@ -394,9 +372,6 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Shooter Speed Presets (rotations per second)
-    public static final double IDLE_SPEED = 0.0;
-    public static final double HUB_SPEED = 60.0; // Speed for shooting at hub
-    public static final double PASS_SPEED = 50.0; // Speed for passing notes
     public static final double NEUTRAL_ZONE_SPEED = 80.0; // Speed for shooting back in neutral zone
 
     // Velocity Tolerance
@@ -550,6 +525,8 @@ public final class Constants {
     public static final double MAX_SHOULDER_ANGLE_RAD = Math.PI / 2; // 90 degrees
     public static final double MIN_ELBOW_ANGLE_RAD = -Math.PI; // -180 degrees
     public static final double MAX_ELBOW_ANGLE_RAD = Math.PI; // 180 degrees
+    // Set false for testing paths outside joint limits
+    public static final boolean ENABLE_JOINT_LIMITS = false;
 
     // Workspace Limits (for end effector reachability checks)
     public static final double WORKSPACE_MIN_X_METERS = -0.2; // Minimum X position
@@ -557,21 +534,20 @@ public final class Constants {
     public static final double WORKSPACE_MIN_Y_METERS = 0.0; // Minimum Y position (ground)
     public static final double WORKSPACE_MAX_Y_METERS = 1.2; // Maximum Y position
 
-    // Cable Attachment Points (relative to joint centers)
-    // TODO: Measure and configure based on your actual cable routing
-    public static final double SHOULDER_CABLE_OFFSET_METERS = 0.05; // Offset from shoulder joint
-    public static final double ELBOW_CABLE_OFFSET_METERS = 0.05; // Offset from elbow joint
-
     // Initial Cable Length Calibration
-    // These values should be measured/calibrated with robot in known position
-    public static final double FRONT_CABLE_INITIAL_LENGTH_METERS = 0.3;
-    public static final double BACK_CABLE_INITIAL_LENGTH_METERS = 0.3;
+    // CRITICAL: These must be the actual cable lengths when the mechanism is at START_POSITION.
+    // If these don't match, the IK will output non-zero rotations at startup, causing the
+    // motors to move immediately. Calculate using ClimbIK.calculateCableLengths(START_X, START_Y).
+    // With current geometry (a=0.304818, b=0.32, c=0.445, p=0.171, q=0.03):
+    //   At START_POSITION (0.39, 0.43): l1 ≈ 0.1935, l2 ≈ 0.4167
+    public static final double FRONT_CABLE_INITIAL_LENGTH_METERS = 0.1935;
+    public static final double BACK_CABLE_INITIAL_LENGTH_METERS = 0.4167;
 
     // Starting Position (cable has some initial extension, not fully retracted)
     // This represents where the end effector is when the robot powers on
     // Measure this position with the climb mechanism in its physical starting state
-    public static final double START_POSITION_X_METERS = 0.05; // Forward offset from winch base
-    public static final double START_POSITION_Y_METERS = 0.15; // Height above winch base
+    public static final double START_POSITION_X_METERS = 0.39; // Forward offset from winch base
+    public static final double START_POSITION_Y_METERS = 0.43; // Height above winch base
 
     // IK Solver Tolerance
     public static final double IK_POSITION_TOLERANCE_METERS = 0.005; // 5mm tolerance

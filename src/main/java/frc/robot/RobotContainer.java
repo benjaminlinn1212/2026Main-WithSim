@@ -164,7 +164,7 @@ public class RobotContainer {
       case REAL:
         intake = new IntakeSubsystem(new IntakeIOTalonFX());
         intakePivot = new IntakePivotSubsystem(new IntakePivotIOTalonFX());
-        turret = new TurretSubsystem(new TurretIOTalonFX());
+        turret = new TurretSubsystem(new TurretIOTalonFX(), robotState);
         hood = new HoodSubsystem(new HoodIOTalonFX());
         shooter = new ShooterSubsystem(new ShooterIOTalonFX());
         conveyor = new ConveyorSubsystem(new ConveyorIOTalonFX());
@@ -174,7 +174,7 @@ public class RobotContainer {
       case SIM:
         intake = new IntakeSubsystem(new IntakeIOSim());
         intakePivot = new IntakePivotSubsystem(new IntakePivotIOSim());
-        turret = new TurretSubsystem(new TurretIOSim());
+        turret = new TurretSubsystem(new TurretIOSim(), robotState);
         hood = new HoodSubsystem(new HoodIOSim());
         shooter = new ShooterSubsystem(new ShooterIOSim());
         conveyor = new ConveyorSubsystem(new ConveyorIOSim());
@@ -184,7 +184,7 @@ public class RobotContainer {
       default:
         intake = new IntakeSubsystem(new IntakeIO() {});
         intakePivot = new IntakePivotSubsystem(new IntakePivotIO() {});
-        turret = new TurretSubsystem(new TurretIO() {});
+        turret = new TurretSubsystem(new TurretIO() {}, robotState);
         hood = new HoodSubsystem(new HoodIO() {});
         shooter = new ShooterSubsystem(new ShooterIO() {});
         conveyor = new ConveyorSubsystem(new ConveyorIO() {});
@@ -209,7 +209,8 @@ public class RobotContainer {
                         .getDriveIO()
                         .addVisionMeasurement(
                             estimate.getVisionRobotPoseMeters(),
-                            estimate.getTimestampSeconds(),
+                            com.ctre.phoenix6.Utils.fpgaToCurrentTime(
+                                estimate.getTimestampSeconds()),
                             estimate.getVisionMeasurementStdDevs()));
         break;
       default:
@@ -392,76 +393,23 @@ public class RobotContainer {
     // POV Left: Previous climb state (path-following)
     // controller.povLeft().onTrue(superstructure.previousClimbState());
 
-    // ===== SHOOTER & HOOD TUNING CONTROLS =====
-    // A: Increase Shooter RPS
+    // Right Trigger: Convey and index to shooter
     controller
-        .a()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  shooterTestRPS += Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
-                  shooter.setVelocity(shooterTestRPS);
-                  System.out.println("[Shooter Test] RPS increased to: " + shooterTestRPS);
-                  SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
-                }));
+        .rightTrigger()
+        .onTrue(Commands.parallel(conveyor.goToShooter(), indexer.toShooter()))
+        .onFalse(Commands.parallel(conveyor.stop(), indexer.stop()));
 
-    // B: Decrease Shooter RPS
-    controller
-        .b()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  shooterTestRPS -= Constants.ShooterConstants.TEST_MODE_RPS_INCREMENT;
-                  shooterTestRPS = Math.max(0, shooterTestRPS);
-                  shooter.setVelocity(shooterTestRPS);
-                  System.out.println("[Shooter Test] RPS decreased to: " + shooterTestRPS);
-                  SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
-                }));
+    // X: Aim turret, hood, and shooter
+    controller.x().onTrue(Commands.parallel(turret.aiming(), hood.aimHub(), shooter.spinUp()));
 
-    // X: Increase Hood Angle
-    controller
-        .x()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  hoodTestAngleRad += Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
-                  hoodTestAngleRad =
-                      Math.min(hoodTestAngleRad, Constants.HoodConstants.MAX_POSITION_RAD);
-                  hood.setPosition(hoodTestAngleRad);
-                  System.out.println(
-                      "[Hood Test] Angle increased to: " + Math.toDegrees(hoodTestAngleRad) + "°");
-                  SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
-                }));
+    // Y: Stow all
+    controller.y().onTrue(Commands.parallel(turret.stow(), hood.stow(), shooter.stopShooter()));
 
-    // Y: Decrease Hood Angle
-    controller
-        .y()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  hoodTestAngleRad -= Constants.HoodConstants.TEST_MODE_ANGLE_INCREMENT;
-                  hoodTestAngleRad =
-                      Math.max(hoodTestAngleRad, Constants.HoodConstants.MIN_POSITION_RAD);
-                  hood.setPosition(hoodTestAngleRad);
-                  System.out.println(
-                      "[Hood Test] Angle decreased to: " + Math.toDegrees(hoodTestAngleRad) + "°");
-                  SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
-                }));
+    // POV Down: Deploy intake
+    controller.povDown().onTrue(Commands.parallel(intakePivot.deploy(), intake.intake()));
 
-    // Right Bumper: Stop shooter and reset hood
-    controller
-        .rightBumper()
-        .onTrue(
-            Commands.runOnce(
-                () -> {
-                  shooterTestRPS = 0.0;
-                  shooter.stop();
-                  hoodTestAngleRad = Constants.HoodConstants.STOW_POSITION;
-                  hood.setPosition(hoodTestAngleRad);
-                  System.out.println("[Test] Shooter stopped, hood stowed");
-                  SmartDashboard.putNumber("ShooterTest/RPS", shooterTestRPS);
-                  SmartDashboard.putNumber("HoodTest/AngleDeg", Math.toDegrees(hoodTestAngleRad));
-                }));
+    // POV Up: Stow intake
+    controller.povUp().onTrue(Commands.parallel(intakePivot.stow(), intake.stop()));
   }
 
   /**

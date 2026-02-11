@@ -13,6 +13,7 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 import frc.robot.Constants;
 import frc.robot.LimelightHelpers;
 import frc.robot.RobotState;
+import org.littletonrobotics.junction.Logger;
 
 public class VisionIOHardwareLimelight implements VisionIO {
   private final NetworkTable frontTable =
@@ -27,6 +28,12 @@ public class VisionIOHardwareLimelight implements VisionIO {
   public VisionIOHardwareLimelight(RobotState robotState) {
     this.robotState = robotState;
     configureDrivetrainCameras();
+
+    // Enable internal IMU assist on all Limelights (LL4 only, ignored on older models).
+    // Mode 2 = use external orientation (SetRobotOrientation) with internal IMU assist.
+    LimelightHelpers.SetIMUMode(Constants.Vision.FRONT_LIMELIGHT_NAME, 2);
+    LimelightHelpers.SetIMUMode(Constants.Vision.BACK_LIMELIGHT_NAME, 2);
+    LimelightHelpers.SetIMUMode(Constants.Vision.TURRET_LIMELIGHT_NAME, 2);
   }
 
   /** Set camerapose_robotspace_set for drivetrain-mounted cameras (one-time at startup). */
@@ -108,39 +115,73 @@ public class VisionIOHardwareLimelight implements VisionIO {
     inputs.frontCameraSeesTarget = frontTable.getEntry("tv").getDouble(0) == 1.0;
     if (inputs.frontCameraSeesTarget) {
       var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag1(
-              Constants.Vision.FRONT_LIMELIGHT_NAME);
+          LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.FRONT_LIMELIGHT_NAME);
       var megatag2 =
           LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
               Constants.Vision.FRONT_LIMELIGHT_NAME);
       inputs.frontCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.frontCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
+      // Debug: record raw Limelight pose estimates so we can see what the camera is publishing
+      if (megatag != null) {
+        Logger.recordOutput("Vision/Front/MT1_TagCount", megatag.tagCount);
+        Logger.recordOutput("Vision/Front/MT1_Timestamp", megatag.timestampSeconds);
+        Logger.recordOutput("Vision/Front/MT1_PoseX", megatag.pose.getTranslation().getX());
+        Logger.recordOutput("Vision/Front/MT1_PoseY", megatag.pose.getTranslation().getY());
+      }
+      if (megatag2 != null) {
+        Logger.recordOutput("Vision/Front/MT2_TagCount", megatag2.tagCount);
+        Logger.recordOutput("Vision/Front/MT2_Timestamp", megatag2.timestampSeconds);
+        Logger.recordOutput("Vision/Front/MT2_PoseX", megatag2.pose.getTranslation().getX());
+        Logger.recordOutput("Vision/Front/MT2_PoseY", megatag2.pose.getTranslation().getY());
+      }
     }
 
     // Back camera
     inputs.backCameraSeesTarget = backTable.getEntry("tv").getDouble(0) == 1.0;
     if (inputs.backCameraSeesTarget) {
       var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag1(
-              Constants.Vision.BACK_LIMELIGHT_NAME);
+          LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.BACK_LIMELIGHT_NAME);
       var megatag2 =
           LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
               Constants.Vision.BACK_LIMELIGHT_NAME);
       inputs.backCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.backCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
+      if (megatag != null) {
+        Logger.recordOutput("Vision/Back/MT1_TagCount", megatag.tagCount);
+        Logger.recordOutput("Vision/Back/MT1_Timestamp", megatag.timestampSeconds);
+        Logger.recordOutput("Vision/Back/MT1_PoseX", megatag.pose.getTranslation().getX());
+        Logger.recordOutput("Vision/Back/MT1_PoseY", megatag.pose.getTranslation().getY());
+      }
+      if (megatag2 != null) {
+        Logger.recordOutput("Vision/Back/MT2_TagCount", megatag2.tagCount);
+        Logger.recordOutput("Vision/Back/MT2_Timestamp", megatag2.timestampSeconds);
+        Logger.recordOutput("Vision/Back/MT2_PoseX", megatag2.pose.getTranslation().getX());
+        Logger.recordOutput("Vision/Back/MT2_PoseY", megatag2.pose.getTranslation().getY());
+      }
     }
 
     // Turret camera
     inputs.turretCameraSeesTarget = turretTable.getEntry("tv").getDouble(0) == 1.0;
     if (inputs.turretCameraSeesTarget) {
       var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag1(
-              Constants.Vision.TURRET_LIMELIGHT_NAME);
+          LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.TURRET_LIMELIGHT_NAME);
       var megatag2 =
           LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
               Constants.Vision.TURRET_LIMELIGHT_NAME);
       inputs.turretCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.turretCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
+      if (megatag != null) {
+        Logger.recordOutput("Vision/Turret/MT1_TagCount", megatag.tagCount);
+        Logger.recordOutput("Vision/Turret/MT1_Timestamp", megatag.timestampSeconds);
+        Logger.recordOutput("Vision/Turret/MT1_PoseX", megatag.pose.getTranslation().getX());
+        Logger.recordOutput("Vision/Turret/MT1_PoseY", megatag.pose.getTranslation().getY());
+      }
+      if (megatag2 != null) {
+        Logger.recordOutput("Vision/Turret/MT2_TagCount", megatag2.tagCount);
+        Logger.recordOutput("Vision/Turret/MT2_Timestamp", megatag2.timestampSeconds);
+        Logger.recordOutput("Vision/Turret/MT2_PoseX", megatag2.pose.getTranslation().getX());
+        Logger.recordOutput("Vision/Turret/MT2_PoseY", megatag2.pose.getTranslation().getY());
+      }
     }
   }
 }

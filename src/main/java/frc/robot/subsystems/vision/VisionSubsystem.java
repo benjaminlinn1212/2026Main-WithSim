@@ -93,11 +93,15 @@ public class VisionSubsystem extends SubsystemBase {
       boolean isTurretCamera,
       String logPreface) {
 
-    if (megatagPoseEstimate == null) {
+    // Use whichever estimate is available for dedup timestamp (prefer MT2)
+    MegatagPoseEstimate primaryEstimate =
+        (megatag2PoseEstimate != null) ? megatag2PoseEstimate : megatagPoseEstimate;
+
+    if (primaryEstimate == null) {
       return;
     }
 
-    var updateTimestamp = megatagPoseEstimate.timestampSeconds;
+    var updateTimestamp = primaryEstimate.timestampSeconds;
     boolean alreadyProcessed = false;
 
     if (isTurretCamera) {
@@ -140,16 +144,19 @@ public class VisionSubsystem extends SubsystemBase {
       MegatagPoseEstimate poseEstimate, boolean isTurretCamera, String logPreface) {
 
     if (poseEstimate == null || poseEstimate.fieldPose == null) {
+      Logger.recordOutput(logPreface + "RejectReason", "null estimate or pose");
       return Optional.empty();
     }
 
     var loggedFieldToRobot = state.getFieldToRobot(poseEstimate.timestampSeconds);
     if (loggedFieldToRobot.isEmpty()) {
+      Logger.recordOutput(logPreface + "RejectReason", "no robot pose at timestamp");
       return Optional.empty();
     }
 
     var maybeFieldToRobotEstimate = getFieldToRobotEstimate(poseEstimate, isTurretCamera);
     if (maybeFieldToRobotEstimate.isEmpty()) {
+      Logger.recordOutput(logPreface + "RejectReason", "transform chain failed");
       return Optional.empty();
     }
 
@@ -161,12 +168,15 @@ public class VisionSubsystem extends SubsystemBase {
             .getTranslation()
             .getDistance(loggedFieldToRobot.get().getTranslation());
 
+    Logger.recordOutput(logPreface + "PoseDifference", poseDifference);
+    Logger.recordOutput(logPreface + "TagCount", poseEstimate.tagCount);
+    Logger.recordOutput(logPreface + "AvgTagArea", poseEstimate.avgTagArea);
+
     double xyStds = XY_STD_DEV_DEFAULT;
 
-    if (poseEstimate.fiducialIds.length > 0) {
+    if (poseEstimate.tagCount > 0) {
       // Multiple targets detected
-      if (poseEstimate.fiducialIds.length >= 2
-          && poseEstimate.avgTagArea > MIN_TAG_AREA_MULTI_TAG) {
+      if (poseEstimate.tagCount >= 2 && poseEstimate.avgTagArea > MIN_TAG_AREA_MULTI_TAG) {
         xyStds = XY_STD_DEV_MULTI_TAG_LARGE_AREA;
       }
       // Large area and close to estimated pose
@@ -178,10 +188,12 @@ public class VisionSubsystem extends SubsystemBase {
       else if (poseEstimate.avgTagArea > MIN_TAG_AREA_MULTI_TAG
           && poseDifference < MAX_POSE_DIFFERENCE_CLOSE) {
         xyStds = XY_STD_DEV_FAR;
-      } else if (poseEstimate.fiducialIds.length > 1) {
+      } else if (poseEstimate.tagCount > 1) {
         xyStds = XY_STD_DEV_MULTI_TAG;
       } else {
-        return Optional.empty();
+        // Single tag, far from current estimate — accept with very high std devs
+        // so vision can still nudge the pose instead of being silently dropped
+        xyStds = 4.0;
       }
 
       Matrix<N3, N1> visionMeasurementStdDevs =
@@ -222,12 +234,12 @@ public class VisionSubsystem extends SubsystemBase {
             .getTranslation()
             .getDistance(loggedFieldToRobot.get().getTranslation());
 
-    if (poseEstimate.fiducialIds.length > 0) {
+    if (poseEstimate.tagCount > 0) {
       double xyStds = 1.0;
       double degStds = 12;
 
       // Multiple targets detected
-      if (poseEstimate.fiducialIds.length >= 2) {
+      if (poseEstimate.tagCount >= 2) {
         xyStds = 0.5;
         degStds = 6;
       }
@@ -241,7 +253,9 @@ public class VisionSubsystem extends SubsystemBase {
         xyStds = 2.0;
         degStds = 30;
       } else {
-        return Optional.empty();
+        // Single tag, far from current estimate — accept with high std devs
+        xyStds = 4.0;
+        degStds = 60;
       }
 
       Matrix<N3, N1> visionMeasurementStdDevs =

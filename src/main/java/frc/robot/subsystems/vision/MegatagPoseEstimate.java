@@ -21,20 +21,27 @@ public class MegatagPoseEstimate {
 
   public double timestampSeconds;
   public double latency;
+  public int tagCount;
   public int[] fiducialIds;
   public double avgTagArea;
+  public double avgTagDist;
 
   public MegatagPoseEstimate() {}
 
   public static MegatagPoseEstimate fromLimelight(LimelightHelpers.PoseEstimate estimate) {
+    if (estimate == null) {
+      return null;
+    }
     MegatagPoseEstimate rv = new MegatagPoseEstimate();
     rv.fieldPose = estimate.pose;
     rv.timestampSeconds = estimate.timestampSeconds;
     rv.latency = estimate.latency;
+    rv.tagCount = estimate.tagCount;
     rv.avgTagArea = estimate.avgTagArea;
+    rv.avgTagDist = estimate.avgTagDist;
 
     // Extract fiducial IDs from raw fiducials
-    if (estimate.rawFiducials != null) {
+    if (estimate.rawFiducials != null && estimate.rawFiducials.length > 0) {
       rv.fiducialIds = new int[estimate.rawFiducials.length];
       for (int i = 0; i < estimate.rawFiducials.length; i++) {
         rv.fiducialIds[i] = estimate.rawFiducials[i].id;

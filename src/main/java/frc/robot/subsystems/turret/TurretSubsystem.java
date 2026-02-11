@@ -1,10 +1,13 @@
 package frc.robot.subsystems.turret;
 
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.RobotState;
 import frc.robot.util.ShooterSetpoint;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
@@ -20,6 +23,7 @@ import org.littletonrobotics.junction.Logger;
 public class TurretSubsystem extends SubsystemBase {
   private final TurretIO io;
   private final TurretIOInputsAutoLogged inputs = new TurretIOInputsAutoLogged();
+  private final RobotState robotState;
 
   private double positionSetpointRad = 0.0;
   private double lastModeChange = 0.0;
@@ -36,8 +40,9 @@ public class TurretSubsystem extends SubsystemBase {
 
   private TurretState currentState = TurretState.STOW;
 
-  public TurretSubsystem(TurretIO io) {
+  public TurretSubsystem(TurretIO io, RobotState robotState) {
     this.io = io;
+    this.robotState = robotState;
   }
 
   /**
@@ -64,8 +69,13 @@ public class TurretSubsystem extends SubsystemBase {
     Logger.recordOutput("Turret/State", currentState.toString());
     Logger.recordOutput("Turret/SetpointRad", positionSetpointRad);
 
-    // Calculate turret absolute field heading (robot heading + turret position)
+    // Report turret rotation to RobotState so vision can use it
     double turretPositionRad = Units.rotationsToRadians(inputs.positionRot);
+    double turretVelocityRadPerSec = Units.rotationsToRadians(inputs.velocityRotPerSec);
+    robotState.addTurretUpdates(
+        Timer.getFPGATimestamp(), new Rotation2d(turretPositionRad), turretVelocityRadPerSec);
+
+    // Calculate turret absolute field heading (robot heading + turret position)
     double robotHeadingRad = robotPoseSupplier.get().getRotation().getRadians();
     double turretFieldHeadingRad = robotHeadingRad + turretPositionRad;
     Logger.recordOutput("Turret/FieldHeadingRad", turretFieldHeadingRad);

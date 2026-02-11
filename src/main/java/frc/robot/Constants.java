@@ -79,8 +79,8 @@ public final class Constants {
     // This is the transform from TURRET CENTER to camera
     public static final Transform3d TURRET_TO_CAMERA =
         new Transform3d(
-            new Translation3d(0.15, 0.0, 0.30), // 15cm forward from turret axis, 30cm up
-            new Rotation3d(0, Units.degreesToRadians(-15), 0)); // Pitched down 15 degrees
+            new Translation3d(0.177, 0.0, 0.53), // 17.7cm forward from turret axis, 53cm up
+            new Rotation3d(0, Units.degreesToRadians(15), 0)); // Pitched up 15 degrees
 
     // Turret position relative to robot center (should match TurretConstants offset)
     // Positive X = forward, Positive Y = left (meters)
@@ -105,7 +105,7 @@ public final class Constants {
     // Default pose for gyro/pose reset
     public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =
         new edu.wpi.first.math.geometry.Pose2d(
-            0.0, 0.0, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
+            0.33, 0.33, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
   }
 
   public static class DriveConstants {
@@ -227,7 +227,7 @@ public final class Constants {
 
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0; // Stowed/up position
-    public static final double DEPLOYED_POSITION = 27.6; // Extended/down position for intaking
+    public static final double DEPLOYED_POSITION = 27.8; // Extended/down position for intaking
 
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
@@ -256,8 +256,8 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Conveyor Duty Cycle Percentages
-    public static final double TO_SHOOTER_PERCENT = 0.5;
-    public static final double TO_BUCKET_PERCENT = -0.5;
+    public static final double TO_SHOOTER_PERCENT = -0.5;
+    public static final double TO_BUCKET_PERCENT = 0.5;
   }
 
   public static class IndexerConstants {
@@ -378,7 +378,7 @@ public final class Constants {
     public static final double VELOCITY_TOLERANCE = 2.0; // rotations per second
 
     // Test Mode Tuning
-    public static final double TEST_MODE_RPS_INCREMENT = 1.0; // RPS increment per button press
+    public static final double TEST_MODE_RPS_INCREMENT = 5.0; // RPS increment per button press
   }
 
   public static class HoodConstants {

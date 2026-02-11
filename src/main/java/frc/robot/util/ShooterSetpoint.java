@@ -66,34 +66,40 @@ public class ShooterSetpoint {
     // Hood angle vs distance (radians from horizontal, interpolated)
     // Key: distance from turret to target (meters)
     // Value: hood angle as Rotation2d (converted to radians via getRadians())
-    hoodAngleMap.put(1.0, Rotation2d.fromDegrees(50.0));
-    hoodAngleMap.put(1.5, Rotation2d.fromDegrees(45.0));
-    hoodAngleMap.put(2.0, Rotation2d.fromDegrees(40.0));
-    hoodAngleMap.put(2.5, Rotation2d.fromDegrees(35.0));
-    hoodAngleMap.put(3.0, Rotation2d.fromDegrees(32.0));
-    hoodAngleMap.put(4.0, Rotation2d.fromDegrees(28.0));
-    hoodAngleMap.put(5.0, Rotation2d.fromDegrees(25.0));
-    hoodAngleMap.put(6.0, Rotation2d.fromDegrees(22.0));
+    hoodAngleMap.put(1.25, Rotation2d.fromDegrees(21.0));
+    hoodAngleMap.put(1.5, Rotation2d.fromDegrees(21.0));
+    hoodAngleMap.put(1.75, Rotation2d.fromDegrees(22.0));
+    hoodAngleMap.put(2.0, Rotation2d.fromDegrees(23.0));
+    hoodAngleMap.put(2.5, Rotation2d.fromDegrees(25.0));
+    hoodAngleMap.put(3.0, Rotation2d.fromDegrees(29.0));
+    hoodAngleMap.put(3.5, Rotation2d.fromDegrees(29.0));
+    hoodAngleMap.put(4.0, Rotation2d.fromDegrees(30.0));
+    hoodAngleMap.put(4.5, Rotation2d.fromDegrees(34.0));
+    hoodAngleMap.put(4.83, Rotation2d.fromDegrees(37.0));
 
     // Flywheel speed vs distance (rotations per second)
-    flywheelSpeedMap.put(1.0, 50.0);
-    flywheelSpeedMap.put(1.5, 55.0);
-    flywheelSpeedMap.put(2.0, 58.0);
-    flywheelSpeedMap.put(2.5, 60.0);
-    flywheelSpeedMap.put(3.0, 62.0);
+    flywheelSpeedMap.put(1.25, 45.0);
+    flywheelSpeedMap.put(1.5, 50.0);
+    flywheelSpeedMap.put(1.75, 50.0);
+    flywheelSpeedMap.put(2.0, 50.0);
+    flywheelSpeedMap.put(2.5, 55.0);
+    flywheelSpeedMap.put(3.0, 55.0);
+    flywheelSpeedMap.put(3.5, 60.0);
     flywheelSpeedMap.put(4.0, 65.0);
-    flywheelSpeedMap.put(5.0, 68.0);
-    flywheelSpeedMap.put(6.0, 70.0);
+    flywheelSpeedMap.put(4.5, 65.0);
+    flywheelSpeedMap.put(4.83, 65.0);
 
     // Time of flight vs distance (seconds) — for motion compensation
-    timeOfFlightMap.put(1.0, 0.2);
-    timeOfFlightMap.put(1.5, 0.3);
-    timeOfFlightMap.put(2.0, 0.4);
-    timeOfFlightMap.put(2.5, 0.5);
-    timeOfFlightMap.put(3.0, 0.6);
-    timeOfFlightMap.put(4.0, 0.75);
-    timeOfFlightMap.put(5.0, 0.9);
-    timeOfFlightMap.put(6.0, 1.0);
+    timeOfFlightMap.put(1.25, 1.0);
+    timeOfFlightMap.put(1.5, 1.02);
+    timeOfFlightMap.put(1.75, 1.08);
+    timeOfFlightMap.put(2.0, 1.13);
+    timeOfFlightMap.put(2.5, 1.13);
+    timeOfFlightMap.put(3.0, 1.18);
+    timeOfFlightMap.put(3.5, 1.34);
+    timeOfFlightMap.put(4.0, 1.34);
+    timeOfFlightMap.put(4.5, 1.29);
+    timeOfFlightMap.put(4.83, 1.33);
   }
 
   // ===== Constructors =====

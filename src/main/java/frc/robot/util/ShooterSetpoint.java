@@ -52,6 +52,10 @@ public class ShooterSetpoint {
   private static final LinearFilter hoodAngleFilter =
       LinearFilter.movingAverage(Constants.Aiming.FEEDFORWARD_FILTER_TAPS);
 
+  // ===== Per-cycle cache to avoid redundant calculateShot() calls =====
+  private static ShooterSetpoint cachedSetpoint = null;
+  private static long cachedCycleCount = -1;
+
   // ===== Setpoint Data =====
   private final double shooterRPS;
   private final double turretAngleRad;
@@ -201,7 +205,16 @@ public class ShooterSetpoint {
    * @return Supplier that computes a fresh ShooterSetpoint each invocation
    */
   public static Supplier<ShooterSetpoint> createSupplier(RobotState robotState) {
-    return () -> calculateShot(robotState);
+    return () -> {
+      // Cache the result so multiple .get() calls in the same 20ms cycle don't recompute.
+      // Uses FPGA timestamp truncated to cycle count as a cheap "cycle ID".
+      long cycleId = (long) (edu.wpi.first.wpilibj.Timer.getFPGATimestamp() * 1000.0 / 20.0);
+      if (cycleId != cachedCycleCount || cachedSetpoint == null) {
+        cachedSetpoint = calculateShot(robotState);
+        cachedCycleCount = cycleId;
+      }
+      return cachedSetpoint;
+    };
   }
 
   // ===== Calculation Methods (6328-style physics with current project's turret logic) =====

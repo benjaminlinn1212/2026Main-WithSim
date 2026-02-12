@@ -10,24 +10,45 @@ import frc.robot.Constants.ClimbConstants;
  *
  * <p>Converts end effector position (x, y) → motor rotations for all 4 motors.
  *
- * <p>MECHANISM GEOMETRY: W1 = (0, 0) - Winch 1 (front motor) W2 = (a, 0) - Winch 2 (back motor) E =
- * (xe, ye) - End effector target position J = (xj, yj) - Joint (elbow) position
+ * <p>MECHANISM GEOMETRY (all coords relative to back winch at origin):
  *
- * <p>Rigid links: |W2 - J| = b - Link 1 (shoulder link) |J - E| = c - Link 2 (forearm link)
+ * <pre>
+ *   W_back  = (0, 0)             — Back winch (back cable drum)
+ *   W_front = (wfx, wfy)         — Front winch (front cable drum)
+ *   S       = (sx, sy)           — Shoulder joint (fixed pivot, link 1 base)
+ *   J       = (jx, jy)           — Elbow joint (between links)
+ *   E       = (ex, ey)           — End effector
+ * </pre>
  *
- * <p>Cable attachment offsets: P on link b: p meters from J toward W2 Q on link c: q meters from E
- * toward J
+ * <p>Rigid links: |S → J| = L1 (shoulder to elbow), |J → E| = L2 (elbow to end effector)
  *
- * <p>Cable lengths: l1 = |P - W1| - Front cable l2 = |Q - W2| - Back cable
+ * <p>Cable attachment points:
  *
- * <p>MOTOR CALCULATIONS: 1. Cable length (meters) 2. Cable length → Drum rotations (divide by drum
- * circumference) 3. Drum rotations → Motor rotations (multiply by gear ratio)
+ * <ul>
+ *   <li>P on link 1: BACK_CABLE_ATTACH meters from J toward S → back cable = |P − W_back|
+ *   <li>Q on link 2: FRONT_CABLE_ATTACH meters from E toward J → front cable = |Q − W_front|
+ * </ul>
  *
- * <p>Example: If motor has 10:1 gearbox, motor spins 10x for each drum rotation
- *
- * <p>COORDINATE SYSTEM: X = Forward (away from robot) Y = Up (vertical)
+ * <p>COORDINATE SYSTEM: X = Forward (away from robot), Y = Up (vertical)
  */
 public class ClimbIK {
+
+  /**
+   * Initial cable lengths at the start/stow position, computed from START_POSITION using the
+   * mechanism geometry. Motors are zeroed at this position, so all IK outputs are relative to these
+   * lengths. No need to hardcode — derived automatically from START_POSITION_X/Y.
+   */
+  private static final CableLengths INITIAL_CABLE_LENGTHS =
+      calculateCableLengthsInternal(
+          ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS);
+
+  public static double getInitialFrontCableLength() {
+    return INITIAL_CABLE_LENGTHS.frontLengthMeters;
+  }
+
+  public static double getInitialBackCableLength() {
+    return INITIAL_CABLE_LENGTHS.backLengthMeters;
+  }
 
   /** Cable length result (absolute lengths in meters) */
   public static class CableLengths {
@@ -105,94 +126,89 @@ public class ClimbIK {
    * @param ye End effector Y position (meters)
    * @return IK solution with motor rotations
    */
-  public static ClimbSideIKResult calculateIK(double xe, double ye) {
-    // Mechanism parameters from constants
-    final double a = ClimbConstants.WINCH_SEPARATION_METERS; // Distance between winches
-    final double b = ClimbConstants.LINK_1_LENGTH_METERS; // Shoulder link
-    final double c = ClimbConstants.LINK_2_LENGTH_METERS; // Forearm link
-    final double p = ClimbConstants.CABLE_1_OFFSET_METERS; // Cable 1 attachment offset
-    final double q = ClimbConstants.CABLE_2_OFFSET_METERS; // Cable 2 attachment offset
+  public static ClimbSideIKResult calculateIK(double ex, double ey) {
+    // ─── Mechanism geometry from constants ───
+    // Fixed points
+    final double sx = ClimbConstants.SHOULDER_X_METERS; // Shoulder pivot
+    final double sy = ClimbConstants.SHOULDER_Y_METERS;
+    final double wfx = ClimbConstants.FRONT_WINCH_X_METERS; // Front winch
+    final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
+    // W_back = (0, 0) — back winch at origin
+
+    // Link lengths
+    final double L1 = ClimbConstants.LINK_1_LENGTH_METERS; // Shoulder → Elbow
+    final double L2 = ClimbConstants.LINK_2_LENGTH_METERS; // Elbow → End effector
+
+    // Cable attachment offsets along the link (from moving end toward fixed end)
+    final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
+    final double frontAttach = ClimbConstants.FRONT_CABLE_ATTACH_ON_LINK2_METERS;
+
     final double eps = 1e-9;
 
-    if (!isWithinWorkspace(xe, ye)) {
+    if (!isWithinWorkspace(ex, ey)) {
       return ClimbSideIKResult.invalid();
     }
 
-    // Vector from W2=(a,0) to E=(xe,ye)
-    final double dx = xe - a;
-    final double dy = ye;
-    final double r = Math.hypot(dx, dy);
+    // ─── Two-Circle Intersection to find Elbow J ───
+    // Circle 1: center = Shoulder S, radius = L1
+    // Circle 2: center = End effector E, radius = L2
+    final double dx = ex - sx;
+    final double dy = ey - sy;
+    final double dist = Math.hypot(dx, dy); // Distance S → E
 
-    // ─── Reachability Check ───
-    if (r < eps) return ClimbSideIKResult.invalid(); // Too close
-    if (r > b + c + 1e-12) return ClimbSideIKResult.invalid(); // Too far
-    if (r < Math.abs(b - c) - 1e-12) return ClimbSideIKResult.invalid(); // Inside dead zone
+    if (dist < eps) return ClimbSideIKResult.invalid();
+    if (dist > L1 + L2 + 1e-12) return ClimbSideIKResult.invalid();
+    if (dist < Math.abs(L1 - L2) - 1e-12) return ClimbSideIKResult.invalid();
 
-    // ─── Two-Circle Intersection (Find Joint J) ───
-    // Circle 1: Center at W2=(a,0), radius b
-    // Circle 2: Center at E=(xe,ye), radius c
-    // We want the LEFT (CCW) intersection point
+    // d = distance from S along S→E to the intersection midpoint
+    final double d = (L1 * L1 - L2 * L2 + dist * dist) / (2.0 * dist);
 
-    final double d =
-        (b * b - c * c + r * r) / (2.0 * r); // Distance along W2->E to intersection midpoint
-
-    double h2 = b * b - d * d; // Perpendicular distance squared
-    if (h2 < 0 && h2 > -1e-10) h2 = 0; // Clamp tiny FP errors
+    double h2 = L1 * L1 - d * d;
+    if (h2 < 0 && h2 > -1e-10) h2 = 0;
     if (h2 < 0) return ClimbSideIKResult.invalid();
     final double h = Math.sqrt(h2);
 
-    // Unit vector from W2 to E
-    final double ux = dx / r;
-    final double uy = dy / r;
+    // Unit vector from S to E
+    final double ux = dx / dist;
+    final double uy = dy / dist;
 
-    // CCW perpendicular (left side)
+    // CCW perpendicular
     final double upx = -uy;
     final double upy = ux;
 
-    // Joint J = W2 + d*u + h*u_perp
-    final double xj = a + d * ux + h * upx;
-    final double yj = 0 + d * uy + h * upy;
+    // Joint J = S + d * u + h * u_perp (CCW / "left" solution)
+    final double jx = sx + d * ux + h * upx;
+    final double jy = sy + d * uy + h * upy;
 
     // ─── Cable Attachment Points ───
 
-    // Point P on link b: p meters from J toward W2
-    final double t1 = p / b;
-    final double px = xj + t1 * (a - xj);
-    final double py = yj + t1 * (0 - yj);
+    // Point P on link 1: backAttach meters from J toward S
+    final double t1 = backAttach / L1;
+    final double px = jx + t1 * (sx - jx);
+    final double py = jy + t1 * (sy - jy);
 
-    // Point Q on link c: q meters from E toward J
-    final double t2 = q / c;
-    final double qx = xe + t2 * (xj - xe);
-    final double qy = ye + t2 * (yj - ye);
+    // Point Q on link 2: frontAttach meters from E toward J
+    final double t2 = frontAttach / L2;
+    final double qx = ex + t2 * (jx - ex);
+    final double qy = ey + t2 * (jy - ey);
 
     // ─── Cable Lengths ───
-    final double l1 = Math.hypot(px, py); // Cable 1: P to W1=(0,0)
-    final double l2 = Math.hypot(qx - a, qy); // Cable 2: Q to W2=(a,0)
+    final double backCableLen = Math.hypot(px, py); // P to W_back=(0,0)
+    final double frontCableLen = Math.hypot(qx - wfx, qy - wfy); // Q to W_front
 
-    // Joint angle limits disabled for testing reachability
+    // ─── Convert to Drum Rotations (relative to initial lengths) ───
+    final double frontDelta = frontCableLen - INITIAL_CABLE_LENGTHS.frontLengthMeters;
+    final double backDelta = backCableLen - INITIAL_CABLE_LENGTHS.backLengthMeters;
 
-    // ─── Convert Cable Lengths to Motor Rotations ───
-    // Step 1: Cable length to drum rotations
-    // rotations = length / circumference
-    final double l1Delta = l1 - ClimbConstants.FRONT_CABLE_INITIAL_LENGTH_METERS;
-    final double l2Delta = l2 - ClimbConstants.BACK_CABLE_INITIAL_LENGTH_METERS;
-
-    final double drumRotations_front = l1Delta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
-    final double drumRotations_back = l2Delta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
-
-    // Step 2: Drum rotations = mechanism rotations (we return mechanism rotations)
-    // Negative rotations are allowed (cable shorter than initial length)
-    // The IO layer (ClimbIOTalonFX) handles conversion to motor rotations
-    // since SensorToMechanismRatio is now 1.0 per CTRE recommendation
-    final double frontMotorRotations = drumRotations_front;
-    final double backMotorRotations = drumRotations_back;
+    final double frontDrumRot = frontDelta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
+    final double backDrumRot = backDelta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
 
     return new ClimbSideIKResult(
-        frontMotorRotations,
-        backMotorRotations,
-        true, // Valid solution
-        xj,
-        yj);
+        frontDrumRot, // frontMotorRotations → front cable
+        backDrumRot, // backMotorRotations  → back cable
+        true,
+        jx,
+        jy);
   }
 
   // ===========================================================================
@@ -248,55 +264,71 @@ public class ClimbIK {
         && y <= ClimbConstants.WORKSPACE_MAX_Y_METERS;
   }
 
-  /** Calculate absolute cable lengths (meters) for a given end effector position. */
-  public static CableLengths calculateCableLengths(double xe, double ye) {
-    final double a = ClimbConstants.WINCH_SEPARATION_METERS;
-    final double b = ClimbConstants.LINK_1_LENGTH_METERS;
-    final double c = ClimbConstants.LINK_2_LENGTH_METERS;
-    final double p = ClimbConstants.CABLE_1_OFFSET_METERS;
-    final double q = ClimbConstants.CABLE_2_OFFSET_METERS;
+  /**
+   * Core cable length geometry calculation. Private so it can be used during static initialization
+   * (before the class is fully loaded) and by the public API.
+   *
+   * <p>Returns front cable length and back cable length for a given end effector (ex, ey).
+   */
+  private static CableLengths calculateCableLengthsInternal(double ex, double ey) {
+    final double sx = ClimbConstants.SHOULDER_X_METERS;
+    final double sy = ClimbConstants.SHOULDER_Y_METERS;
+    final double wfx = ClimbConstants.FRONT_WINCH_X_METERS;
+    final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
+    final double L1 = ClimbConstants.LINK_1_LENGTH_METERS;
+    final double L2 = ClimbConstants.LINK_2_LENGTH_METERS;
+    final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
+    final double frontAttach = ClimbConstants.FRONT_CABLE_ATTACH_ON_LINK2_METERS;
 
-    final double dx = xe - a;
-    final double dy = ye;
-    final double r = Math.hypot(dx, dy);
-    if (r <= 1e-9 || r > b + c || r < Math.abs(b - c)) {
+    // Two-circle intersection: S(radius L1) ∩ E(radius L2)
+    final double dx = ex - sx;
+    final double dy = ey - sy;
+    final double dist = Math.hypot(dx, dy);
+    if (dist <= 1e-9 || dist > L1 + L2 || dist < Math.abs(L1 - L2)) {
       return null;
     }
 
-    final double d = (b * b - c * c + r * r) / (2.0 * r);
-    double h2 = b * b - d * d;
+    final double d = (L1 * L1 - L2 * L2 + dist * dist) / (2.0 * dist);
+    double h2 = L1 * L1 - d * d;
     if (h2 < 0 && h2 > -1e-10) h2 = 0;
     if (h2 < 0) return null;
     final double h = Math.sqrt(h2);
 
-    final double ux = dx / r;
-    final double uy = dy / r;
+    final double ux = dx / dist;
+    final double uy = dy / dist;
     final double upx = -uy;
     final double upy = ux;
 
-    final double xj = a + d * ux + h * upx;
-    final double yj = d * uy + h * upy;
+    final double jx = sx + d * ux + h * upx;
+    final double jy = sy + d * uy + h * upy;
 
-    final double t1 = p / b;
-    final double px = xj + t1 * (a - xj);
-    final double py = yj + t1 * (0 - yj);
-    final double t2 = q / c;
-    final double qx = xe + t2 * (xj - xe);
-    final double qy = ye + t2 * (yj - ye);
+    // Cable attachment points
+    final double t1 = backAttach / L1;
+    final double px = jx + t1 * (sx - jx);
+    final double py = jy + t1 * (sy - jy);
+    final double t2 = frontAttach / L2;
+    final double qx = ex + t2 * (jx - ex);
+    final double qy = ey + t2 * (jy - ey);
 
-    final double l1 = Math.hypot(px, py);
-    final double l2 = Math.hypot(qx - a, qy);
-    return new CableLengths(l1, l2, xj, yj);
+    // Cable lengths
+    final double backCableLen = Math.hypot(px, py); // P to W_back=(0,0)
+    final double frontCableLen = Math.hypot(qx - wfx, qy - wfy); // Q to W_front
+    return new CableLengths(frontCableLen, backCableLen, jx, jy);
+  }
+
+  /** Calculate absolute cable lengths (meters) for a given end effector position. */
+  public static CableLengths calculateCableLengths(double xe, double ye) {
+    return calculateCableLengthsInternal(xe, ye);
   }
 
   /** Convert mechanism rotations to absolute cable lengths (meters). */
   public static CableLengths lengthsFromRotations(double frontRotations, double backRotations) {
     double l1 =
         frontRotations * ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS
-            + ClimbConstants.FRONT_CABLE_INITIAL_LENGTH_METERS;
+            + INITIAL_CABLE_LENGTHS.frontLengthMeters;
     double l2 =
         backRotations * ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS
-            + ClimbConstants.BACK_CABLE_INITIAL_LENGTH_METERS;
+            + INITIAL_CABLE_LENGTHS.backLengthMeters;
     return new CableLengths(l1, l2, 0.0, 0.0);
   }
 

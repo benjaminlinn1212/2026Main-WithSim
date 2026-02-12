@@ -19,6 +19,8 @@ public class ShooterIOTalonFX implements ShooterIO {
     motor.getConfigurator().apply(shooterConfiguration());
 
     motor.setNeutralMode(ShooterConstants.NEUTRAL_MODE);
+
+    motor.optimizeBusUtilization();
   }
 
   @Override

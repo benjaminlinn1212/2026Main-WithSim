@@ -9,11 +9,11 @@ package frc.robot.subsystems.vision;
 
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import frc.robot.Constants;
 import frc.robot.LimelightHelpers;
 import frc.robot.RobotState;
-import org.littletonrobotics.junction.Logger;
 
 public class VisionIOHardwareLimelight implements VisionIO {
   private final NetworkTable frontTable =
@@ -22,6 +22,11 @@ public class VisionIOHardwareLimelight implements VisionIO {
       NetworkTableInstance.getDefault().getTable(Constants.Vision.BACK_LIMELIGHT_NAME);
   private final NetworkTable turretTable =
       NetworkTableInstance.getDefault().getTable(Constants.Vision.TURRET_LIMELIGHT_NAME);
+
+  // Cache NT entry objects to avoid repeated table lookups every cycle
+  private final NetworkTableEntry frontTvEntry = frontTable.getEntry("tv");
+  private final NetworkTableEntry backTvEntry = backTable.getEntry("tv");
+  private final NetworkTableEntry turretTvEntry = turretTable.getEntry("tv");
 
   private final RobotState robotState;
 
@@ -67,7 +72,12 @@ public class VisionIOHardwareLimelight implements VisionIO {
    * camera's field pose.
    */
   private void updateOrientations() {
-    var robotHeading = robotState.getLatestFieldToRobot().getValue().getRotation();
+    var latestEntry = robotState.getLatestFieldToRobot();
+    if (latestEntry == null) {
+      // No pose data yet (first cycle before odometry runs) — skip to avoid NPE
+      return;
+    }
+    var robotHeading = latestEntry.getValue().getRotation();
     double robotOmegaDegPerSec =
         Units.radiansToDegrees(
             robotState.getLatestRobotRelativeChassisSpeed().omegaRadiansPerSecond);
@@ -112,7 +122,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
     updateOrientations();
 
     // Front camera
-    inputs.frontCameraSeesTarget = frontTable.getEntry("tv").getDouble(0) == 1.0;
+    inputs.frontCameraSeesTarget = frontTvEntry.getDouble(0) == 1.0;
     if (inputs.frontCameraSeesTarget) {
       var megatag =
           LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.FRONT_LIMELIGHT_NAME);
@@ -121,23 +131,10 @@ public class VisionIOHardwareLimelight implements VisionIO {
               Constants.Vision.FRONT_LIMELIGHT_NAME);
       inputs.frontCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.frontCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      // Debug: record raw Limelight pose estimates so we can see what the camera is publishing
-      if (megatag != null) {
-        Logger.recordOutput("Vision/Front/MT1_TagCount", megatag.tagCount);
-        Logger.recordOutput("Vision/Front/MT1_Timestamp", megatag.timestampSeconds);
-        Logger.recordOutput("Vision/Front/MT1_PoseX", megatag.pose.getTranslation().getX());
-        Logger.recordOutput("Vision/Front/MT1_PoseY", megatag.pose.getTranslation().getY());
-      }
-      if (megatag2 != null) {
-        Logger.recordOutput("Vision/Front/MT2_TagCount", megatag2.tagCount);
-        Logger.recordOutput("Vision/Front/MT2_Timestamp", megatag2.timestampSeconds);
-        Logger.recordOutput("Vision/Front/MT2_PoseX", megatag2.pose.getTranslation().getX());
-        Logger.recordOutput("Vision/Front/MT2_PoseY", megatag2.pose.getTranslation().getY());
-      }
     }
 
     // Back camera
-    inputs.backCameraSeesTarget = backTable.getEntry("tv").getDouble(0) == 1.0;
+    inputs.backCameraSeesTarget = backTvEntry.getDouble(0) == 1.0;
     if (inputs.backCameraSeesTarget) {
       var megatag =
           LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.BACK_LIMELIGHT_NAME);
@@ -146,22 +143,10 @@ public class VisionIOHardwareLimelight implements VisionIO {
               Constants.Vision.BACK_LIMELIGHT_NAME);
       inputs.backCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.backCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      if (megatag != null) {
-        Logger.recordOutput("Vision/Back/MT1_TagCount", megatag.tagCount);
-        Logger.recordOutput("Vision/Back/MT1_Timestamp", megatag.timestampSeconds);
-        Logger.recordOutput("Vision/Back/MT1_PoseX", megatag.pose.getTranslation().getX());
-        Logger.recordOutput("Vision/Back/MT1_PoseY", megatag.pose.getTranslation().getY());
-      }
-      if (megatag2 != null) {
-        Logger.recordOutput("Vision/Back/MT2_TagCount", megatag2.tagCount);
-        Logger.recordOutput("Vision/Back/MT2_Timestamp", megatag2.timestampSeconds);
-        Logger.recordOutput("Vision/Back/MT2_PoseX", megatag2.pose.getTranslation().getX());
-        Logger.recordOutput("Vision/Back/MT2_PoseY", megatag2.pose.getTranslation().getY());
-      }
     }
 
     // Turret camera
-    inputs.turretCameraSeesTarget = turretTable.getEntry("tv").getDouble(0) == 1.0;
+    inputs.turretCameraSeesTarget = turretTvEntry.getDouble(0) == 1.0;
     if (inputs.turretCameraSeesTarget) {
       var megatag =
           LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.TURRET_LIMELIGHT_NAME);
@@ -170,18 +155,6 @@ public class VisionIOHardwareLimelight implements VisionIO {
               Constants.Vision.TURRET_LIMELIGHT_NAME);
       inputs.turretCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.turretCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-      if (megatag != null) {
-        Logger.recordOutput("Vision/Turret/MT1_TagCount", megatag.tagCount);
-        Logger.recordOutput("Vision/Turret/MT1_Timestamp", megatag.timestampSeconds);
-        Logger.recordOutput("Vision/Turret/MT1_PoseX", megatag.pose.getTranslation().getX());
-        Logger.recordOutput("Vision/Turret/MT1_PoseY", megatag.pose.getTranslation().getY());
-      }
-      if (megatag2 != null) {
-        Logger.recordOutput("Vision/Turret/MT2_TagCount", megatag2.tagCount);
-        Logger.recordOutput("Vision/Turret/MT2_Timestamp", megatag2.timestampSeconds);
-        Logger.recordOutput("Vision/Turret/MT2_PoseX", megatag2.pose.getTranslation().getX());
-        Logger.recordOutput("Vision/Turret/MT2_PoseY", megatag2.pose.getTranslation().getY());
-      }
     }
   }
 }

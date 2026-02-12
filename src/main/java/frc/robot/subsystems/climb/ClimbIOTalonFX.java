@@ -137,6 +137,11 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightBackMotor.setPosition(0);
     leftFrontMotor.setPosition(0);
     leftBackMotor.setPosition(0);
+
+    rightFrontMotor.optimizeBusUtilization();
+    rightBackMotor.optimizeBusUtilization();
+    leftFrontMotor.optimizeBusUtilization();
+    leftBackMotor.optimizeBusUtilization();
   }
 
   @Override

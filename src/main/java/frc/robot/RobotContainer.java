@@ -7,23 +7,26 @@
 
 package frc.robot;
 
-import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.config.PIDConstants;
-import com.pathplanner.lib.config.RobotConfig;
-import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import edu.wpi.first.wpilibj.DriverStation;
+// import com.pathplanner.lib.auto.AutoBuilder;
+// import com.pathplanner.lib.config.PIDConstants;
+// import com.pathplanner.lib.config.RobotConfig;
+// import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+// import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+// import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.auto.PathfindingAuto;
+// import frc.robot.auto.PathfindingAuto;
+// import frc.robot.auto.dashboard.DashboardAutoManager;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
 import frc.robot.subsystems.climb.ClimbIOSim;
 import frc.robot.subsystems.climb.ClimbIOTalonFX;
+import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorIO;
 import frc.robot.subsystems.conveyor.ConveyorIOSim;
@@ -60,8 +63,8 @@ import frc.robot.subsystems.vision.VisionIOHardwareLimelight;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import frc.robot.util.ShooterSetpoint;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
-import java.util.Set;
-import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
+// import java.util.Set;
+// import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -96,7 +99,10 @@ public class RobotContainer {
   private double hoodTestAngleRad = Constants.HoodConstants.STOW_POSITION;
 
   // Dashboard inputs
-  private final LoggedDashboardChooser<Command> autoChooser;
+  // private final LoggedDashboardChooser<Command> autoChooser;
+
+  // Dashboard-driven autonomous system (254/6328 style)
+  // private final DashboardAutoManager dashboardAutoManager;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -156,8 +162,8 @@ public class RobotContainer {
     }
 
     // Set up auto routines under SmartDashboard/Auto subtable
-    autoChooser = new LoggedDashboardChooser<>("Auto/Auto Choices");
-    autoChooser.addDefaultOption("Do Nothing", Commands.none());
+    // autoChooser = new LoggedDashboardChooser<>("Auto/Auto Choices");
+    // autoChooser.addDefaultOption("Do Nothing", Commands.none());
 
     // Initialize subsystems with constructor injection
     switch (Constants.currentMode) {
@@ -221,64 +227,72 @@ public class RobotContainer {
 
     // Initialize SmartDashboard entry for auto sequence input (Team 254 style)
     // Put under Auto subtable for better organization
-    SmartDashboard.putString("Auto/Sequence Input", "");
+    // SmartDashboard.putString("Auto/Sequence Input", "");
 
     // ===== CONFIGURE PATHPLANNER AUTOBUILDER =====
     // Must be done BEFORE creating any auto commands
-    configureAutoBuilder();
+    // configureAutoBuilder();
 
     // ===== CONFIGURE AUTO CHOOSER =====
-    // Each auto is created via Commands.defer() so the command is fresh each time.
-    // No separate warmup instances needed — PathPlanner handles caching internally.
-    autoChooser.addOption(
-        "ABC Sequence",
-        Commands.defer(
-            () -> new PathfindingAuto(swerveIO, superstructure, robotState, "ABC"),
-            Set.of(swerveIO)));
 
-    autoChooser.addOption(
-        "ABCD Full",
-        Commands.defer(
-            () -> PathfindingAuto.allWaypoints(swerveIO, superstructure, robotState),
-            Set.of(swerveIO)));
+    // ----- Legacy / test autos (PathfindingAuto with hardcoded positions) -----
+    // These use placeholder coordinates and no real Superstructure integration.
+    // Useful for pathfinding testing only. For matches, use "Dashboard Auto (Generated)".
+    // autoChooser.addOption(
+    //     "[Test] ABC Sequence",
+    //     Commands.defer(
+    //         () -> new PathfindingAuto(swerveIO, superstructure, robotState, "ABC"),
+    //         Set.of(swerveIO)));
 
-    autoChooser.addOption(
-        "AB Fast",
-        Commands.defer(
-            () -> PathfindingAuto.fastSequence(swerveIO, superstructure, robotState),
-            Set.of(swerveIO)));
+    // autoChooser.addOption(
+    //     "[Test] ABCD Full",
+    //     Commands.defer(
+    //         () -> PathfindingAuto.allWaypoints(swerveIO, superstructure, robotState),
+    //         Set.of(swerveIO)));
 
-    autoChooser.addOption(
-        "With Intakes",
-        Commands.defer(
-            () -> PathfindingAuto.withIntakes(swerveIO, superstructure, robotState),
-            Set.of(swerveIO)));
+    // autoChooser.addOption(
+    //     "[Test] AB Fast",
+    //     Commands.defer(
+    //         () -> PathfindingAuto.fastSequence(swerveIO, superstructure, robotState),
+    //         Set.of(swerveIO)));
 
-    // ===== TEST AUTOS =====
-    autoChooser.addOption(
-        "Test Obstacle Avoidance",
-        Commands.defer(
-            () -> new PathfindingAuto(swerveIO, superstructure, robotState, "T"),
-            Set.of(swerveIO)));
+    // autoChooser.addOption(
+    //     "[Test] With Intakes",
+    //     Commands.defer(
+    //         () -> PathfindingAuto.withIntakes(swerveIO, superstructure, robotState),
+    //         Set.of(swerveIO)));
 
-    // ===== DASHBOARD INPUT AUTO (Team 254 Style) =====
-    // This reads from SmartDashboard text input and generates PathfindingAuto dynamically
-    autoChooser.addOption(
-        "Dashboard Input",
-        Commands.defer(
-            () -> {
-              String sequence =
-                  SmartDashboard.getString("Auto/Sequence Input", "").toUpperCase().trim();
-              if (sequence.isEmpty()) {
-                System.err.println(
-                    "[RobotContainer] No sequence entered in 'Auto/Sequence Input' on SmartDashboard!");
-                return Commands.none();
-              }
-              System.out.println(
-                  "[RobotContainer] Creating auto from dashboard input: " + sequence);
-              return new PathfindingAuto(swerveIO, superstructure, robotState, sequence);
-            },
-            Set.of(swerveIO)));
+    // autoChooser.addOption(
+    //     "[Test] Obstacle Avoidance",
+    //     Commands.defer(
+    //         () -> new PathfindingAuto(swerveIO, superstructure, robotState, "T"),
+    //         Set.of(swerveIO)));
+
+    // // Legacy dashboard input (reads a character string like "ABC" from SmartDashboard)
+    // autoChooser.addOption(
+    //     "[Test] Dashboard Input",
+    //     Commands.defer(
+    //         () -> {
+    //           String sequence =
+    //               SmartDashboard.getString("Auto/Sequence Input", "").toUpperCase().trim();
+    //           if (sequence.isEmpty()) {
+    //             System.err.println(
+    //                 "[RobotContainer] No sequence entered in 'Auto/Sequence Input' on
+    // SmartDashboard!");
+    //             return Commands.none();
+    //           }
+    //           System.out.println(
+    //               "[RobotContainer] Creating auto from dashboard input: " + sequence);
+    //           return new PathfindingAuto(swerveIO, superstructure, robotState, sequence);
+    //         },
+    //         Set.of(swerveIO)));
+
+    // // ----- Match auto: Dashboard-driven auto (REBUILT field-aware, generated at runtime) -----
+    // // Configure settings in the "Auto Settings" Shuffleboard tab before each match.
+    // dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure, robotState);
+    // autoChooser.addOption(
+    //     "Dashboard Auto (Generated)",
+    //     Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(swerveIO)));
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
     // Create a ShooterSetpoint supplier that uses robotState for calculations
@@ -297,41 +311,42 @@ public class RobotContainer {
   }
 
   /** Configure PathPlanner AutoBuilder for pathfinding and auto paths. */
-  private void configureAutoBuilder() {
-    try {
-      // Load RobotConfig from GUI settings (now that settings.json is complete)
-      RobotConfig config = RobotConfig.fromGUISettings();
-      System.out.println("[RobotContainer] Loaded RobotConfig from GUI settings");
+  // private void configureAutoBuilder() {
+  //   try {
+  //     // Load RobotConfig from GUI settings (now that settings.json is complete)
+  //     RobotConfig config = RobotConfig.fromGUISettings();
+  //     System.out.println("[RobotContainer] Loaded RobotConfig from GUI settings");
 
-      // Configure AutoBuilder with swerve drive
-      AutoBuilder.configure(
-          swerveIO::getPose, // Pose supplier
-          swerveIO::setPose, // Pose reset consumer
-          swerveIO::getChassisSpeeds, // ChassisSpeeds supplier
-          (speeds, feedforwards) ->
-              swerveIO.runVelocity(speeds), // Drive output consumer (ignore feedforwards)
-          new PPHolonomicDriveController(
-              new PIDConstants(
-                  Constants.AutoConstants.kPLTEController, 0.0, 0.0), // Translation PID
-              new PIDConstants(Constants.AutoConstants.kPThetaController, 0.0, 0.0) // Rotation PID
-              ),
-          config, // Robot configuration
-          () -> {
-            // Flip paths for red alliance
-            var alliance = DriverStation.getAlliance();
-            return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-          },
-          swerveIO // Drive subsystem requirement
-          );
+  //     // Configure AutoBuilder with swerve drive
+  //     AutoBuilder.configure(
+  //         swerveIO::getPose, // Pose supplier
+  //         swerveIO::setPose, // Pose reset consumer
+  //         swerveIO::getChassisSpeeds, // ChassisSpeeds supplier
+  //         (speeds, feedforwards) ->
+  //             swerveIO.runVelocity(speeds), // Drive output consumer (ignore feedforwards)
+  //         new PPHolonomicDriveController(
+  //             new PIDConstants(
+  //                 Constants.AutoConstants.kPLTEController, 0.0, 0.0), // Translation PID
+  //             new PIDConstants(Constants.AutoConstants.kPThetaController, 0.0, 0.0) // Rotation
+  // PID
+  //             ),
+  //         config, // Robot configuration
+  //         () -> {
+  //           // Flip paths for red alliance
+  //           var alliance = DriverStation.getAlliance();
+  //           return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+  //         },
+  //         swerveIO // Drive subsystem requirement
+  //         );
 
-      System.out.println("[RobotContainer] AutoBuilder configured successfully");
-    } catch (Exception e) {
-      System.err.println("[RobotContainer] CRITICAL: Failed to configure AutoBuilder!");
-      System.err.println("  Pathfinding and auto commands will NOT work.");
-      System.err.println("  Error: " + e.getMessage());
-      e.printStackTrace();
-    }
-  }
+  //     System.out.println("[RobotContainer] AutoBuilder configured successfully");
+  //   } catch (Exception e) {
+  //     System.err.println("[RobotContainer] CRITICAL: Failed to configure AutoBuilder!");
+  //     System.err.println("  Pathfinding and auto commands will NOT work.");
+  //     System.err.println("  Error: " + e.getMessage());
+  //     e.printStackTrace();
+  //   }
+  // }
 
   /**
    * Use this method to define your button->command mappings. Buttons can be created by
@@ -393,23 +408,21 @@ public class RobotContainer {
     // POV Left: Previous climb state (path-following)
     // controller.povLeft().onTrue(superstructure.previousClimbState());
 
-    // Right Trigger: Convey and index to shooter
+    // ===== CLIMB TEST CONTROLS =====
+
+    // X button: Run path to reach vertically down 0.15m from stow
     controller
-        .rightTrigger()
-        .onTrue(Commands.parallel(conveyor.goToShooter(), indexer.toShooter()))
-        .onFalse(Commands.parallel(conveyor.stop(), indexer.stop()));
+        .x()
+        .onTrue(
+            climb.runPathToPosition(
+                new Translation2d(
+                    Constants.ClimbConstants.START_POSITION_X_METERS,
+                    Constants.ClimbConstants.START_POSITION_Y_METERS - 0.15),
+                2.0,
+                false));
 
-    // X: Aim turret, hood, and shooter
-    controller.x().onTrue(Commands.parallel(turret.aiming(), hood.aimHub(), shooter.spinUp()));
-
-    // Y: Stow all
-    controller.y().onTrue(Commands.parallel(turret.stow(), hood.stow(), shooter.stopShooter()));
-
-    // POV Down: Deploy intake
-    controller.povDown().onTrue(Commands.parallel(intakePivot.deploy(), intake.intake()));
-
-    // POV Up: Stow intake
-    controller.povUp().onTrue(Commands.parallel(intakePivot.stow(), intake.stop()));
+    // Y button: Stow climb (return to stowed position)
+    controller.y().onTrue(climb.setStateCommand(ClimbState.STOWED));
   }
 
   /**
@@ -427,21 +440,22 @@ public class RobotContainer {
    * @return the command to run in autonomous
    */
   public Command getAutonomousCommand() {
-    Command selectedCommand = autoChooser.get();
-    if (selectedCommand != null) {
-      System.out.println("[RobotContainer] Auto command selected: " + selectedCommand.getName());
-    } else {
-      System.out.println("[RobotContainer] WARNING: No auto command selected!");
-    }
-    return selectedCommand;
+    // Command selectedCommand = autoChooser.get();
+    // if (selectedCommand != null) {
+    //   System.out.println("[RobotContainer] Auto command selected: " + selectedCommand.getName());
+    // } else {
+    //   System.out.println("[RobotContainer] WARNING: No auto command selected!");
+    // }
+    // return selectedCommand;
+    return Commands.none();
   }
 
   /**
-   * Warmup is no longer needed — PathPlanner caches AD* computations internally and
-   * Commands.defer() creates fresh command instances at schedule time. This method is kept as a
-   * no-op for compatibility with Robot.java calls.
+   * Called during disabled periodic to keep the dashboard auto manager up to date. Reads settings
+   * from the dashboard and replans if anything changed. Also handles PathPlanner warmup.
    */
   public void runAutoWarmup() {
-    // No-op: PathPlanner handles path caching internally
+    // Update dashboard auto manager — reads settings and replans if changed
+    // dashboardAutoManager.update();
   }
 }

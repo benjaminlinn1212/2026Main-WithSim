@@ -43,10 +43,15 @@ public final class Constants {
   }
 
   public static class FieldPoses {
-    public static final double FIELD_LENGTH = 16.54; // meters
-    public static final double FIELD_WIDTH = 8.07; // meters
+    // Field dimensions — canonical values from frc.robot.auto.dashboard.FieldConstants
+    public static final double FIELD_LENGTH =
+        frc.robot.auto.dashboard.FieldConstants.FIELD_LENGTH; // meters
+    public static final double FIELD_WIDTH =
+        frc.robot.auto.dashboard.FieldConstants.FIELD_WIDTH; // meters
     public static final Translation2d FIELD_CENTER =
-        new Translation2d(FIELD_LENGTH / 2.0, FIELD_WIDTH / 2.0);
+        frc.robot.auto.dashboard.FieldConstants.FIELD_CENTER;
+
+    // HUB 3D positions (used by ShooterSetpoint for distance-based aiming)
     public static final Translation3d BLUE_HUB_TRANSLATION3D =
         new Translation3d(4.625689, 4.040981, 0);
     public static final Translation3d RED_HUB_POSE_TRANSLATION3D =
@@ -440,8 +445,8 @@ public final class Constants {
     public static final String CAN_BUS = "Superstructure";
 
     // Passive Hook Release Servos
-    public static final int LEFT_HOOK_SERVO_PWM = 0;
-    public static final int RIGHT_HOOK_SERVO_PWM = 1;
+    public static final int RIGHT_HOOK_SERVO_PWM = 0;
+    public static final int LEFT_HOOK_SERVO_PWM = 1;
     public static final double HOOK_STOWED_POSITION = 0.0; // Hooks locked
     public static final double HOOK_RELEASED_POSITION = 1.0; // Hooks released
 
@@ -487,29 +492,30 @@ public final class Constants {
 
     // Position Setpoints (rotations) - Legacy direct motor control
     public static final double STOWED_POSITION = 0.0; // Starting position
-    public static final double EXTENDED_POSITION = 50.0; // Fully extended
-    public static final double RETRACTED_POSITION = 5.0; // Pulled up on chain
 
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 1.0; // rotations
 
     // ==================== Inverse Kinematics Configuration ====================
 
-    // Winch Separation (distance between W1 and W2)
-    public static final double WINCH_SEPARATION_METERS =
-        0.304818; // Distance between front and back winches
+    // Fixed Points (all relative to back winch at origin)
+    // Back winch (W_back) = (0, 0) — origin, drives the back cable
+    // Front winch (W_front) — drives the front cable
+    public static final double FRONT_WINCH_X_METERS = 0.345;
+    public static final double FRONT_WINCH_Y_METERS = 0.145;
+    // Shoulder joint (S) — fixed pivot where link 1 attaches to the frame
+    public static final double SHOULDER_X_METERS = 0.305;
+    public static final double SHOULDER_Y_METERS = 0.0;
 
-    // Link Lengths (adjust these to match your actual mechanism)
-    public static final double LINK_1_LENGTH_METERS =
-        0.32; // Length of first link (shoulder to elbow)
-    public static final double LINK_2_LENGTH_METERS =
-        0.445; // Length of second link (elbow to end effector)
+    // Link Lengths
+    public static final double LINK_1_LENGTH_METERS = 0.32; // Shoulder to elbow
+    public static final double LINK_2_LENGTH_METERS = 0.45; // Elbow to end effector
 
-    // Cable Attachment Offsets (on links)
-    public static final double CABLE_1_OFFSET_METERS =
-        0.171; // Cable 1 attachment point on link 1 (p)
-    public static final double CABLE_2_OFFSET_METERS =
-        0.03; // Cable 2 attachment point on link 2 (q)
+    // Cable Attachment Offsets (distance along the link from the moving end)
+    // Back cable attaches to link 1, BACK_CABLE_OFFSET meters from elbow toward shoulder
+    public static final double BACK_CABLE_ATTACH_ON_LINK1_METERS = 0.03;
+    // Front cable attaches to link 2, FRONT_CABLE_OFFSET meters from end effector toward elbow
+    public static final double FRONT_CABLE_ATTACH_ON_LINK2_METERS = 0.18;
 
     // Cable Drum (on motor shaft that winds up cable)
     public static final double CABLE_DRUM_CIRCUMFERENCE_METERS =
@@ -534,20 +540,12 @@ public final class Constants {
     public static final double WORKSPACE_MIN_Y_METERS = 0.0; // Minimum Y position (ground)
     public static final double WORKSPACE_MAX_Y_METERS = 1.2; // Maximum Y position
 
-    // Initial Cable Length Calibration
-    // CRITICAL: These must be the actual cable lengths when the mechanism is at START_POSITION.
-    // If these don't match, the IK will output non-zero rotations at startup, causing the
-    // motors to move immediately. Calculate using ClimbIK.calculateCableLengths(START_X, START_Y).
-    // With current geometry (a=0.304818, b=0.32, c=0.445, p=0.171, q=0.03):
-    //   At START_POSITION (0.39, 0.43): l1 ≈ 0.1935, l2 ≈ 0.4167
-    public static final double FRONT_CABLE_INITIAL_LENGTH_METERS = 0.1935;
-    public static final double BACK_CABLE_INITIAL_LENGTH_METERS = 0.4167;
-
     // Starting Position (cable has some initial extension, not fully retracted)
     // This represents where the end effector is when the robot powers on
     // Measure this position with the climb mechanism in its physical starting state
-    public static final double START_POSITION_X_METERS = 0.39; // Forward offset from winch base
-    public static final double START_POSITION_Y_METERS = 0.43; // Height above winch base
+    // Initial cable lengths are computed automatically from this position by ClimbIK.
+    public static final double START_POSITION_X_METERS = 0.38; // Forward offset from winch base
+    public static final double START_POSITION_Y_METERS = 0.585; // Height above winch base
 
     // IK Solver Tolerance
     public static final double IK_POSITION_TOLERANCE_METERS = 0.005; // 5mm tolerance

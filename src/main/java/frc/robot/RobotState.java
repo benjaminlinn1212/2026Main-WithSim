@@ -27,18 +27,18 @@ public class RobotState {
   public RobotState() {}
 
   /** Add a new robot pose observation at the current timestamp */
-  public void addFieldToRobot(Pose2d pose) {
+  public synchronized void addFieldToRobot(Pose2d pose) {
     addFieldToRobot(Timer.getFPGATimestamp(), pose);
   }
 
   /** Add a new robot pose observation at a specific timestamp */
-  public void addFieldToRobot(double timestamp, Pose2d pose) {
+  public synchronized void addFieldToRobot(double timestamp, Pose2d pose) {
     fieldToRobot.put(timestamp, pose);
     cleanUpObservations();
   }
 
   /** Add turret rotation update (robot-relative) */
-  public void addTurretUpdates(
+  public synchronized void addTurretUpdates(
       double timestamp, Rotation2d turretRotation, double angularVelocityRadsPerS) {
     robotToTurret.put(timestamp, turretRotation);
     turretAngularVelocity.put(timestamp, angularVelocityRadsPerS);
@@ -53,12 +53,12 @@ public class RobotState {
   }
 
   /** Get the most recent robot pose */
-  public Map.Entry<Double, Pose2d> getLatestFieldToRobot() {
+  public synchronized Map.Entry<Double, Pose2d> getLatestFieldToRobot() {
     return fieldToRobot.lastEntry();
   }
 
   /** Get robot pose at a specific timestamp */
-  public Optional<Pose2d> getFieldToRobot(double timestamp) {
+  public synchronized Optional<Pose2d> getFieldToRobot(double timestamp) {
     var entry = fieldToRobot.floorEntry(timestamp);
     if (entry == null) {
       return Optional.empty();
@@ -67,7 +67,7 @@ public class RobotState {
   }
 
   /** Get the most recent robot-to-turret rotation */
-  public Map.Entry<Double, Rotation2d> getLatestRobotToTurret() {
+  public synchronized Map.Entry<Double, Rotation2d> getLatestRobotToTurret() {
     var entry = robotToTurret.lastEntry();
     if (entry == null) {
       return Map.entry(Timer.getFPGATimestamp(), new Rotation2d());
@@ -76,7 +76,7 @@ public class RobotState {
   }
 
   /** Get robot-to-turret rotation at a specific timestamp */
-  public Optional<Rotation2d> getRobotToTurret(double timestamp) {
+  public synchronized Optional<Rotation2d> getRobotToTurret(double timestamp) {
     var entry = robotToTurret.floorEntry(timestamp);
     if (entry == null) {
       return Optional.empty();
@@ -85,7 +85,7 @@ public class RobotState {
   }
 
   /** Get the latest turret angular velocity */
-  public double getLatestTurretAngularVelocity() {
+  public synchronized double getLatestTurretAngularVelocity() {
     var entry = turretAngularVelocity.lastEntry();
     if (entry == null) {
       return 0.0;
@@ -120,15 +120,24 @@ public class RobotState {
   private void cleanUpObservations() {
     double currentTime = Timer.getFPGATimestamp();
     double cutoffTime = currentTime - kObservationBufferTime;
-    fieldToRobot.headMap(cutoffTime).clear();
-    robotToTurret.headMap(cutoffTime).clear();
-    turretAngularVelocity.headMap(cutoffTime).clear();
+    // Use NavigableMap.headMap(exclusive=false) and poll to avoid ConcurrentModificationException.
+    // headMap().clear() uses an iterator internally which can conflict with concurrent puts.
+    while (!fieldToRobot.isEmpty() && fieldToRobot.firstKey() < cutoffTime) {
+      fieldToRobot.pollFirstEntry();
+    }
+    while (!robotToTurret.isEmpty() && robotToTurret.firstKey() < cutoffTime) {
+      robotToTurret.pollFirstEntry();
+    }
+    while (!turretAngularVelocity.isEmpty() && turretAngularVelocity.firstKey() < cutoffTime) {
+      turretAngularVelocity.pollFirstEntry();
+    }
   }
 
   /** Log the robot state for debugging */
-  public void log() {
-    if (getLatestFieldToRobot() != null) {
-      Logger.recordOutput("RobotState/Pose", getLatestFieldToRobot().getValue());
+  public synchronized void log() {
+    var latestPose = fieldToRobot.lastEntry();
+    if (latestPose != null) {
+      Logger.recordOutput("RobotState/Pose", latestPose.getValue());
       Logger.recordOutput(
           "RobotState/FieldRelativeVelocityX",
           measuredFieldRelativeChassisSpeeds.vxMetersPerSecond);

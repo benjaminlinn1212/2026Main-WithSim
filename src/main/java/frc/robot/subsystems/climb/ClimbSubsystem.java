@@ -1,8 +1,6 @@
 package frc.robot.subsystems.climb;
 
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
@@ -12,6 +10,7 @@ import edu.wpi.first.wpilibj.util.Color;
 import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants.ClimbConstants;
 import frc.robot.subsystems.climb.util.ClimbIK;
 import frc.robot.subsystems.climb.util.ClimbIK.ClimbIKResult;
 import frc.robot.subsystems.climb.util.ClimbPathPlanner;
@@ -39,25 +38,98 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d leftTargetPosition = ClimbState.STOWED.getTargetPosition();
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
 
-  // Mechanism2d for visualization
+  // ─── Mechanism2d visualization ───
+  // Canvas origin is the back winch (0,0). Canvas sized to contain workspace.
+  private static final double CANVAS_OFFSET_X = 0.3; // padding left of origin
+  private static final double CANVAS_OFFSET_Y = 0.1; // padding below origin
+  private static final double CANVAS_W = 1.4;
+  private static final double CANVAS_H = 1.4;
+
   private final Mechanism2d mechanism;
-  private final MechanismLigament2d leftArm;
-  private final MechanismLigament2d rightArm;
+  // Target: shoulder→link1→link2 (blue)
+  private final MechanismLigament2d targetLink1;
+  private final MechanismLigament2d targetLink2;
+  // Measured: shoulder→link1→link2 (green)
+  private final MechanismLigament2d measuredLink1;
+  private final MechanismLigament2d measuredLink2;
+  // Back cable (yellow, from backWinch to attachment P)
+  private final MechanismLigament2d targetBackCable;
+  // Front cable (orange, from frontWinch to attachment Q)
+  private final MechanismLigament2d targetFrontCable;
 
   public ClimbSubsystem(ClimbIO io) {
     this.io = io;
 
-    // Create Mechanism2d (1m wide x 1m tall canvas)
-    mechanism = new Mechanism2d(1.0, 1.0);
+    final double sx = ClimbConstants.SHOULDER_X_METERS;
+    final double sy = ClimbConstants.SHOULDER_Y_METERS;
+    final double wfx = ClimbConstants.FRONT_WINCH_X_METERS;
+    final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
 
-    // Create roots and ligaments for left and right side visualization
-    MechanismRoot2d leftRoot = mechanism.getRoot("LeftBase", 0.25, 0.0);
-    MechanismRoot2d rightRoot = mechanism.getRoot("RightBase", 0.75, 0.0);
-    leftArm =
-        leftRoot.append(new MechanismLigament2d("LeftArm", 0.3, 90, 6, new Color8Bit(Color.kRed)));
-    rightArm =
-        rightRoot.append(
-            new MechanismLigament2d("RightArm", 0.3, 90, 6, new Color8Bit(Color.kRed)));
+    mechanism = new Mechanism2d(CANVAS_W, CANVAS_H);
+
+    // ── Fixed-point markers ──
+    // Back winch at origin
+    MechanismRoot2d backWinchRoot =
+        mechanism.getRoot("BackWinch", 0 + CANVAS_OFFSET_X, 0 + CANVAS_OFFSET_Y);
+    backWinchRoot.append(
+        new MechanismLigament2d("BackWinchDot", 0.02, 0, 8, new Color8Bit(Color.kWhite)));
+
+    // Front winch
+    MechanismRoot2d frontWinchRoot =
+        mechanism.getRoot("FrontWinch", wfx + CANVAS_OFFSET_X, wfy + CANVAS_OFFSET_Y);
+    frontWinchRoot.append(
+        new MechanismLigament2d("FrontWinchDot", 0.02, 0, 8, new Color8Bit(Color.kWhite)));
+
+    // ── Target arm (blue) — rooted at shoulder ──
+    MechanismRoot2d targetShoulderRoot =
+        mechanism.getRoot("TargetShoulder", sx + CANVAS_OFFSET_X, sy + CANVAS_OFFSET_Y);
+    targetLink1 =
+        targetShoulderRoot.append(
+            new MechanismLigament2d(
+                "TargetLink1",
+                ClimbConstants.LINK_1_LENGTH_METERS,
+                90,
+                5,
+                new Color8Bit(Color.kDodgerBlue)));
+    targetLink2 =
+        targetLink1.append(
+            new MechanismLigament2d(
+                "TargetLink2",
+                ClimbConstants.LINK_2_LENGTH_METERS,
+                0,
+                4,
+                new Color8Bit(Color.kCornflowerBlue)));
+
+    // ── Measured arm (green) — rooted at same shoulder ──
+    MechanismRoot2d measuredShoulderRoot =
+        mechanism.getRoot("MeasuredShoulder", sx + CANVAS_OFFSET_X, sy + CANVAS_OFFSET_Y);
+    measuredLink1 =
+        measuredShoulderRoot.append(
+            new MechanismLigament2d(
+                "MeasuredLink1",
+                ClimbConstants.LINK_1_LENGTH_METERS,
+                90,
+                3,
+                new Color8Bit(Color.kLimeGreen)));
+    measuredLink2 =
+        measuredLink1.append(
+            new MechanismLigament2d(
+                "MeasuredLink2",
+                ClimbConstants.LINK_2_LENGTH_METERS,
+                0,
+                2,
+                new Color8Bit(Color.kLime)));
+
+    // ── Cable lines (from winch roots) ──
+    targetBackCable =
+        backWinchRoot.append(
+            new MechanismLigament2d("BackCable", 0.3, 90, 1, new Color8Bit(Color.kYellow)));
+    targetFrontCable =
+        frontWinchRoot.append(
+            new MechanismLigament2d("FrontCable", 0.1, 90, 1, new Color8Bit(Color.kOrange)));
+
+    // Publish once — SmartDashboard auto-updates from mutated ligaments each cycle
+    SmartDashboard.putData("Climb/Mechanism2d", mechanism);
   }
 
   @Override
@@ -68,26 +140,89 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
     Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
 
-    // Visualize end effector as Pose2d (for AdvantageScope Points view)
-    Logger.recordOutput("Climb/LeftEndEffector", new Pose2d(leftTargetPosition, new Rotation2d()));
-    Logger.recordOutput(
-        "Climb/RightEndEffector", new Pose2d(rightTargetPosition, new Rotation2d()));
+    // Estimate and log actual end effector positions from motor encoders (FK)
+    Translation2d measuredLeft =
+        ClimbIK.estimateEndEffectorPosition(
+            inputs.leftFrontPositionRotations,
+            inputs.leftBackPositionRotations,
+            leftTargetPosition);
+    Translation2d measuredRight =
+        ClimbIK.estimateEndEffectorPosition(
+            inputs.rightFrontPositionRotations,
+            inputs.rightBackPositionRotations,
+            rightTargetPosition);
+    if (measuredLeft != null) {
+      Logger.recordOutput("Climb/LeftMeasuredPosition", measuredLeft);
+    }
+    if (measuredRight != null) {
+      Logger.recordOutput("Climb/RightMeasuredPosition", measuredRight);
+    }
 
-    // Update mechanism arms to show current positions
-    double leftLength = Math.hypot(leftTargetPosition.getX(), leftTargetPosition.getY());
-    double leftAngle =
-        Math.toDegrees(Math.atan2(leftTargetPosition.getY(), leftTargetPosition.getX()));
-    double rightLength = Math.hypot(rightTargetPosition.getX(), rightTargetPosition.getY());
-    double rightAngle =
-        Math.toDegrees(Math.atan2(rightTargetPosition.getY(), rightTargetPosition.getX()));
+    // Log motor rotations directly for debugging
+    Logger.recordOutput("Climb/LeftFrontRotations", inputs.leftFrontPositionRotations);
+    Logger.recordOutput("Climb/LeftBackRotations", inputs.leftBackPositionRotations);
+    Logger.recordOutput("Climb/RightFrontRotations", inputs.rightFrontPositionRotations);
+    Logger.recordOutput("Climb/RightBackRotations", inputs.rightBackPositionRotations);
 
-    leftArm.setLength(leftLength);
-    leftArm.setAngle(leftAngle);
-    rightArm.setLength(rightLength);
-    rightArm.setAngle(rightAngle);
+    // ── Update Mechanism2d ──
+    final double sx = ClimbConstants.SHOULDER_X_METERS;
+    final double sy = ClimbConstants.SHOULDER_Y_METERS;
+    final double wfx = ClimbConstants.FRONT_WINCH_X_METERS;
+    final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
+    final double L1 = ClimbConstants.LINK_1_LENGTH_METERS;
+    final double L2 = ClimbConstants.LINK_2_LENGTH_METERS;
+    final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
+    final double frontAttach = ClimbConstants.FRONT_CABLE_ATTACH_ON_LINK2_METERS;
 
-    // Log Mechanism2d for AdvantageScope Mechanism view
-    SmartDashboard.putData("Climb/Mechanism", mechanism);
+    // --- Target arm (use left target for visualization — both sides symmetric) ---
+    ClimbIK.ClimbSideIKResult targetIK = ClimbIK.calculateIK(leftTargetPosition);
+    if (targetIK.isValid) {
+      double jx = targetIK.jointX;
+      double jy = targetIK.jointY;
+      double ex = leftTargetPosition.getX();
+      double ey = leftTargetPosition.getY();
+
+      // Link 1 angle: shoulder → elbow (absolute, degrees from +X axis)
+      double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
+      targetLink1.setAngle(link1Angle);
+
+      // Link 2 angle: elbow → EE, relative to link 1 direction
+      double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
+      targetLink2.setAngle(link2AbsAngle - link1Angle);
+
+      // Back cable: from backWinch(0,0) to point P on link 1
+      double t1 = backAttach / L1;
+      double px = jx + t1 * (sx - jx);
+      double py = jy + t1 * (sy - jy);
+      targetBackCable.setLength(Math.hypot(px, py));
+      targetBackCable.setAngle(Math.toDegrees(Math.atan2(py, px)));
+
+      // Front cable: from frontWinch to point Q on link 2
+      double t2 = frontAttach / L2;
+      double qx = ex + t2 * (jx - ex);
+      double qy = ey + t2 * (jy - ey);
+      targetFrontCable.setLength(Math.hypot(qx - wfx, qy - wfy));
+      targetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
+    }
+
+    // --- Measured arm (from FK estimate) ---
+    if (measuredLeft != null) {
+      ClimbIK.ClimbSideIKResult measIK = ClimbIK.calculateIK(measuredLeft);
+      if (measIK.isValid) {
+        double jx = measIK.jointX;
+        double jy = measIK.jointY;
+        double ex = measuredLeft.getX();
+        double ey = measuredLeft.getY();
+
+        double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
+        measuredLink1.setAngle(link1Angle);
+
+        double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
+        measuredLink2.setAngle(link2AbsAngle - link1Angle);
+      }
+    }
+
+    // Mechanism2d is published via SmartDashboard.putData in constructor — auto-updates
   }
 
   // =============================================================================
@@ -426,8 +561,64 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   // ===========================================================================
+  // SERVO TEST (PWM 0)
+  // ===========================================================================
+
+  /** Command to set the climb servo (PWM 0) to 0 deg (position 0.0). */
+  public Command servoTo0Deg() {
+    Command cmd =
+        runOnce(
+            () -> {
+              io.setRightHookPosition(0.0);
+              Logger.recordOutput("Climb/ServoTestPosition", 0.0);
+            });
+    cmd.setName("ClimbServoTo0Deg");
+    return cmd;
+  }
+
+  /** Command to set the climb servo (PWM 0) to 90 deg (position 0.5). */
+  public Command servoTo90Deg() {
+    Command cmd =
+        runOnce(
+            () -> {
+              io.setRightHookPosition(0.5);
+              Logger.recordOutput("Climb/ServoTestPosition", 0.5);
+            });
+    cmd.setName("ClimbServoTo90Deg");
+    return cmd;
+  }
+
+  // ===========================================================================
   // EMERGENCY
   // ===========================================================================
+
+  // ===========================================================================
+  // TEST / AD-HOC PATH COMMANDS
+  // ===========================================================================
+
+  /**
+   * Create a command that follows a straight-line path from the current target position to the
+   * given position. Useful for testing climb motions from the controller.
+   *
+   * @param target The target end-effector position (meters)
+   * @param duration Time to complete the path (seconds)
+   * @param pulling Whether this is a pulling motion (adds gravity feedforward)
+   */
+  public Command runPathToPosition(Translation2d target, double duration, boolean pulling) {
+    return runPath(
+        () -> {
+          Translation2d start = leftTargetPosition; // symmetric, use left as reference
+          if (start.getDistance(target) < 0.005) {
+            // Already at target, just hold position
+            setTargetPositionsInternal(target, target);
+            return null;
+          }
+          currentState = ClimbState.MANUAL;
+          Logger.recordOutput("Climb/CurrentState", "MANUAL");
+          return new PathParams(List.of(start, target), duration, pulling);
+        },
+        "ClimbPathTo_" + String.format("%.2f_%.2f", target.getX(), target.getY()));
+  }
 
   /** Immediately stop all motors and enter emergency state. */
   public void stopMotors() {

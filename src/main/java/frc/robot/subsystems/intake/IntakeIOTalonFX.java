@@ -30,6 +30,9 @@ public class IntakeIOTalonFX implements IntakeIO {
 
     upperMotor.getConfigurator().apply(config);
     lowerMotor.getConfigurator().apply(config);
+
+    upperMotor.optimizeBusUtilization();
+    lowerMotor.optimizeBusUtilization();
   }
 
   @Override

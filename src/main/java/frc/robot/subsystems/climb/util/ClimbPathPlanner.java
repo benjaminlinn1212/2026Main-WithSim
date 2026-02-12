@@ -116,6 +116,13 @@ public class ClimbPathPlanner {
       throw new IllegalArgumentException("Need at least 2 waypoints for a path");
     }
 
+    // For simple 2-point paths, use linear interpolation directly.
+    // WPILib's trajectory generator is designed for drivetrain motions and can produce
+    // curved/degenerate paths for purely vertical or horizontal lines in climb cartesian space.
+    if (waypoints.size() == 2) {
+      return createLinearPath(waypoints.get(0), waypoints.get(1), duration, 20);
+    }
+
     // Configure trajectory constraints
     TrajectoryConfig config =
         new TrajectoryConfig(

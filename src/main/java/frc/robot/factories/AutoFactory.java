@@ -18,8 +18,16 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Factory for creating autonomous commands using static methods. Based on Team 254's AutoFactory
+ * <b>LEGACY / TEST ONLY</b> — This factory uses hardcoded placeholder positions (A, B, C, D) and
+ * simplified commands without real Superstructure integration. It is superseded by the
+ * dashboard-driven auto system ({@link frc.robot.auto.dashboard.AutoCommandBuilder}) for match use.
+ *
+ * <p>Kept for quick pathfinding testing via {@link frc.robot.auto.PathfindingAuto}.
+ *
+ * <p>Factory for creating autonomous commands using static methods. Based on Team 254's AutoFactory
  * pattern where all methods are static and accept subsystems as parameters.
+ *
+ * @see frc.robot.auto.dashboard.AutoCommandBuilder
  */
 public class AutoFactory {
 

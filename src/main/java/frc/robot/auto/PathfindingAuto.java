@@ -17,12 +17,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Dynamic autonomous routine that executes a sequence of actions based on a character string. Based
- * on Team 254's PathfindingAuto pattern where each character represents a scoring location or
+ * <b>LEGACY / TEST ONLY</b> — This class is superseded by the dashboard-driven auto system in
+ * {@link frc.robot.auto.dashboard.DashboardAutoManager} for match use. Kept for quick testing with
+ * hardcoded character sequences (e.g., "ABC", "ABCD").
+ *
+ * <p>Dynamic autonomous routine that executes a sequence of actions based on a character string.
+ * Based on Team 254's PathfindingAuto pattern where each character represents a scoring location or
  * action.
  *
  * <p>Example sequences: - "ABC" = Score at A, then B, then C - "AIA" = Score at A, intake, score at
  * A again - "ABCD" = Score at all four positions
+ *
+ * @see frc.robot.auto.dashboard.DashboardAutoManager
  */
 public class PathfindingAuto extends ChezySequenceCommandGroup {
   private final DriveSwerveDrivetrain drive;

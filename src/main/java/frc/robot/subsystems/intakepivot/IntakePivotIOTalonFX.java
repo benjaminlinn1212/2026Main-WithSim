@@ -52,6 +52,8 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
 
     motor.getConfigurator().apply(config);
+
+    motor.optimizeBusUtilization();
   }
 
   @Override

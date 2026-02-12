@@ -48,6 +48,9 @@ public class IndexerIOTalonFX implements IndexerIO {
 
     // Set follower to follow leader with StrictFollower
     followerMotor.setControl(new StrictFollower(IndexerConstants.LEADER_MOTOR_CAN_ID));
+
+    leaderMotor.optimizeBusUtilization();
+    followerMotor.optimizeBusUtilization();
   }
 
   @Override

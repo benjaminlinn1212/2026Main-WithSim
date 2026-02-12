@@ -27,6 +27,8 @@ public class ConveyorIOTalonFX implements ConveyorIO {
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
 
     motor.getConfigurator().apply(config);
+
+    motor.optimizeBusUtilization();
   }
 
   @Override

@@ -14,18 +14,22 @@ import frc.robot.subsystems.shooter.ShooterSubsystem;
 import frc.robot.subsystems.turret.TurretSubsystem;
 import org.littletonrobotics.junction.Logger;
 
+/**
+ * Superstructure coordinates all scoring/intake subsystems into coherent states. Every state
+ * explicitly commands ALL subsystems so nothing is left in an undefined state.
+ *
+ * <p>Subsystems controlled: turret, hood, shooter, intakePivot, intake, conveyor, indexer, climb
+ */
 public class Superstructure extends SubsystemBase {
 
   public enum SuperstructureState {
     IDLE,
-    INTAKING,
-    AIMING_HUB_FROM_ALLIANCE_ZONE,
-    SCORING_HUB_FROM_ALLIANCE_ZONE,
-    INTAKE_WHILE_AIMING_FOR_PASS,
-    INTAKE_WHILE_PASSING,
-    INTAKE_WHILE_AIMING_HUB,
-    INTAKE_WHILE_SCORING_HUB,
-    CLIMB_MODE, // Superstructure in climb mode - all other subsystems safe
+    ONLY_INTAKE,
+    ONLY_AIMING,
+    ONLY_SHOOTING,
+    AIMING_WHILE_INTAKING,
+    SHOOTING_WHILE_INTAKING,
+    CLIMB_MODE,
     EMERGENCY
   }
 
@@ -93,6 +97,26 @@ public class Superstructure extends SubsystemBase {
                 && currentState != SuperstructureState.EMERGENCY);
   }
 
+  // ==================== Superstructure States ====================
+  // Every state explicitly controls ALL subsystems.
+  //
+  //  State                    | Turret | Hood   | Shooter | IntakePivot | Intake | Conveyor |
+  // Indexer
+  //
+  // -------------------------|--------|--------|---------|-------------|--------|----------|--------
+  //  IDLE                     | stow   | stow   | stop    | stow        | stop   | stop     | stop
+  //  ONLY_INTAKE              | stow   | stow   | stop    | deploy      | intake | stop     | stop
+  //  ONLY_AIMING              | aim    | aim    | spinUp  | stow        | stop   | stop     | stop
+  //  ONLY_SHOOTING            | aim    | aim    | spinUp  | stow        | stop   | feed     | feed
+  //  AIMING_WHILE_INTAKING    | aim    | aim    | spinUp  | deploy      | intake | stop     | stop
+  //  SHOOTING_WHILE_INTAKING  | aim    | aim    | spinUp  | deploy      | intake | feed     | feed
+
+  /**
+   * IDLE - everything stowed and stopped.
+   *
+   * <p>Turret: stow, Hood: stow, Shooter: stop, IntakePivot: stow, Intake: stop, Conveyor: stop,
+   * Indexer: stop
+   */
   public Command idle() {
     return guardState(
         Commands.parallel(
@@ -100,30 +124,45 @@ public class Superstructure extends SubsystemBase {
                 turret.stow(),
                 hood.stow(),
                 shooter.stopShooter(),
-                intake.stop(),
                 intakePivot.stow(),
+                intake.stop(),
                 conveyor.stop(),
                 indexer.stop())
             .withName("Superstructure_Idle"),
         "idle");
   }
 
-  public Command intakeFromGround() {
+  /**
+   * ONLY_INTAKE - deploy intake, everything else stowed/stopped.
+   *
+   * <p>Turret: stow, Hood: stow, Shooter: stop, IntakePivot: deploy, Intake: intake, Conveyor:
+   * stop, Indexer: stop
+   */
+  public Command onlyIntake() {
     return guardState(
         Commands.parallel(
-                Commands.runOnce(() -> setState(SuperstructureState.INTAKING)),
+                Commands.runOnce(() -> setState(SuperstructureState.ONLY_INTAKE)),
+                turret.stow(),
+                hood.stow(),
+                shooter.stopShooter(),
                 intakePivot.deploy(),
                 intake.intake(),
                 conveyor.stop(),
                 indexer.stop())
-            .withName("Superstructure_IntakeGround"),
-        "intakeFromGround");
+            .withName("Superstructure_OnlyIntake"),
+        "onlyIntake");
   }
 
-  public Command aimHubFromAllianceZone() {
+  /**
+   * ONLY_AIMING - turret/hood/shooter aim at target, intake stowed, no feeding.
+   *
+   * <p>Turret: aim, Hood: aim, Shooter: spinUp, IntakePivot: stow, Intake: stop, Conveyor: stop,
+   * Indexer: stop
+   */
+  public Command onlyAiming() {
     return guardState(
         Commands.parallel(
-                Commands.runOnce(() -> setState(SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE)),
+                Commands.runOnce(() -> setState(SuperstructureState.ONLY_AIMING)),
                 turret.aiming(),
                 hood.aimHub(),
                 shooter.spinUp(),
@@ -131,92 +170,97 @@ public class Superstructure extends SubsystemBase {
                 intake.stop(),
                 conveyor.stop(),
                 indexer.stop())
-            .withName("Superstructure_AimHubAllianceZone"),
-        "aimHubFromAllianceZone");
+            .withName("Superstructure_OnlyAiming"),
+        "onlyAiming");
   }
 
-  public Command scoreHubFromAllianceZone() {
-    return guardState(
-        Commands.sequence(
-                Commands.runOnce(
-                    () -> setState(SuperstructureState.SCORING_HUB_FROM_ALLIANCE_ZONE)),
-                Commands.waitUntil(shooter::isReady),
-                Commands.parallel(conveyor.goToShooter(), indexer.toShooter()))
-            .withName("Superstructure_ScoreHubAllianceZone"),
-        "scoreHubFromAllianceZone");
-  }
-
-  public Command intakeWhileAimingForPass() {
+  /**
+   * ONLY_SHOOTING - aim at target and feed game pieces.
+   *
+   * <p>Turret: aim, Hood: aim, Shooter: spinUp, IntakePivot: stow, Intake: stop, Conveyor: feed,
+   * Indexer: feed
+   */
+  public Command onlyShooting() {
     return guardState(
         Commands.parallel(
-                Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS)),
-                intakePivot.deploy(),
-                intake.intake(),
+                Commands.runOnce(() -> setState(SuperstructureState.ONLY_SHOOTING)),
                 turret.aiming(),
                 hood.aimHub(),
-                shooter.spinUp())
-            .withName("Superstructure_IntakeWhileAimingForPass"),
-        "intakeWhileAimingForPass");
+                shooter.spinUp(),
+                intakePivot.stow(),
+                intake.stop(),
+                conveyor.goToShooter(),
+                indexer.toShooter())
+            .withName("Superstructure_OnlyShooting"),
+        "onlyShooting");
   }
 
-  public Command intakeWhilePassing() {
-    return guardState(
-        Commands.sequence(
-                Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_PASSING)),
-                Commands.waitUntil(shooter::isReady),
-                Commands.parallel(
-                    intakePivot.deploy(),
-                    intake.intake(),
-                    conveyor.goToShooter(),
-                    indexer.toShooter()))
-            .withName("Superstructure_IntakeWhilePassing"),
-        "intakeWhilePassing");
-  }
-
-  public Command intakeWhileAimingHub() {
+  /**
+   * AIMING_WHILE_INTAKING - intake deployed and running while turret/hood/shooter aim. No feeding
+   * yet.
+   *
+   * <p>Turret: aim, Hood: aim, Shooter: spinUp, IntakePivot: deploy, Intake: intake, Conveyor:
+   * stop, Indexer: stop
+   */
+  public Command aimingWhileIntaking() {
     return guardState(
         Commands.parallel(
-                Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_AIMING_HUB)),
+                Commands.runOnce(() -> setState(SuperstructureState.AIMING_WHILE_INTAKING)),
+                turret.aiming(),
+                hood.aimHub(),
+                shooter.spinUp(),
                 intakePivot.deploy(),
                 intake.intake(),
-                indexer.stop(),
                 conveyor.stop(),
+                indexer.stop())
+            .withName("Superstructure_AimingWhileIntaking"),
+        "aimingWhileIntaking");
+  }
+
+  /**
+   * SHOOTING_WHILE_INTAKING - intake deployed and running while aiming and feeding.
+   *
+   * <p>Turret: aim, Hood: aim, Shooter: spinUp, IntakePivot: deploy, Intake: intake, Conveyor:
+   * feed, Indexer: feed
+   */
+  public Command shootingWhileIntaking() {
+    return guardState(
+        Commands.parallel(
+                Commands.runOnce(() -> setState(SuperstructureState.SHOOTING_WHILE_INTAKING)),
                 turret.aiming(),
                 hood.aimHub(),
-                shooter.spinUp())
-            .withName("Superstructure_IntakeWhileAimingHub"),
-        "intakeWhileAimingHub");
+                shooter.spinUp(),
+                intakePivot.deploy(),
+                intake.intake(),
+                conveyor.goToShooter(),
+                indexer.toShooter())
+            .withName("Superstructure_ShootingWhileIntaking"),
+        "shootingWhileIntaking");
   }
 
-  public Command intakeWhileScoringHub() {
-    return guardState(
-        Commands.sequence(
-                Commands.runOnce(() -> setState(SuperstructureState.INTAKE_WHILE_SCORING_HUB)),
-                Commands.waitUntil(shooter::isReady),
-                Commands.parallel(
-                    intakePivot.deploy(),
-                    intake.intake(),
-                    conveyor.goToShooter(),
-                    turret.aiming(),
-                    hood.aimHub(),
-                    shooter.spinUp(),
-                    indexer.toShooter()))
-            .withName("Superstructure_IntakeWhileScoringHub"),
-        "intakeWhileScoringHub");
-  }
-
+  /**
+   * EJECT - reverse intake to spit out game pieces. Returns to IDLE when finished.
+   *
+   * <p>Turret: stow, Hood: stow, Shooter: stop, IntakePivot: deploy, Intake: outtake, Conveyor:
+   * reverse, Indexer: stop
+   */
   public Command eject() {
     return guardState(
-        Commands.parallel(intakePivot.deploy(), intake.outtake(), conveyor.goToBucket())
-            .finallyDo(
-                () -> {
-                  setState(SuperstructureState.IDLE);
-                })
+        Commands.parallel(
+                Commands.runOnce(() -> setState(SuperstructureState.IDLE)),
+                turret.stow(),
+                hood.stow(),
+                shooter.stopShooter(),
+                intakePivot.deploy(),
+                intake.outtake(),
+                conveyor.goToBucket(),
+                indexer.stop())
+            .finallyDo(() -> setState(SuperstructureState.IDLE))
             .withName("Superstructure_Eject"),
         "eject");
   }
 
-  // ==================== Climb Mode Management (254-Style) ====================
+  // ==================== Climb Mode Management ====================
 
   /**
    * Enter climb mode - stow all superstructure components and prepare for climb. This is the entry
@@ -227,12 +271,12 @@ public class Superstructure extends SubsystemBase {
   public Command enterClimbMode() {
     return Commands.sequence(
             Commands.runOnce(() -> setState(SuperstructureState.CLIMB_MODE)),
-            // Stow all subsystems using proper parallel composition (not .schedule())
+            // Stow all subsystems
             Commands.parallel(
                 turret.stow(),
                 hood.stow(),
-                intakePivot.stow(),
                 shooter.stopShooter(),
+                intakePivot.stow(),
                 intake.stop(),
                 conveyor.stop(),
                 indexer.stop()),
@@ -246,9 +290,6 @@ public class Superstructure extends SubsystemBase {
 
   /**
    * Exit climb mode and return to idle.
-   *
-   * <p>Note: This immediately moves to STOWED using position control. For a safer path-following
-   * retract, use POV Left (previousState) repeatedly to retrace the climb path in reverse.
    *
    * @return Command to exit climb mode
    */
@@ -277,14 +318,14 @@ public class Superstructure extends SubsystemBase {
    */
   public boolean isReadyForClimb() {
     return isInClimbMode()
-        && turret.atSetpoint() // Turret at stow
-        && hood.atSetpoint() // Hood at stow
-        && shooter.atSetpoint() // Shooter stopped
-        && intakePivot.isStowed() // Intake pivot stowed
-        && intake.atSetpoint() // Intake stopped
-        && conveyor.atSetpoint() // Conveyor stopped
-        && indexer.atSetpoint() // Indexer stopped
-        && climb.getState() == ClimbState.STOWED; // Climb at stowed state
+        && turret.atSetpoint()
+        && hood.atSetpoint()
+        && shooter.atSetpoint()
+        && intakePivot.isStowed()
+        && intake.atSetpoint()
+        && conveyor.atSetpoint()
+        && indexer.atSetpoint()
+        && climb.getState() == ClimbState.STOWED;
   }
 
   /**
@@ -317,12 +358,14 @@ public class Superstructure extends SubsystemBase {
     return cmd;
   }
 
+  /** Emergency stop - immediately stow everything and stop all motors including climb. */
   public Command emergencyStop() {
     return Commands.parallel(
             Commands.runOnce(() -> setState(SuperstructureState.EMERGENCY)),
             turret.stow(),
             hood.stow(),
             shooter.stopShooter(),
+            intakePivot.stow(),
             intake.stop(),
             conveyor.stop(),
             indexer.stop(),
@@ -330,19 +373,50 @@ public class Superstructure extends SubsystemBase {
         .withName("Superstructure_EmergencyStop");
   }
 
+  // ==================== Status Queries ====================
+
+  /** Check if the shooter is ready and we're in an aiming state. */
   public boolean isReadyToShoot() {
     return shooter.isReady()
-        && (currentState == SuperstructureState.AIMING_HUB_FROM_ALLIANCE_ZONE
-            || currentState == SuperstructureState.INTAKE_WHILE_AIMING_FOR_PASS
-            || currentState == SuperstructureState.INTAKE_WHILE_AIMING_HUB);
+        && (currentState == SuperstructureState.ONLY_AIMING
+            || currentState == SuperstructureState.AIMING_WHILE_INTAKING);
   }
 
   /** Check if the superstructure is in a state that allows intaking. */
   public boolean canIntake() {
-    return currentState != SuperstructureState.CLIMB_MODE;
+    return currentState != SuperstructureState.CLIMB_MODE
+        && currentState != SuperstructureState.EMERGENCY;
   }
 
+  /** Get a 0-1 readiness value for the shooter (for dashboard/LED use). */
   public double getShooterReadiness() {
     return shooter.isReady() ? 1.0 : 0.5;
+  }
+
+  // ==================== Legacy Compatibility ====================
+  // These delegate to the new state names for backward compatibility with auto code.
+
+  /**
+   * @deprecated Use {@link #onlyIntake()} instead.
+   */
+  @Deprecated
+  public Command intakeFromGround() {
+    return onlyIntake();
+  }
+
+  /**
+   * @deprecated Use {@link #onlyAiming()} instead.
+   */
+  @Deprecated
+  public Command aimHubFromAllianceZone() {
+    return onlyAiming();
+  }
+
+  /**
+   * @deprecated Use {@link #onlyShooting()} instead.
+   */
+  @Deprecated
+  public Command scoreHubFromAllianceZone() {
+    return onlyShooting();
   }
 }

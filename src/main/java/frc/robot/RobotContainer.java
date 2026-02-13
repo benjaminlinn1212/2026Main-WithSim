@@ -12,7 +12,6 @@ package frc.robot;
 // import com.pathplanner.lib.config.RobotConfig;
 // import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 // import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 // import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -26,7 +25,6 @@ import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
 import frc.robot.subsystems.climb.ClimbIOSim;
 import frc.robot.subsystems.climb.ClimbIOTalonFX;
-import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorIO;
 import frc.robot.subsystems.conveyor.ConveyorIOSim;
@@ -394,6 +392,36 @@ public class RobotContainer {
                     () -> swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE), swerveIO)
                 .ignoringDisable(true));
 
+    // ===== SUPERSTRUCTURE CONTROLS =====
+
+    // X button: Aiming while intaking
+    controller.x().onTrue(superstructure.aimingWhileIntaking());
+
+    // Y button: Stow (idle)
+    controller.y().onTrue(superstructure.idle());
+
+    // A button (hold): Shoot while held, return to aiming on release.
+    // If in AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING, else → ONLY_SHOOTING
+    // On release: return to corresponding aiming state
+    controller
+        .rightTrigger()
+        .whileTrue(
+            Commands.either(
+                superstructure.shootingWhileIntaking(),
+                superstructure.onlyShooting(),
+                () ->
+                    superstructure.getState()
+                        == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING))
+        .onFalse(
+            Commands.either(
+                superstructure.aimingWhileIntaking(),
+                superstructure.onlyAiming(),
+                () ->
+                    superstructure.getState()
+                            == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING
+                        || superstructure.getState()
+                            == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING));
+
     // ===== CLIMB STATE CONTROLS =====
 
     // POV Up: Enter climb mode
@@ -411,18 +439,18 @@ public class RobotContainer {
     // ===== CLIMB TEST CONTROLS =====
 
     // X button: Run path to reach vertically down 0.15m from stow
-    controller
-        .x()
-        .onTrue(
-            climb.runPathToPosition(
-                new Translation2d(
-                    Constants.ClimbConstants.START_POSITION_X_METERS,
-                    Constants.ClimbConstants.START_POSITION_Y_METERS - 0.15),
-                2.0,
-                false));
+    // controller
+    //    .x()
+    //    .onTrue(
+    //        climb.runPathToPosition(
+    //            new Translation2d(
+    //                Constants.ClimbConstants.START_POSITION_X_METERS,
+    //                Constants.ClimbConstants.START_POSITION_Y_METERS - 0.15),
+    //            2.0,
+    //            false));
 
     // Y button: Stow climb (return to stowed position)
-    controller.y().onTrue(climb.setStateCommand(ClimbState.STOWED));
+    // controller.y().onTrue(climb.setStateCommand(ClimbState.STOWED));
   }
 
   /**

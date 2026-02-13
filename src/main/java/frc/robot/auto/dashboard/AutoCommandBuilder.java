@@ -8,7 +8,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.RobotState;
-import frc.robot.auto.dashboard.FieldConstants.ScoringLocation;
+import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import frc.robot.util.ChezySequenceCommandGroup;
@@ -123,7 +123,7 @@ public class AutoCommandBuilder {
    * to the exact pose, then aim and shoot.
    */
   private Command buildScorePreload(AutoAction.ScorePreload action) {
-    Pose2d target = action.getLocation().getPose();
+    Pose2d target = action.getLocation().toPose();
     return Commands.sequence(
             Commands.print("[DashboardAuto] Scoring preload at " + action.getLocation().name()),
             // Short drive to exact scoring pose
@@ -136,7 +136,7 @@ public class AutoCommandBuilder {
 
   /** Drive to a HUB shooting position, then aim and shoot FUEL. */
   private Command buildScoreAt(AutoAction.ScoreAt action) {
-    Pose2d target = action.getLocation().getPose();
+    Pose2d target = action.getLocation().toPose();
 
     if (action.isShootWhileMoving()) {
       // Shoot-while-driving: start aiming superstructure while pathfinding
@@ -234,7 +234,7 @@ public class AutoCommandBuilder {
    * @param location The HUB shooting position (for logging)
    * @return Command sequence to aim at HUB and fire FUEL
    */
-  private Command buildScoringSequence(ScoringLocation location) {
+  private Command buildScoringSequence(ScoringWaypoint location) {
     return Commands.sequence(
         // Aim at hub
         superstructure.aimHubFromAllianceZone(),

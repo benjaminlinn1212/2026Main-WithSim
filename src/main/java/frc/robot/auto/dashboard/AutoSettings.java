@@ -3,14 +3,12 @@
 
 package frc.robot.auto.dashboard;
 
-import edu.wpi.first.networktables.GenericEntry;
-import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
-import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
-import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
 import frc.robot.auto.dashboard.FieldConstants.Lane;
-import frc.robot.auto.dashboard.FieldConstants.ScoringLocation;
+import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import frc.robot.auto.dashboard.FieldConstants.StartPose;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -52,7 +50,7 @@ public class AutoSettings {
 
   // ===== Backing fields (read from dashboard each cycle) =====
   private StartPose startPose = StartPose.CENTER;
-  private final List<ScoringLocation> scoringPriority = new ArrayList<>();
+  private final List<ScoringWaypoint> scoringPriority = new ArrayList<>();
   private IntakeLocation preferredIntake = IntakeLocation.OUTPOST;
   private final Set<Lane> allowedLanes = EnumSet.allOf(Lane.class);
   private final Set<Lane> partnerLanes = EnumSet.noneOf(Lane.class);
@@ -64,95 +62,94 @@ public class AutoSettings {
   private int preloadCount = 8; // FUEL preloaded (1-8 per game manual)
   private int maxCycles = 4; // max score+intake cycles to attempt
 
-  // ===== Shuffleboard Widgets =====
-  private final ShuffleboardTab tab;
-  private GenericEntry startPoseEntry;
-  private GenericEntry scoringPriorityEntry;
-  private GenericEntry preferredIntakeEntry;
-  private GenericEntry allowedLanesEntry;
-  private GenericEntry partnerLanesEntry;
-  private GenericEntry attemptClimbEntry;
-  private GenericEntry climbLevelEntry;
-  private GenericEntry shootWhileDrivingEntry;
-  private GenericEntry riskLevelEntry;
-  private GenericEntry preloadEntry;
-  private GenericEntry preloadCountEntry;
-  private GenericEntry maxCyclesEntry;
+  // ===== SmartDashboard Keys (under "Auto/" subtable for Elastic) =====
+  private static final String PREFIX = "Auto/";
+
+  // ===== SendableChoosers for dropdown settings in Elastic =====
+  private final SendableChooser<StartPose> startPoseChooser = new SendableChooser<>();
+  private final SendableChooser<IntakeLocation> preferredIntakeChooser = new SendableChooser<>();
+  private final SendableChooser<ClimbLevel> climbLevelChooser = new SendableChooser<>();
+  private final SendableChooser<RiskLevel> riskLevelChooser = new SendableChooser<>();
 
   // Fingerprint for change detection
   private String lastFingerprint = "";
 
   public AutoSettings() {
-    tab = Shuffleboard.getTab("Auto Settings");
     initDashboard();
   }
 
   // ===== Dashboard Initialization =====
 
   private void initDashboard() {
-    // Start Pose — which DRIVER STATION side
-    startPoseEntry =
-        tab.add("Start Pose", startPose.name()).withPosition(0, 0).withSize(2, 1).getEntry();
+    // --- Dropdown: Start Pose ---
+    for (StartPose sp : StartPose.values()) {
+      if (sp == StartPose.CENTER) {
+        startPoseChooser.setDefaultOption(sp.name(), sp);
+      } else {
+        startPoseChooser.addOption(sp.name(), sp);
+      }
+    }
+    SmartDashboard.putData(PREFIX + "Start Pose", startPoseChooser);
 
-    // Shooting Priority — comma-separated HUB positions, e.g. "HUB_BACK_CENTER,HUB_UPPER_CLOSE"
-    scoringPriorityEntry =
-        tab.add("Shooting Priority", "HUB_BACK_CENTER,HUB_UPPER_CLOSE,HUB_LOWER_CLOSE")
-            .withPosition(0, 1)
-            .withSize(3, 1)
-            .getEntry();
+    // --- Dropdown: Preferred Intake ---
+    for (IntakeLocation il : IntakeLocation.values()) {
+      if (il == IntakeLocation.OUTPOST) {
+        preferredIntakeChooser.setDefaultOption(il.name(), il);
+      } else {
+        preferredIntakeChooser.addOption(il.name(), il);
+      }
+    }
+    SmartDashboard.putData(PREFIX + "Preferred Intake", preferredIntakeChooser);
 
-    // Preferred Intake — OUTPOST (human player), DEPOT (floor), or NEUTRAL_ZONE_*
-    preferredIntakeEntry =
-        tab.add("Preferred Intake", preferredIntake.name())
-            .withPosition(0, 2)
-            .withSize(2, 1)
-            .getEntry();
+    // --- Dropdown: Climb Level ---
+    for (ClimbLevel cl : ClimbLevel.values()) {
+      if (cl == ClimbLevel.LEVEL_1) {
+        climbLevelChooser.setDefaultOption(cl.name(), cl);
+      } else {
+        climbLevelChooser.addOption(cl.name(), cl);
+      }
+    }
+    SmartDashboard.putData(PREFIX + "Climb Level", climbLevelChooser);
 
-    // Allowed Lanes — TRENCH/BUMP side selection
-    allowedLanesEntry =
-        tab.add("Allowed Lanes", "UPPER,CENTER,LOWER").withPosition(3, 0).withSize(2, 1).getEntry();
+    // --- Dropdown: Risk Level ---
+    for (RiskLevel rl : RiskLevel.values()) {
+      if (rl == RiskLevel.BALANCED) {
+        riskLevelChooser.setDefaultOption(rl.name(), rl);
+      } else {
+        riskLevelChooser.addOption(rl.name(), rl);
+      }
+    }
+    SmartDashboard.putData(PREFIX + "Risk Level", riskLevelChooser);
 
-    // Partner Lanes — lanes our partner will use (we avoid these)
-    partnerLanesEntry = tab.add("Partner Lanes", "").withPosition(3, 1).withSize(2, 1).getEntry();
+    // --- Multi-value boolean toggles ---
+    // Shooting Priority: one toggle per scoring waypoint (enabled = included in priority list)
+    for (ScoringWaypoint sl : ScoringWaypoint.values()) {
+      // Default: enable the 3 main positions
+      boolean defaultOn =
+          sl == ScoringWaypoint.HUB_BACK_CENTER
+              || sl == ScoringWaypoint.HUB_UPPER_CLOSE
+              || sl == ScoringWaypoint.HUB_LOWER_CLOSE;
+      SmartDashboard.putBoolean(PREFIX + "Score/" + sl.name(), defaultOn);
+    }
 
-    // Attempt Climb (TOWER)
-    attemptClimbEntry =
-        tab.add("Attempt TOWER Climb", attemptClimb)
-            .withWidget(BuiltInWidgets.kToggleSwitch)
-            .withPosition(5, 0)
-            .withSize(1, 1)
-            .getEntry();
+    // Allowed Lanes: one toggle per lane (default: all enabled)
+    for (Lane lane : Lane.values()) {
+      SmartDashboard.putBoolean(PREFIX + "Lane/" + lane.name(), true);
+    }
 
-    // Climb Level — LEVEL_1 (10pts), LEVEL_2 (20pts), LEVEL_3 (30pts)
-    climbLevelEntry =
-        tab.add("Climb Level", climbLevel.name()).withPosition(5, 1).withSize(2, 1).getEntry();
+    // Partner Lanes: one toggle per lane (default: all disabled)
+    for (Lane lane : Lane.values()) {
+      SmartDashboard.putBoolean(PREFIX + "Partner Lane/" + lane.name(), false);
+    }
 
-    // Shoot While Driving
-    shootWhileDrivingEntry =
-        tab.add("Shoot While Driving", shootWhileDriving)
-            .withWidget(BuiltInWidgets.kToggleSwitch)
-            .withPosition(5, 2)
-            .withSize(1, 1)
-            .getEntry();
+    // --- Boolean toggles ---
+    SmartDashboard.putBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
+    SmartDashboard.putBoolean(PREFIX + "Shoot While Driving", shootWhileDriving);
+    SmartDashboard.putBoolean(PREFIX + "Has Preload FUEL", preloadFuel);
 
-    // Risk Level
-    riskLevelEntry =
-        tab.add("Risk Level", riskLevel.name()).withPosition(7, 0).withSize(2, 1).getEntry();
-
-    // Has Preloaded FUEL
-    preloadEntry =
-        tab.add("Has Preload FUEL", preloadFuel)
-            .withWidget(BuiltInWidgets.kToggleSwitch)
-            .withPosition(7, 1)
-            .withSize(1, 1)
-            .getEntry();
-
-    // Preload Count (1-8 FUEL per game manual 6.3.4.C)
-    preloadCountEntry =
-        tab.add("Preload FUEL Count", preloadCount).withPosition(7, 2).withSize(1, 1).getEntry();
-
-    // Max Cycles
-    maxCyclesEntry = tab.add("Max Cycles", maxCycles).withPosition(8, 0).withSize(1, 1).getEntry();
+    // --- Number fields ---
+    SmartDashboard.putNumber(PREFIX + "Preload FUEL Count", preloadCount);
+    SmartDashboard.putNumber(PREFIX + "Max Cycles", maxCycles);
   }
 
   // ===== Read from Dashboard =====
@@ -162,96 +159,73 @@ public class AutoSettings {
    * the last call.
    */
   public boolean readFromDashboard() {
-    // Start Pose
-    try {
-      startPose =
-          StartPose.valueOf(startPoseEntry.getString(startPose.name()).trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      // keep previous
+    // Start Pose (dropdown)
+    StartPose selectedStartPose = startPoseChooser.getSelected();
+    if (selectedStartPose != null) {
+      startPose = selectedStartPose;
     }
 
-    // Scoring Priority
+    // Scoring Priority (boolean toggles per location)
     scoringPriority.clear();
-    String priorityStr =
-        scoringPriorityEntry
-            .getString("HUB_BACK_CENTER,HUB_UPPER_CLOSE,HUB_LOWER_CLOSE")
-            .trim()
-            .toUpperCase();
-    for (String token : priorityStr.split("[,\\s]+")) {
-      if (token.isEmpty()) continue;
-      try {
-        scoringPriority.add(ScoringLocation.valueOf(token));
-      } catch (IllegalArgumentException e) {
-        // skip invalid
+    for (ScoringWaypoint sl : ScoringWaypoint.values()) {
+      if (SmartDashboard.getBoolean(PREFIX + "Score/" + sl.name(), false)) {
+        scoringPriority.add(sl);
       }
     }
 
-    // Preferred Intake
-    try {
-      preferredIntake =
-          IntakeLocation.valueOf(
-              preferredIntakeEntry.getString(preferredIntake.name()).trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      // keep previous
+    // Preferred Intake (dropdown)
+    IntakeLocation selectedIntake = preferredIntakeChooser.getSelected();
+    if (selectedIntake != null) {
+      preferredIntake = selectedIntake;
     }
 
-    // Allowed Lanes
+    // Allowed Lanes (boolean toggles per lane)
     allowedLanes.clear();
-    String lanesStr = allowedLanesEntry.getString("UPPER,CENTER,LOWER").trim().toUpperCase();
-    for (String token : lanesStr.split("[,\\s]+")) {
-      if (token.isEmpty()) continue;
-      try {
-        allowedLanes.add(Lane.valueOf(token));
-      } catch (IllegalArgumentException e) {
-        // skip
+    for (Lane lane : Lane.values()) {
+      if (SmartDashboard.getBoolean(PREFIX + "Lane/" + lane.name(), true)) {
+        allowedLanes.add(lane);
       }
     }
     if (allowedLanes.isEmpty()) {
       allowedLanes.addAll(EnumSet.allOf(Lane.class)); // fallback: all lanes
     }
 
-    // Partner Lanes
+    // Partner Lanes (boolean toggles per lane)
     partnerLanes.clear();
-    String partnerStr = partnerLanesEntry.getString("").trim().toUpperCase();
-    for (String token : partnerStr.split("[,\\s]+")) {
-      if (token.isEmpty()) continue;
-      try {
-        partnerLanes.add(Lane.valueOf(token));
-      } catch (IllegalArgumentException e) {
-        // skip
+    for (Lane lane : Lane.values()) {
+      if (SmartDashboard.getBoolean(PREFIX + "Partner Lane/" + lane.name(), false)) {
+        partnerLanes.add(lane);
       }
     }
 
     // Booleans
-    attemptClimb = attemptClimbEntry.getBoolean(attemptClimb);
-    shootWhileDriving = shootWhileDrivingEntry.getBoolean(shootWhileDriving);
-    preloadFuel = preloadEntry.getBoolean(preloadFuel);
+    attemptClimb = SmartDashboard.getBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
+    shootWhileDriving =
+        SmartDashboard.getBoolean(PREFIX + "Shoot While Driving", shootWhileDriving);
+    preloadFuel = SmartDashboard.getBoolean(PREFIX + "Has Preload FUEL", preloadFuel);
 
     // Preload Count (1-8)
     preloadCount =
         Math.max(
             1,
             Math.min(
-                FieldConstants.MAX_PRELOAD_FUEL, (int) preloadCountEntry.getInteger(preloadCount)));
+                FieldConstants.MAX_PRELOAD_FUEL,
+                (int) SmartDashboard.getNumber(PREFIX + "Preload FUEL Count", preloadCount)));
 
-    // Climb Level
-    try {
-      climbLevel =
-          ClimbLevel.valueOf(climbLevelEntry.getString(climbLevel.name()).trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      // keep previous
+    // Climb Level (dropdown)
+    ClimbLevel selectedClimb = climbLevelChooser.getSelected();
+    if (selectedClimb != null) {
+      climbLevel = selectedClimb;
     }
 
-    // Risk Level
-    try {
-      riskLevel =
-          RiskLevel.valueOf(riskLevelEntry.getString(riskLevel.name()).trim().toUpperCase());
-    } catch (IllegalArgumentException e) {
-      // keep previous
+    // Risk Level (dropdown)
+    RiskLevel selectedRisk = riskLevelChooser.getSelected();
+    if (selectedRisk != null) {
+      riskLevel = selectedRisk;
     }
 
     // Max Cycles
-    maxCycles = (int) maxCyclesEntry.getInteger(maxCycles);
+    maxCycles = (int) SmartDashboard.getNumber(PREFIX + "Max Cycles", maxCycles);
 
     // Change detection
     String fingerprint = computeFingerprint();
@@ -271,7 +245,7 @@ public class AutoSettings {
   }
 
   /** Ordered list of scoring locations, highest priority first. */
-  public List<ScoringLocation> getScoringPriority() {
+  public List<ScoringWaypoint> getScoringPriority() {
     return List.copyOf(scoringPriority);
   }
 

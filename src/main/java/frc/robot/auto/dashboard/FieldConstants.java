@@ -6,6 +6,7 @@ package frc.robot.auto.dashboard;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 
@@ -38,12 +39,12 @@ public final class FieldConstants {
   public static final Translation2d FIELD_CENTER =
       new Translation2d(FIELD_LENGTH / 2.0, FIELD_WIDTH / 2.0);
 
-  // ===== Key REBUILT field measurements (meters) =====
-  /** Distance from ALLIANCE WALL to HUB center (~158.6in = 4.03m). */
-  public static final double HUB_DISTANCE_FROM_WALL = 4.03;
-
-  /** HUB top opening height off carpet (~72in = 1.83m). */
-  public static final double HUB_OPENING_HEIGHT = 1.83;
+  // ===== HUB 3D Positions =====
+  // Used by ShooterSetpoint for distance-based aiming
+  public static final Translation3d BLUE_HUB_TRANSLATION3D =
+      new Translation3d(4.625689, 4.040981, 0);
+  public static final Translation3d RED_HUB_POSE_TRANSLATION3D =
+      new Translation3d(FIELD_LENGTH - 4.625689, 4.040981, 0);
 
   // ===== Zones =====
   // Zones define regions of the REBUILT field. The planner uses these for constraint-checking.
@@ -73,39 +74,39 @@ public final class FieldConstants {
     LOWER
   }
 
-  // ===== Shooting Positions =====
-  // Named positions around the HUB from which the robot shoots FUEL into the top opening.
-  // The HUB is centered between two BUMPs at 4.03m from the ALLIANCE WALL.
-  // Different positions offer different angles/distances to the HUB opening.
-  // TODO: Tune these coordinates with real field measurements and robot shooting testing.
-  public enum ScoringLocation {
+  // ===== Scoring Waypoints =====
+  public enum ScoringWaypoint {
     /** Upper-close — shooting from the upper side of the HUB, near the BUMP. */
-    HUB_UPPER_CLOSE(new Pose2d(3.50, 5.80, Rotation2d.fromDegrees(-30)), Zone.HUB_ZONE, Lane.UPPER),
+    HUB_UPPER_CLOSE(new Translation2d(3.50, 5.80), Zone.HUB_ZONE, Lane.UPPER),
     /** Upper-far — shooting from farther back on the upper side. */
-    HUB_UPPER_FAR(new Pose2d(2.80, 6.20, Rotation2d.fromDegrees(-20)), Zone.HUB_ZONE, Lane.UPPER),
+    HUB_UPPER_FAR(new Translation2d(2.80, 6.20), Zone.HUB_ZONE, Lane.UPPER),
     /** Front-center — shooting straight at the HUB from the NEUTRAL ZONE side. */
-    HUB_FRONT_CENTER(
-        new Pose2d(5.00, 4.03, Rotation2d.fromDegrees(180)), Zone.NEUTRAL_ZONE, Lane.CENTER),
+    HUB_FRONT_CENTER(new Translation2d(5.00, 4.03), Zone.NEUTRAL_ZONE, Lane.CENTER),
     /** Back-center — shooting from behind the HUB near the ALLIANCE ZONE. */
-    HUB_BACK_CENTER(new Pose2d(2.50, 4.03, Rotation2d.fromDegrees(0)), Zone.HUB_ZONE, Lane.CENTER),
+    HUB_BACK_CENTER(new Translation2d(2.50, 4.03), Zone.HUB_ZONE, Lane.CENTER),
     /** Lower-close — shooting from the lower side of the HUB, near the BUMP. */
-    HUB_LOWER_CLOSE(new Pose2d(3.50, 2.27, Rotation2d.fromDegrees(30)), Zone.HUB_ZONE, Lane.LOWER),
+    HUB_LOWER_CLOSE(new Translation2d(3.50, 2.27), Zone.HUB_ZONE, Lane.LOWER),
     /** Lower-far — shooting from farther back on the lower side. */
-    HUB_LOWER_FAR(new Pose2d(2.80, 1.87, Rotation2d.fromDegrees(20)), Zone.HUB_ZONE, Lane.LOWER);
+    HUB_LOWER_FAR(new Translation2d(2.80, 1.87), Zone.HUB_ZONE, Lane.LOWER);
 
-    public final Pose2d bluePose;
+    public final Translation2d bluePosition;
     public final Zone zone;
     public final Lane lane;
 
-    ScoringLocation(Pose2d bluePose, Zone zone, Lane lane) {
-      this.bluePose = bluePose;
+    ScoringWaypoint(Translation2d bluePosition, Zone zone, Lane lane) {
+      this.bluePosition = bluePosition;
       this.zone = zone;
       this.lane = lane;
     }
 
-    /** Get the alliance-corrected pose. */
-    public Pose2d getPose() {
-      return isRedAlliance() ? flipPose(bluePose) : bluePose;
+    /** Get the alliance-corrected position. */
+    public Translation2d getPosition() {
+      return isRedAlliance() ? flipTranslation(bluePosition) : bluePosition;
+    }
+
+    /** Get as a Pose2d (heading = 0) for PathPlanner pathfinding. */
+    public Pose2d toPose() {
+      return new Pose2d(getPosition(), new Rotation2d());
     }
   }
 
@@ -116,22 +117,18 @@ public final class FieldConstants {
   // 3. NEUTRAL ZONE — scattered FUEL across the center of the field (~360-408)
   public enum IntakeLocation {
     /** OUTPOST — human player CHUTE delivers FUEL. Located at one end of the field. */
-    OUTPOST(new Pose2d(1.00, 7.20, Rotation2d.fromDegrees(135)), Zone.OUTPOST_AREA, Lane.UPPER),
+    OUTPOST(new Pose2d(0.495, 0.656, Rotation2d.fromDegrees(135)), Zone.OUTPOST_AREA, Lane.UPPER),
     /** DEPOT — floor-level FUEL bin along ALLIANCE WALL. */
-    DEPOT(new Pose2d(0.80, 2.00, Rotation2d.fromDegrees(180)), Zone.ALLIANCE_ZONE, Lane.LOWER),
-    /** NEUTRAL ZONE center — pick up scattered FUEL from the middle of the field. */
-    NEUTRAL_ZONE_CENTER(
-        new Pose2d(FIELD_LENGTH / 2.0, 4.03, Rotation2d.fromDegrees(0)),
-        Zone.NEUTRAL_ZONE,
-        Lane.CENTER),
+    DEPOT(new Pose2d(0.665, 5.962, Rotation2d.fromDegrees(180)), Zone.ALLIANCE_ZONE, Lane.LOWER),
+    
     /** NEUTRAL ZONE upper — pick up FUEL from the upper side of the neutral zone. */
     NEUTRAL_ZONE_UPPER(
-        new Pose2d(FIELD_LENGTH / 2.0, 6.00, Rotation2d.fromDegrees(0)),
+        new Pose2d(7.084, 5.905, Rotation2d.fromDegrees(-90)),
         Zone.NEUTRAL_ZONE,
         Lane.UPPER),
     /** NEUTRAL ZONE lower — pick up FUEL from the lower side of the neutral zone. */
     NEUTRAL_ZONE_LOWER(
-        new Pose2d(FIELD_LENGTH / 2.0, 2.00, Rotation2d.fromDegrees(0)),
+        new Pose2d(7.084, 2.165, Rotation2d.fromDegrees(90)),
         Zone.NEUTRAL_ZONE,
         Lane.LOWER);
 
@@ -152,27 +149,16 @@ public final class FieldConstants {
   }
 
   // ===== Traversal Waypoints =====
-  // Intermediate waypoints the planner uses to navigate between zones via specific lanes.
-  // In REBUILT, the TRENCH (22.25in tall) and BUMP (6.5in tall ramps) create natural
-  // lane boundaries. Robots going under the TRENCH must be short enough; going over
-  // BUMPs is available to all robots.
   public enum Waypoint {
     // Upper lane waypoints (TRENCH/BUMP side, high Y)
     UPPER_HUB_EXIT(new Pose2d(4.50, 6.50, Rotation2d.fromDegrees(0)), Lane.UPPER),
     UPPER_NEUTRAL(new Pose2d(FIELD_LENGTH / 2.0, 6.50, Rotation2d.fromDegrees(0)), Lane.UPPER),
     UPPER_OUTPOST_APPROACH(new Pose2d(2.00, 7.00, Rotation2d.fromDegrees(135)), Lane.UPPER),
 
-    // Center lane waypoints (between HUBs)
-    CENTER_HUB_EXIT(new Pose2d(5.00, 4.03, Rotation2d.fromDegrees(0)), Lane.CENTER),
-    CENTER_NEUTRAL(new Pose2d(FIELD_LENGTH / 2.0, 4.03, Rotation2d.fromDegrees(0)), Lane.CENTER),
-
     // Lower lane waypoints (TRENCH/BUMP side, low Y)
     LOWER_HUB_EXIT(new Pose2d(4.50, 1.57, Rotation2d.fromDegrees(0)), Lane.LOWER),
     LOWER_NEUTRAL(new Pose2d(FIELD_LENGTH / 2.0, 1.57, Rotation2d.fromDegrees(0)), Lane.LOWER),
-    LOWER_DEPOT_APPROACH(new Pose2d(1.50, 2.00, Rotation2d.fromDegrees(180)), Lane.LOWER),
-
-    // TOWER approach (TOWER is integrated into ALLIANCE WALL between DS2 and DS3)
-    TOWER_APPROACH(new Pose2d(0.75, 4.03, Rotation2d.fromDegrees(180)), Lane.CENTER);
+    LOWER_DEPOT_APPROACH(new Pose2d(1.50, 2.00, Rotation2d.fromDegrees(180)), Lane.LOWER);
 
     public final Pose2d bluePose;
     public final Lane lane;
@@ -212,6 +198,25 @@ public final class FieldConstants {
     }
   }
 
+    // ===== Climb Poses =====
+  public enum ClimbPose {
+    /** Starting pose near DRIVER STATION 1 (upper side, near OUTPOST). */
+    DEPOT_SIDE(new Pose2d(1.554, 3.993, Rotation2d.fromDegrees(180))),
+    /** Starting pose near DRIVER STATION 2 (center, near TOWER). */
+    OUTPOST_SIDE(new Pose2d(1.554, 3.548, Rotation2d.fromDegrees(180)));
+
+    public final Pose2d bluePose;
+
+    ClimbPose(Pose2d bluePose) {
+      this.bluePose = bluePose;
+    }
+
+    /** Get the alliance-corrected pose. */
+    public Pose2d getPose() {
+      return isRedAlliance() ? flipPose(bluePose) : bluePose;
+    }
+  }
+
   // ===== Climb Level =====
   // The TOWER has 3 RUNGS at different heights. Higher RUNGS score more points.
   // LEVEL 1: robot off carpet/TOWER BASE (15 pts auto, 10 pts teleop)
@@ -220,26 +225,20 @@ public final class FieldConstants {
   // The TOWER is integrated into the ALLIANCE WALL between DS2 and DS3.
   public enum ClimbLevel {
     /** LEVEL 1 — off the carpet/TOWER BASE. LOW RUNG at 27in. (10 pts teleop, 15 pts auto) */
-    LEVEL_1(new Pose2d(0.60, 4.03, Rotation2d.fromDegrees(180)), 10, 15, 3.0),
+    LEVEL_1(10, 15, 3.0),
     /** LEVEL 2 — BUMPERS above LOW RUNG. MID RUNG at 45in. (20 pts teleop) */
-    LEVEL_2(new Pose2d(0.60, 4.03, Rotation2d.fromDegrees(180)), 20, 0, 5.0),
+    LEVEL_2(20, 0, 5.0),
     /** LEVEL 3 — BUMPERS above MID RUNG. HIGH RUNG at 63in. (30 pts teleop) */
-    LEVEL_3(new Pose2d(0.60, 4.03, Rotation2d.fromDegrees(180)), 30, 0, 8.0);
+    LEVEL_3(30, 0, 8.0);
 
-    public final Pose2d bluePose;
     public final int teleopPoints;
     public final int autoPoints;
     public final double estimatedClimbDuration; // seconds
 
-    ClimbLevel(Pose2d bluePose, int teleopPoints, int autoPoints, double estimatedClimbDuration) {
-      this.bluePose = bluePose;
+    ClimbLevel(int teleopPoints, int autoPoints, double estimatedClimbDuration) {
       this.teleopPoints = teleopPoints;
       this.autoPoints = autoPoints;
       this.estimatedClimbDuration = estimatedClimbDuration;
-    }
-
-    public Pose2d getPose() {
-      return isRedAlliance() ? flipPose(bluePose) : bluePose;
     }
   }
 
@@ -250,7 +249,7 @@ public final class FieldConstants {
   // ===== Estimated action durations (seconds) =====
   // Used by the planner for time budgeting.
   /** Time to dump/shoot a load of FUEL into the HUB. */
-  public static final double SCORE_DURATION = 1.5;
+  public static final double SCORE_DURATION = 3.0;
 
   /** Time to intake FUEL at a location (ground sweep or OUTPOST/DEPOT pickup). */
   public static final double INTAKE_DURATION = 2.0;
@@ -287,6 +286,11 @@ public final class FieldConstants {
         FIELD_LENGTH - bluePose.getX(),
         bluePose.getY(),
         Rotation2d.fromDegrees(180).minus(bluePose.getRotation()));
+  }
+
+  /** Flip a translation from blue origin to red origin. Mirrors X across the field center. */
+  public static Translation2d flipTranslation(Translation2d blueTranslation) {
+    return new Translation2d(FIELD_LENGTH - blueTranslation.getX(), blueTranslation.getY());
   }
 
   /**

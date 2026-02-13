@@ -19,8 +19,8 @@
  * <ul>
  *   <li>{@link frc.robot.auto.dashboard.AutoSettings} — All dashboard-configurable settings (start
  *       pose, lanes, shooting priority, risk level, climb level, preload count, etc.).
- *   <li>{@link frc.robot.auto.dashboard.FieldConstants} — REBUILT field geometry: HUB shooting
- *       positions, FUEL intake locations (OUTPOST/DEPOT/NEUTRAL ZONE), TOWER climb levels, zones.
+ *   <li>{@link frc.robot.auto.dashboard.FieldConstants} — REBUILT field geometry: HUB scoring
+ *       waypoints, FUEL intake locations (OUTPOST/DEPOT/NEUTRAL ZONE), TOWER climb levels, zones.
  *   <li>{@link frc.robot.auto.dashboard.AutoAction} — Abstract action types that compose into a
  *       sequence (ScoreAt, IntakeAt, DriveTo, Climb, Wait, etc.).
  *   <li>{@link frc.robot.auto.dashboard.AutoPlanner} — The planning engine: reads settings,

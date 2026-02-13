@@ -13,6 +13,7 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import frc.robot.Constants;
 import frc.robot.RobotState;
+import frc.robot.auto.dashboard.FieldConstants;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
@@ -225,8 +226,8 @@ public class ShooterSetpoint {
    */
   private static boolean isInNeutralZone(Pose2d robotPose, Translation3d target) {
     double robotX = robotPose.getX();
-    double blueTargetX = Constants.FieldPoses.BLUE_HUB_TRANSLATION3D.getX();
-    double redTargetX = Constants.FieldPoses.RED_HUB_POSE_TRANSLATION3D.getX();
+    double blueTargetX = FieldConstants.BLUE_HUB_TRANSLATION3D.getX();
+    double redTargetX = FieldConstants.RED_HUB_POSE_TRANSLATION3D.getX();
 
     // Robot is in neutral zone if it's between the two hub targets
     return robotX > blueTargetX && robotX < redTargetX;
@@ -244,8 +245,8 @@ public class ShooterSetpoint {
 
     Translation3d hubTarget =
         isBlueAlliance
-            ? Constants.FieldPoses.BLUE_HUB_TRANSLATION3D
-            : Constants.FieldPoses.RED_HUB_POSE_TRANSLATION3D;
+            ? FieldConstants.BLUE_HUB_TRANSLATION3D
+            : FieldConstants.RED_HUB_POSE_TRANSLATION3D;
 
     // Check if in neutral zone
     if (isInNeutralZone(robotPose, hubTarget)) {
@@ -256,7 +257,7 @@ public class ShooterSetpoint {
       } else {
         // Red: shoot towards X=field_length (red wall)
         return new Translation3d(
-            Constants.FieldPoses.FIELD_LENGTH, robotPose.getY(), hubTarget.getZ());
+            FieldConstants.FIELD_LENGTH, robotPose.getY(), hubTarget.getZ());
       }
     }
 

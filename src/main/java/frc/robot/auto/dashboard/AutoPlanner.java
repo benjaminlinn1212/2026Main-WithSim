@@ -5,9 +5,10 @@ package frc.robot.auto.dashboard;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
+import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
 import frc.robot.auto.dashboard.FieldConstants.Lane;
-import frc.robot.auto.dashboard.FieldConstants.ScoringLocation;
+import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -61,13 +62,13 @@ public class AutoPlanner {
     // The robot can preload 1-8 FUEL. All preloaded FUEL is dumped in a single scoring action
     // at the first HUB shooting position. More FUEL = slightly longer score duration.
     if (settings.hasPreload()) {
-      ScoringLocation preloadTarget =
-          pickBestScoringLocation(currentPose, settings.getScoringPriority(), effectiveLanes, null);
+      ScoringWaypoint preloadTarget =
+          pickBestScoringWaypoint(currentPose, settings.getScoringPriority(), effectiveLanes, null);
 
       if (preloadTarget != null) {
         // Drive to HUB shooting position and dump preloaded FUEL
         double driveTime =
-            FieldConstants.estimateDriveTime(currentPose, preloadTarget.getPose()) * timeMargin;
+            FieldConstants.estimateDriveTime(currentPose, preloadTarget.toPose()) * timeMargin;
         // Scale score time by preload count — more FUEL takes longer to dump
         double preloadScoreTime =
             FieldConstants.SCORE_DURATION
@@ -77,7 +78,7 @@ public class AutoPlanner {
         if (driveTime + preloadScoreTime < timeRemaining) {
           actions.add(new AutoAction.ScorePreload(preloadTarget));
           timeRemaining -= driveTime + preloadScoreTime;
-          currentPose = preloadTarget.getPose();
+          currentPose = preloadTarget.toPose();
           Logger.recordOutput("AutoPlanner/PreloadFuelCount", settings.getPreloadCount());
         }
       }
@@ -87,12 +88,12 @@ public class AutoPlanner {
     // Each cycle: collect FUEL → drive to HUB → shoot FUEL
     int cyclesCompleted = 0;
     // Track which HUB positions we've already shot from to diversify angles
-    List<ScoringLocation> scoredLocations = new ArrayList<>();
+    List<ScoringWaypoint> scoredLocations = new ArrayList<>();
 
     while (cyclesCompleted < settings.getMaxCycles()) {
       // Pick next HUB shooting position
-      ScoringLocation nextTarget =
-          pickBestScoringLocation(
+      ScoringWaypoint nextTarget =
+          pickBestScoringWaypoint(
               currentPose, settings.getScoringPriority(), effectiveLanes, scoredLocations);
 
       if (nextTarget == null) {
@@ -114,7 +115,7 @@ public class AutoPlanner {
           FieldConstants.estimateDriveTime(currentPose, intakeLoc.getPose()) * timeMargin;
       double intakeTime = FieldConstants.INTAKE_DURATION * timeMargin;
       double driveToScoreTime =
-          FieldConstants.estimateDriveTime(intakeLoc.getPose(), nextTarget.getPose()) * timeMargin;
+          FieldConstants.estimateDriveTime(intakeLoc.getPose(), nextTarget.toPose()) * timeMargin;
       double scoreTime = FieldConstants.SCORE_DURATION * timeMargin;
 
       double cycleTime = driveToIntakeTime + intakeTime + driveToScoreTime + scoreTime;
@@ -123,8 +124,9 @@ public class AutoPlanner {
       double climbReserve = 0.0;
       if (settings.shouldAttemptClimb()) {
         ClimbLevel cl = settings.getClimbLevel();
+        ClimbPose cp = ClimbPose.DEPOT_SIDE; // TODO: make configurable via dashboard
         double driveToTower =
-            FieldConstants.estimateDriveTime(nextTarget.getPose(), cl.getPose()) * timeMargin;
+            FieldConstants.estimateDriveTime(nextTarget.toPose(), cp.getPose()) * timeMargin;
         climbReserve = driveToTower + cl.estimatedClimbDuration * timeMargin;
       }
 
@@ -144,7 +146,7 @@ public class AutoPlanner {
 
       actions.add(new AutoAction.ScoreAt(nextTarget, settings.isShootWhileDriving()));
       timeRemaining -= driveToScoreTime + scoreTime;
-      currentPose = nextTarget.getPose();
+      currentPose = nextTarget.toPose();
 
       scoredLocations.add(nextTarget);
       cyclesCompleted++;
@@ -155,15 +157,16 @@ public class AutoPlanner {
     // But we plan it here so the robot is already in position for teleop climb.
     if (settings.shouldAttemptClimb()) {
       ClimbLevel cl = settings.getClimbLevel();
+      ClimbPose cp = ClimbPose.DEPOT_SIDE; // TODO: make configurable via dashboard
       double driveToTower =
-          FieldConstants.estimateDriveTime(currentPose, cl.getPose()) * timeMargin;
+          FieldConstants.estimateDriveTime(currentPose, cp.getPose()) * timeMargin;
       double climbTime = cl.estimatedClimbDuration * timeMargin;
 
       if (driveToTower + climbTime <= timeRemaining) {
-        actions.add(new AutoAction.DriveTo(cl.getPose(), "TOWER " + cl.name()));
-        actions.add(new AutoAction.Climb(cl));
+        actions.add(new AutoAction.DriveTo(cp.getPose(), "TOWER " + cl.name()));
+        actions.add(new AutoAction.Climb(cl, cp));
         timeRemaining -= driveToTower + climbTime;
-        currentPose = cl.getPose();
+        currentPose = cp.getPose();
       } else {
         Logger.recordOutput("AutoPlanner/ClimbSkipped", "Not enough time for TOWER climb");
       }
@@ -193,17 +196,17 @@ public class AutoPlanner {
    *   <li>Deprioritize locations we've already scored at (but don't exclude — we might revisit).
    * </ol>
    */
-  private static ScoringLocation pickBestScoringLocation(
+  private static ScoringWaypoint pickBestScoringWaypoint(
       Pose2d currentPose,
-      List<ScoringLocation> priority,
+      List<ScoringWaypoint> priority,
       Set<Lane> allowedLanes,
-      List<ScoringLocation> alreadyScored) {
+      List<ScoringWaypoint> alreadyScored) {
 
-    ScoringLocation best = null;
+    ScoringWaypoint best = null;
     double bestScore = Double.MAX_VALUE;
 
     for (int i = 0; i < priority.size(); i++) {
-      ScoringLocation loc = priority.get(i);
+      ScoringWaypoint loc = priority.get(i);
 
       // Lane filter
       if (!allowedLanes.contains(loc.lane)) {
@@ -213,7 +216,7 @@ public class AutoPlanner {
       // Compute a score: lower = better
       // Priority index is the primary factor, distance is secondary
       double priorityWeight = i * 5.0; // 5 meters per priority position
-      double distance = currentPose.getTranslation().getDistance(loc.getPose().getTranslation());
+      double distance = currentPose.getTranslation().getDistance(loc.getPosition());
 
       // Penalty for revisiting
       double revisitPenalty = 0.0;

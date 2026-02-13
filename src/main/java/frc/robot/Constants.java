@@ -42,22 +42,6 @@ public final class Constants {
     REPLAY
   }
 
-  public static class FieldPoses {
-    // Field dimensions — canonical values from frc.robot.auto.dashboard.FieldConstants
-    public static final double FIELD_LENGTH =
-        frc.robot.auto.dashboard.FieldConstants.FIELD_LENGTH; // meters
-    public static final double FIELD_WIDTH =
-        frc.robot.auto.dashboard.FieldConstants.FIELD_WIDTH; // meters
-    public static final Translation2d FIELD_CENTER =
-        frc.robot.auto.dashboard.FieldConstants.FIELD_CENTER;
-
-    // HUB 3D positions (used by ShooterSetpoint for distance-based aiming)
-    public static final Translation3d BLUE_HUB_TRANSLATION3D =
-        new Translation3d(4.625689, 4.040981, 0);
-    public static final Translation3d RED_HUB_POSE_TRANSLATION3D =
-        new Translation3d(16.54175 - 4.625689, 4.040981, 0);
-  }
-
   public static class Vision {
     // Limelight names
     public static final String FRONT_LIMELIGHT_NAME = "limelight-front";

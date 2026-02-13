@@ -5,8 +5,9 @@ package frc.robot.auto.dashboard;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
+import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
-import frc.robot.auto.dashboard.FieldConstants.ScoringLocation;
+import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 
 /**
  * Represents a single step in a planned autonomous sequence. The {@link AutoPlanner} produces a
@@ -87,16 +88,16 @@ public abstract class AutoAction {
    * + shoot FUEL).
    */
   public static final class ScoreAt extends AutoAction {
-    private final ScoringLocation location;
+    private final ScoringWaypoint location;
     private final boolean shootWhileMoving;
 
-    public ScoreAt(ScoringLocation location, boolean shootWhileMoving) {
+    public ScoreAt(ScoringWaypoint location, boolean shootWhileMoving) {
       super(Type.SCORE_AT);
       this.location = location;
       this.shootWhileMoving = shootWhileMoving;
     }
 
-    public ScoringLocation getLocation() {
+    public ScoringWaypoint getLocation() {
       return location;
     }
 
@@ -118,7 +119,7 @@ public abstract class AutoAction {
 
     @Override
     public Pose2d getTargetPose() {
-      return location.getPose();
+      return location.toPose();
     }
   }
 
@@ -192,14 +193,20 @@ public abstract class AutoAction {
   /** Execute the TOWER climb sequence. Usually the last action. */
   public static final class Climb extends AutoAction {
     private final ClimbLevel climbLevel;
+    private final ClimbPose climbPose;
 
-    public Climb(ClimbLevel climbLevel) {
+    public Climb(ClimbLevel climbLevel, ClimbPose climbPose) {
       super(Type.CLIMB);
       this.climbLevel = climbLevel;
+      this.climbPose = climbPose;
     }
 
     public ClimbLevel getClimbLevel() {
       return climbLevel;
+    }
+
+    public ClimbPose getClimbPose() {
+      return climbPose;
     }
 
     @Override
@@ -214,7 +221,7 @@ public abstract class AutoAction {
 
     @Override
     public Pose2d getTargetPose() {
-      return climbLevel.getPose();
+      return climbPose.getPose();
     }
   }
 
@@ -258,14 +265,14 @@ public abstract class AutoAction {
    * assumed to already be positioned.
    */
   public static final class ScorePreload extends AutoAction {
-    private final ScoringLocation location;
+    private final ScoringWaypoint location;
 
-    public ScorePreload(ScoringLocation location) {
+    public ScorePreload(ScoringWaypoint location) {
       super(Type.SCORE_PRELOAD);
       this.location = location;
     }
 
-    public ScoringLocation getLocation() {
+    public ScoringWaypoint getLocation() {
       return location;
     }
 
@@ -281,7 +288,7 @@ public abstract class AutoAction {
 
     @Override
     public Pose2d getTargetPose() {
-      return location.getPose();
+      return location.toPose();
     }
   }
 }

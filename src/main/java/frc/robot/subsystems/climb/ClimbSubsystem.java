@@ -564,7 +564,7 @@ public class ClimbSubsystem extends SubsystemBase {
   // SERVO TEST (PWM 0)
   // ===========================================================================
 
-  /** Command to set the climb servo (PWM 0) to 0 deg (position 0.0). */
+  /** Command to set the right hook servo to 0° (position 0.0). */
   public Command servoTo0Deg() {
     Command cmd =
         runOnce(
@@ -576,15 +576,39 @@ public class ClimbSubsystem extends SubsystemBase {
     return cmd;
   }
 
-  /** Command to set the climb servo (PWM 0) to 90 deg (position 0.5). */
+  /** Command to set the right hook servo to 90° (position 90/270 ≈ 0.333). */
   public Command servoTo90Deg() {
     Command cmd =
         runOnce(
             () -> {
-              io.setRightHookPosition(0.5);
-              Logger.recordOutput("Climb/ServoTestPosition", 0.5);
+              io.setRightHookPosition(90.0 / 270.0);
+              Logger.recordOutput("Climb/ServoTestPosition", 90.0 / 270.0);
             });
     cmd.setName("ClimbServoTo90Deg");
+    return cmd;
+  }
+
+  /** Command to set the right hook servo to 180° (position 180/270 ≈ 0.667). */
+  public Command servoTo180Deg() {
+    Command cmd =
+        runOnce(
+            () -> {
+              io.setRightHookPosition(180.0 / 270.0);
+              Logger.recordOutput("Climb/ServoTestPosition", 180.0 / 270.0);
+            });
+    cmd.setName("ClimbServoTo180Deg");
+    return cmd;
+  }
+
+  /** Command to set the right hook servo to 270° (position 1.0). */
+  public Command servoTo270Deg() {
+    Command cmd =
+        runOnce(
+            () -> {
+              io.setRightHookPosition(1.0);
+              Logger.recordOutput("Climb/ServoTestPosition", 1.0);
+            });
+    cmd.setName("ClimbServoTo270Deg");
     return cmd;
   }
 

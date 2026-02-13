@@ -301,7 +301,9 @@ public final class Constants {
         0.03; // seconds - prediction lookahead for motion compensation
 
     // Feedforward Filter
-    public static final int FEEDFORWARD_FILTER_TAPS = 10; // Moving average filter size
+    // Lower tap count = less smoothing but less phase lag.
+    // 5 taps at 20ms loop = ~50ms group delay (was 10 taps / ~100ms).
+    public static final int FEEDFORWARD_FILTER_TAPS = 5; // Moving average filter size
 
     // Neutral Zone Shot Settings
     public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG =
@@ -444,11 +446,17 @@ public final class Constants {
     public static final int LEFT_BACK_MOTOR_CAN_ID = 54;
     public static final String CAN_BUS = "Superstructure";
 
-    // Passive Hook Release Servos
-    public static final int RIGHT_HOOK_SERVO_PWM = 0;
+    // Passive Hook Release Servos (REV Smart Robot Servo, REV-41-1097)
+    // Without an SRS Programmer the servo acts as a 270° standard servo
+    // with a 500µs–2500µs pulse range.  PWM bounds are overridden in the IO
+    // layer so set(0.0) = 0° and set(1.0) = 270°.
+    public static final int RIGHT_HOOK_SERVO_PWM = 9;
     public static final int LEFT_HOOK_SERVO_PWM = 1;
-    public static final double HOOK_STOWED_POSITION = 0.0; // Hooks locked
-    public static final double HOOK_RELEASED_POSITION = 1.0; // Hooks released
+    public static final double SRS_FULL_RANGE_DEG = 270.0; // degrees of travel
+    // Servo positions as fraction of full range (0.0 = 0°, 1.0 = 270°)
+    // Tune these to the actual stowed / released angles of your mechanism.
+    public static final double HOOK_STOWED_POSITION = 0.0; // 0° — hooks locked
+    public static final double HOOK_RELEASED_POSITION = 1.0; // 270° — hooks released
 
     // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
     // Front motors: 100:1 reduction → 1 motor rotation = 1/100 drum rotation

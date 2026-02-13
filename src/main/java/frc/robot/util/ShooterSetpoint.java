@@ -274,16 +274,20 @@ public class ShooterSetpoint {
     }
 
     Pose2d robotPose = robotState.getLatestFieldToRobot().getValue();
-    ChassisSpeeds robotVelocity = robotState.getLatestMeasuredFieldRelativeChassisSpeeds();
+    ChassisSpeeds fieldRelativeVelocity = robotState.getLatestMeasuredFieldRelativeChassisSpeeds();
+    ChassisSpeeds robotRelativeVelocity = robotState.getLatestRobotRelativeChassisSpeed();
 
     // Predict future pose to compensate for system latency
+    // IMPORTANT: Pose2d.exp() expects a robot-relative Twist2d (dx = forward, dy = left),
+    // NOT field-relative velocities. Using field-relative here caused the predicted heading
+    // to diverge at high angular velocities, leading to aim errors.
     double phaseDelay = Constants.Aiming.PHASE_DELAY;
     Pose2d estimatedPose =
         robotPose.exp(
             new edu.wpi.first.math.geometry.Twist2d(
-                robotVelocity.vxMetersPerSecond * phaseDelay,
-                robotVelocity.vyMetersPerSecond * phaseDelay,
-                robotVelocity.omegaRadiansPerSecond * phaseDelay));
+                robotRelativeVelocity.vxMetersPerSecond * phaseDelay,
+                robotRelativeVelocity.vyMetersPerSecond * phaseDelay,
+                robotRelativeVelocity.omegaRadiansPerSecond * phaseDelay));
 
     // Calculate turret position in field frame (robot center + rotated turret offset)
     Translation2d robotPosition = estimatedPose.getTranslation();
@@ -301,7 +305,7 @@ public class ShooterSetpoint {
     }
 
     return calculateHubShot(
-        turretPosition, target, robotVelocity, estimatedPose, turretOffset, robotHeading);
+        turretPosition, target, fieldRelativeVelocity, estimatedPose, turretOffset, robotHeading);
   }
 
   /**
@@ -361,17 +365,22 @@ public class ShooterSetpoint {
     double turretVelocityX = robotVelocity.vxMetersPerSecond - omega * rotatedOffset.getY();
     double turretVelocityY = robotVelocity.vyMetersPerSecond + omega * rotatedOffset.getX();
 
-    // ── Motion compensation ──
+    // ── Motion compensation (iterative) ──
     // The game piece inherits the turret's velocity, so we offset the target
     // by -turretVelocity * timeOfFlight to aim where the target will effectively be.
-    double timeOfFlight = timeOfFlightMap.get(rawDistance);
-    Translation2d lookaheadTarget =
-        new Translation2d(
-            target.getX() - turretVelocityX * timeOfFlight,
-            target.getY() - turretVelocityY * timeOfFlight);
-
-    Translation2d lookaheadTurretToTarget = lookaheadTarget.minus(turretPosition);
-    double compensatedDistance = lookaheadTurretToTarget.getNorm();
+    // We iterate because offsetting the target changes the distance, which changes the
+    // time-of-flight. 3 iterations is sufficient for convergence (used by 254/6328).
+    double compensatedDistance = rawDistance;
+    Translation2d lookaheadTurretToTarget = turretToTarget;
+    for (int i = 0; i < 3; i++) {
+      double timeOfFlight = timeOfFlightMap.get(compensatedDistance);
+      Translation2d lookaheadTarget =
+          new Translation2d(
+              target.getX() - turretVelocityX * timeOfFlight,
+              target.getY() - turretVelocityY * timeOfFlight);
+      lookaheadTurretToTarget = lookaheadTarget.minus(turretPosition);
+      compensatedDistance = lookaheadTurretToTarget.getNorm();
+    }
 
     // ── Turret angle (robot-relative) ──
     Rotation2d turretAngle = lookaheadTurretToTarget.getAngle().minus(robotHeading);

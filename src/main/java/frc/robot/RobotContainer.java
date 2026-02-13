@@ -11,8 +11,8 @@ package frc.robot;
 // import com.pathplanner.lib.config.PIDConstants;
 // import com.pathplanner.lib.config.RobotConfig;
 // import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
+// import edu.wpi.first.math.geometry.Pose2d;
+// import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -401,58 +401,65 @@ public class RobotContainer {
     //   Blue side: robot near (0.33, 0.33) facing 0° (toward red wall)
     //   Red side:  robot near (FIELD_LENGTH - 0.33, FIELD_WIDTH - 0.33) facing 180° (toward blue
     // wall)
-    controller
-        .leftBumper()
-        .onTrue(
-            Commands.runOnce(
-                    () -> {
-                      var alliance = DriverStation.getAlliance();
-                      boolean isRed =
-                          alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-                      if (isRed) {
-                        swerveIO.setPose(
-                            new Pose2d(
-                                Constants.FieldPoses.FIELD_LENGTH - 0.33,
-                                Constants.FieldPoses.FIELD_WIDTH - 0.33,
-                                Rotation2d.fromDegrees(180)));
-                      } else {
-                        swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
-                      }
-                    },
-                    swerveIO)
-                .ignoringDisable(true));
+    // controller
+    //     .leftBumper()
+    //     .onTrue(
+    //         Commands.runOnce(
+    //                 () -> {
+    //                   var alliance = DriverStation.getAlliance();
+    //                   boolean isRed =
+    //                       alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+    //                   if (isRed) {
+    //                     swerveIO.setPose(
+    //                         new Pose2d(
+    //                             Constants.FieldPoses.FIELD_LENGTH - 0.33,
+    //                             Constants.FieldPoses.FIELD_WIDTH - 0.33,
+    //                             Rotation2d.fromDegrees(180)));
+    //                   } else {
+    //                     swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
+    //                   }
+    //                 },
+    //                 swerveIO)
+    //             .ignoringDisable(true));
 
-    // ===== SUPERSTRUCTURE CONTROLS =====
+    // // ===== SUPERSTRUCTURE CONTROLS =====
 
-    // X button: Aiming while intaking
-    controller.x().onTrue(superstructure.onlyAiming());
+    // // X button: Aiming while intaking
+    // controller.x().onTrue(superstructure.onlyAiming());
 
-    controller.a().onTrue(superstructure.onlyIntake());
+    // controller.a().onTrue(superstructure.onlyIntake());
 
-    // Y button: Stow (idle)
-    controller.y().onTrue(superstructure.idle());
+    // // Y button: Stow (idle)
+    // controller.y().onTrue(superstructure.idle());
 
-    // A button (hold): Shoot while held, return to aiming on release.
-    // If in AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING, else → ONLY_SHOOTING
-    // On release: return to corresponding aiming state
-    controller
-        .rightTrigger()
-        .whileTrue(
-            Commands.either(
-                superstructure.shootingWhileIntaking(),
-                superstructure.onlyShooting(),
-                () ->
-                    superstructure.getState()
-                        == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING))
-        .onFalse(
-            Commands.either(
-                superstructure.aimingWhileIntaking(),
-                superstructure.onlyAiming(),
-                () ->
-                    superstructure.getState()
-                            == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING
-                        || superstructure.getState()
-                            == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING));
+    // // A button (hold): Shoot while held, return to aiming on release.
+    // // If in AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING, else → ONLY_SHOOTING
+    // // On release: return to corresponding aiming state
+    // controller
+    //     .rightTrigger()
+    //     .whileTrue(
+    //         Commands.either(
+    //             superstructure.shootingWhileIntaking(),
+    //             superstructure.onlyShooting(),
+    //             () ->
+    //                 superstructure.getState()
+    //                     == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING))
+    //     .onFalse(
+    //         Commands.either(
+    //             superstructure.aimingWhileIntaking(),
+    //             superstructure.onlyAiming(),
+    //             () ->
+    //                 superstructure.getState()
+    //                         == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING
+    //                     || superstructure.getState()
+    //                         == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING));
+
+    // ===== RIGHT HOOK SERVO TEST (REV SRS 270° servo on PWM 0) =====
+    // B = 0°, Y = 90°, X = 180°, A = 270°
+    controller.b().onTrue(climb.servoTo0Deg());
+    controller.y().onTrue(climb.servoTo90Deg());
+    controller.x().onTrue(climb.servoTo180Deg());
+    controller.a().onTrue(climb.servoTo270Deg());
 
     // ===== CLIMB STATE CONTROLS =====
 

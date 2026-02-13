@@ -33,9 +33,15 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftFrontMotor = new TalonFX(ClimbConstants.LEFT_FRONT_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
     leftBackMotor = new TalonFX(ClimbConstants.LEFT_BACK_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
 
-    // Initialize passive hook release servos
+    // Initialize passive hook release servos (REV Smart Robot Servo, REV-41-1097)
+    // Without an SRS Programmer, the SRS acts as a 270° standard servo.
+    // Its input pulse range is 500µs–2500µs, but WPILib's Servo class defaults
+    // to 600µs–2400µs (for the Hitec HS-322HD).  Override the bounds so that
+    // set(0.0) → 500µs → 0° and set(1.0) → 2500µs → 270°.
     leftHookServo = new Servo(ClimbConstants.LEFT_HOOK_SERVO_PWM);
+    leftHookServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
     rightHookServo = new Servo(ClimbConstants.RIGHT_HOOK_SERVO_PWM);
+    rightHookServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
 
     // Start with hooks in stowed (locked) position
     leftHookServo.set(ClimbConstants.HOOK_STOWED_POSITION);

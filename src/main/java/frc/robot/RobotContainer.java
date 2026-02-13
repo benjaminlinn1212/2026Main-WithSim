@@ -11,7 +11,9 @@ package frc.robot;
 // import com.pathplanner.lib.config.PIDConstants;
 // import com.pathplanner.lib.config.RobotConfig;
 // import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-// import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 // import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -362,6 +364,8 @@ public class RobotContainer {
 
     // ===== DRIVE CONTROLS =====
     // Default command, field-relative drive
+    // In WPILib blue-origin coordinates, +X = toward red wall, +Y = toward left (from blue DS).
+    // On red alliance the driver faces the opposite direction, so we negate vx and vy.
     swerveIO.setDefaultCommand(
         Commands.run(
             () -> {
@@ -376,26 +380,54 @@ public class RobotContainer {
                   edu.wpi.first.math.MathUtil.applyDeadband(
                       -controller.getRightX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
 
-              double vxMetersPerSec = leftY * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS;
-              double vyMetersPerSec = leftX * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS;
+              // Flip field-relative directions for red alliance so "forward" on the
+              // joystick always means "away from the driver" regardless of alliance.
+              var alliance = DriverStation.getAlliance();
+              boolean isRed = alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+              double allianceFlip = isRed ? -1.0 : 1.0;
+
+              double vxMetersPerSec =
+                  leftY * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS * allianceFlip;
+              double vyMetersPerSec =
+                  leftX * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS * allianceFlip;
               double omegaRadPerSec =
                   rightX * Constants.DriveConstants.MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC;
               swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
             swerveIO));
 
-    // Left bumper: Reset pose
+    // Left bumper: Reset pose (alliance-aware)
+    // In WPILib blue-origin coordinates:
+    //   Blue side: robot near (0.33, 0.33) facing 0° (toward red wall)
+    //   Red side:  robot near (FIELD_LENGTH - 0.33, FIELD_WIDTH - 0.33) facing 180° (toward blue
+    // wall)
     controller
         .leftBumper()
         .onTrue(
             Commands.runOnce(
-                    () -> swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE), swerveIO)
+                    () -> {
+                      var alliance = DriverStation.getAlliance();
+                      boolean isRed =
+                          alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+                      if (isRed) {
+                        swerveIO.setPose(
+                            new Pose2d(
+                                Constants.FieldPoses.FIELD_LENGTH - 0.33,
+                                Constants.FieldPoses.FIELD_WIDTH - 0.33,
+                                Rotation2d.fromDegrees(180)));
+                      } else {
+                        swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
+                      }
+                    },
+                    swerveIO)
                 .ignoringDisable(true));
 
     // ===== SUPERSTRUCTURE CONTROLS =====
 
     // X button: Aiming while intaking
-    controller.x().onTrue(superstructure.aimingWhileIntaking());
+    controller.x().onTrue(superstructure.onlyAiming());
+
+    controller.a().onTrue(superstructure.onlyIntake());
 
     // Y button: Stow (idle)
     controller.y().onTrue(superstructure.idle());

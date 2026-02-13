@@ -87,9 +87,9 @@ public final class Constants {
             new Translation3d(0.177, 0.0, 0.53), // 17.7cm forward from turret axis, 53cm up
             new Rotation3d(0, Units.degreesToRadians(15), 0)); // Pitched up 15 degrees
 
-    // Turret position relative to robot center (should match TurretConstants offset)
-    // Positive X = forward, Positive Y = left (meters)
-    public static final Translation2d TURRET_TO_ROBOT_CENTER =
+    // Turret position relative to robot center
+    // Vector from robot center TO turret center (positive X = forward, meters).
+    public static final Translation2d ROBOT_TO_TURRET =
         TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
   }
 
@@ -324,13 +324,13 @@ public final class Constants {
         new Translation2d(0.1909, 0.0);
 
     // Position Limits (radians - mechanism angle limits)
-    public static final double MIN_POSITION_RAD = Units.rotationsToRadians(-0.5); // -π radians
-    public static final double MAX_POSITION_RAD = Units.rotationsToRadians(0.5); // +π radians
+    public static final double MIN_POSITION_RAD = Units.rotationsToRadians(-1.0);
+    public static final double MAX_POSITION_RAD = Units.rotationsToRadians(0.2777);
 
     // PID and Feedforward Constants (MotionMagicVoltage mode)
     public static final double KP = 10.0;
     public static final double KI = 0.0;
-    public static final double KD = 0.0;
+    public static final double KD = 0.3; // Dampens jitter from vision-induced setpoint changes
     public static final double KS = 0.25;
     public static final double KV = 0.12;
     public static final double KA = 0.0;

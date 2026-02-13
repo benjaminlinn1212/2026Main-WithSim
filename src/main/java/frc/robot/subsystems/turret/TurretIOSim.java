@@ -5,6 +5,7 @@ import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
 import frc.robot.Constants;
+import org.littletonrobotics.junction.Logger;
 
 /** Simulation implementation of TurretIO using physics simulation. */
 public class TurretIOSim implements TurretIO {
@@ -43,6 +44,8 @@ public class TurretIOSim implements TurretIO {
           Units.radiansToRotations(velocitySetpointRadPerSec) * Constants.TurretConstants.KV;
       double fbVolts = error * Constants.TurretConstants.KP;
       appliedVolts = MathUtil.clamp(ffVolts + fbVolts, -12.0, 12.0);
+      Logger.recordOutput("Turret/Sim/PErrorDeg", Math.toDegrees(error));
+      Logger.recordOutput("Turret/Sim/AppliedVolts", appliedVolts);
     }
 
     // Update simulation
@@ -63,11 +66,17 @@ public class TurretIOSim implements TurretIO {
   public void setPositionSetpoint(double rotationsFromCenter, double feedforwardVolts) {
     closedLoop = true;
     // Convert rotations to radians for internal sim calculations
+    double rawRad = Units.rotationsToRadians(rotationsFromCenter);
     positionSetpointRad =
         MathUtil.clamp(
-            Units.rotationsToRadians(rotationsFromCenter),
+            rawRad,
             Constants.TurretConstants.MIN_POSITION_RAD,
             Constants.TurretConstants.MAX_POSITION_RAD);
+    // Log what the sim receives vs what it clamps to
+    Logger.recordOutput("Turret/Sim/RawSetpointDeg", Math.toDegrees(rawRad));
+    Logger.recordOutput("Turret/Sim/ClampedSetpointDeg", Math.toDegrees(positionSetpointRad));
+    Logger.recordOutput("Turret/Sim/SimAngleDeg", Math.toDegrees(sim.getAngleRads()));
+    Logger.recordOutput("Turret/Sim/WasClamped", rawRad != positionSetpointRad);
     // In sim, we can derive feedforward velocity from voltage if needed
     // For now, just use the position setpoint (sim doesn't need perfect FF)
     velocitySetpointRadPerSec = 0.0;

@@ -1,7 +1,6 @@
 package frc.robot;
 
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
@@ -18,7 +17,9 @@ public class RobotState {
   private static final double kObservationBufferTime = 2.0; // seconds
 
   private final TreeMap<Double, Pose2d> fieldToRobot = new TreeMap<>();
-  private final TreeMap<Double, Rotation2d> robotToTurret = new TreeMap<>();
+  /** Stores raw turret angle in radians (unwrapped, NOT clamped to [-π,π]). */
+  private final TreeMap<Double, Double> robotToTurretRad = new TreeMap<>();
+
   private final TreeMap<Double, Double> turretAngularVelocity = new TreeMap<>();
 
   private ChassisSpeeds measuredFieldRelativeChassisSpeeds = new ChassisSpeeds();
@@ -37,10 +38,10 @@ public class RobotState {
     cleanUpObservations();
   }
 
-  /** Add turret rotation update (robot-relative) */
+  /** Add turret rotation update (robot-relative, raw radians — not wrapped to [-π,π]). */
   public synchronized void addTurretUpdates(
-      double timestamp, Rotation2d turretRotation, double angularVelocityRadsPerS) {
-    robotToTurret.put(timestamp, turretRotation);
+      double timestamp, double turretAngleRad, double angularVelocityRadsPerS) {
+    robotToTurretRad.put(timestamp, turretAngleRad);
     turretAngularVelocity.put(timestamp, angularVelocityRadsPerS);
     cleanUpObservations();
   }
@@ -66,18 +67,18 @@ public class RobotState {
     return Optional.of(entry.getValue());
   }
 
-  /** Get the most recent robot-to-turret rotation */
-  public synchronized Map.Entry<Double, Rotation2d> getLatestRobotToTurret() {
-    var entry = robotToTurret.lastEntry();
+  /** Get the most recent robot-to-turret rotation in raw radians (unwrapped). */
+  public synchronized Map.Entry<Double, Double> getLatestRobotToTurret() {
+    var entry = robotToTurretRad.lastEntry();
     if (entry == null) {
-      return Map.entry(Timer.getFPGATimestamp(), new Rotation2d());
+      return Map.entry(Timer.getFPGATimestamp(), 0.0);
     }
     return entry;
   }
 
-  /** Get robot-to-turret rotation at a specific timestamp */
-  public synchronized Optional<Rotation2d> getRobotToTurret(double timestamp) {
-    var entry = robotToTurret.floorEntry(timestamp);
+  /** Get robot-to-turret rotation at a specific timestamp in raw radians (unwrapped). */
+  public synchronized Optional<Double> getRobotToTurret(double timestamp) {
+    var entry = robotToTurretRad.floorEntry(timestamp);
     if (entry == null) {
       return Optional.empty();
     }
@@ -93,17 +94,11 @@ public class RobotState {
     return entry.getValue();
   }
 
-  /** Get turret-to-camera transform accounting for camera being on turret */
-  public Transform2d getTurretToCamera(boolean isTurretCamera) {
-    if (isTurretCamera) {
-      // Camera is on turret - return the turret-to-camera transform
-      var transform3d = Constants.Vision.TURRET_TO_CAMERA;
-      return new Transform2d(
-          transform3d.getTranslation().toTranslation2d(), transform3d.getRotation().toRotation2d());
-    } else {
-      // Camera is on robot body - no turret offset
-      return new Transform2d();
-    }
+  /** Get turret-to-camera 2D transform (projects the 3D TURRET_TO_CAMERA constant to 2D). */
+  public Transform2d getTurretToCamera() {
+    var transform3d = Constants.Vision.TURRET_TO_CAMERA;
+    return new Transform2d(
+        transform3d.getTranslation().toTranslation2d(), transform3d.getRotation().toRotation2d());
   }
 
   /** Get the field-relative chassis speeds */
@@ -125,8 +120,8 @@ public class RobotState {
     while (!fieldToRobot.isEmpty() && fieldToRobot.firstKey() < cutoffTime) {
       fieldToRobot.pollFirstEntry();
     }
-    while (!robotToTurret.isEmpty() && robotToTurret.firstKey() < cutoffTime) {
-      robotToTurret.pollFirstEntry();
+    while (!robotToTurretRad.isEmpty() && robotToTurretRad.firstKey() < cutoffTime) {
+      robotToTurretRad.pollFirstEntry();
     }
     while (!turretAngularVelocity.isEmpty() && turretAngularVelocity.firstKey() < cutoffTime) {
       turretAngularVelocity.pollFirstEntry();
@@ -146,7 +141,9 @@ public class RobotState {
           measuredFieldRelativeChassisSpeeds.vyMetersPerSecond);
       Logger.recordOutput(
           "RobotState/AngularVelocity", robotRelativeChassisSpeed.omegaRadiansPerSecond);
-      Logger.recordOutput("RobotState/TurretRotation", getLatestRobotToTurret().getValue());
+      Logger.recordOutput("RobotState/TurretRotationRad", getLatestRobotToTurret().getValue());
+      Logger.recordOutput(
+          "RobotState/TurretRotationDeg", Math.toDegrees(getLatestRobotToTurret().getValue()));
       Logger.recordOutput("RobotState/TurretAngularVelocity", getLatestTurretAngularVelocity());
     }
   }

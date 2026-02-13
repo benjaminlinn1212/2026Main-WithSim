@@ -34,7 +34,17 @@ public class VisionSubsystem extends SubsystemBase {
   private static final double XY_STD_DEV_FAR = 1.0;
   private static final double XY_STD_DEV_MULTI_TAG = 1.5;
   private static final double XY_STD_DEV_DEFAULT = 0.5;
-  private static final double ROTATION_STD_DEV_DEGREES = 12.0;
+  // MegaTag2 uses the gyro heading we feed it, so the rotation in the result is just our own
+  // gyro echoed back. Use a massive std dev so the pose estimator ignores MT2 rotation entirely.
+  private static final double MEGATAG2_ROTATION_STD_DEV = 999999.0;
+
+  // Turret camera std dev multiplier — the extra camera→turret→robot transform chain
+  // amplifies noise compared to drivetrain cameras, so we trust it less.
+  // NOTE: The turret heading sent via SetRobotOrientation is "now" but the Limelight
+  // image was captured ~20-50 ms ago when the turret was at a different angle.
+  // This timing mismatch injects angular error into the pose that feeds back into
+  // the turret setpoint, causing oscillation.  A high multiplier dampens this loop.
+  private static final double TURRET_CAMERA_STD_DEV_MULTIPLIER = 6.0;
 
   private final VisionIO io;
   private final RobotState state;
@@ -79,6 +89,9 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     if (inputs.turretCameraSeesTarget) {
+      // Turret camera: camerapose_robotspace_set is configured to TURRET_TO_CAMERA, so
+      // MT2's botpose returns the turret center's field pose.  getFieldToRobotEstimate()
+      // then applies only turret→robot for MT2, or camera→turret→robot for MT1.
       updateVision(
           inputs.turretCameraMegatagPoseEstimate,
           inputs.turretCameraMegatag2PoseEstimate,
@@ -154,7 +167,7 @@ public class VisionSubsystem extends SubsystemBase {
       return Optional.empty();
     }
 
-    var maybeFieldToRobotEstimate = getFieldToRobotEstimate(poseEstimate, isTurretCamera);
+    var maybeFieldToRobotEstimate = getFieldToRobotEstimate(poseEstimate, isTurretCamera, true);
     if (maybeFieldToRobotEstimate.isEmpty()) {
       Logger.recordOutput(logPreface + "RejectReason", "transform chain failed");
       return Optional.empty();
@@ -196,8 +209,14 @@ public class VisionSubsystem extends SubsystemBase {
         xyStds = 4.0;
       }
 
+      // Turret camera has extra transform chain noise (camera→turret→robot),
+      // so trust it less than drivetrain cameras.
+      if (isTurretCamera) {
+        xyStds *= TURRET_CAMERA_STD_DEV_MULTIPLIER;
+      }
+
       Matrix<N3, N1> visionMeasurementStdDevs =
-          VecBuilder.fill(xyStds, xyStds, Units.degreesToRadians(ROTATION_STD_DEV_DEGREES));
+          VecBuilder.fill(xyStds, xyStds, MEGATAG2_ROTATION_STD_DEV);
 
       Logger.recordOutput(logPreface + "StdDevs", visionMeasurementStdDevs.getData());
       Logger.recordOutput(logPreface + "PoseDifference", poseDifference);
@@ -222,7 +241,7 @@ public class VisionSubsystem extends SubsystemBase {
       return Optional.empty();
     }
 
-    var maybeFieldToRobotEstimate = getFieldToRobotEstimate(poseEstimate, isTurretCamera);
+    var maybeFieldToRobotEstimate = getFieldToRobotEstimate(poseEstimate, isTurretCamera, false);
     if (maybeFieldToRobotEstimate.isEmpty()) {
       return Optional.empty();
     }
@@ -258,6 +277,12 @@ public class VisionSubsystem extends SubsystemBase {
         degStds = 60;
       }
 
+      // Turret camera has extra transform chain noise
+      if (isTurretCamera) {
+        xyStds *= TURRET_CAMERA_STD_DEV_MULTIPLIER;
+        degStds *= TURRET_CAMERA_STD_DEV_MULTIPLIER;
+      }
+
       Matrix<N3, N1> visionMeasurementStdDevs =
           VecBuilder.fill(xyStds, xyStds, Units.degreesToRadians(degStds));
 
@@ -275,12 +300,18 @@ public class VisionSubsystem extends SubsystemBase {
    * <p>For drivetrain cameras: Limelight has camerapose_robotspace_set configured, so
    * botpose_wpiblue directly returns field-to-robot.
    *
-   * <p>For turret camera: Limelight receives SetRobotOrientation with the turret's field heading
-   * but has no camerapose_robotspace_set, so botpose_wpiblue returns the camera's field pose. We
-   * chain: field→camera → camera→turret → turret→robot to get field-to-robot.
+   * <p>For turret camera <b>MT2</b>: camerapose_robotspace_set is configured to TURRET_TO_CAMERA,
+   * so botpose_wpiblue already returns the <b>turret center's</b> field pose. We only need to chain
+   * turret→robot (one step).
+   *
+   * <p>For turret camera <b>MT1</b>: MT1 does not apply camerapose_robotspace_set — it returns the
+   * raw <b>camera</b> field pose. We chain: field→camera → camera→turret → turret→robot (two
+   * steps).
+   *
+   * @param isMT2 true when processing a MegaTag2 estimate. Affects the turret transform chain.
    */
   private Optional<Pose2d> getFieldToRobotEstimate(
-      MegatagPoseEstimate poseEstimate, boolean isTurretCamera) {
+      MegatagPoseEstimate poseEstimate, boolean isTurretCamera, boolean isMT2) {
 
     var fieldPose = poseEstimate.fieldPose;
     if (fieldPose.getX() == 0.0) {
@@ -288,27 +319,34 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     if (isTurretCamera) {
-      // Get turret rotation at the timestamp of this vision measurement
-      var robotToTurretRotation = state.getRobotToTurret(poseEstimate.timestampSeconds);
-      if (robotToTurretRotation.isEmpty()) {
-        return Optional.empty();
+      // Use the turret angle at the vision timestamp for an accurate transform.
+      // MT1 solves from geometry alone so timestamp alignment is straightforward.
+      // MT2 uses SetRobotOrientation heading (sent as "now"), but the yaw-rate we provide
+      // lets the LL interpolate back to the image capture instant, so timestamped angle
+      // is still the correct choice here.
+      var turretAtTimestamp = state.getRobotToTurret(poseEstimate.timestampSeconds);
+      double turretAngleRad = turretAtTimestamp.orElse(state.getLatestRobotToTurret().getValue());
+      Rotation2d robotToTurretRotation = new Rotation2d(turretAngleRad);
+
+      Pose2d fieldToTurret;
+      if (isMT2) {
+        // MT2: camerapose_robotspace_set is configured to TURRET_TO_CAMERA, so
+        // botpose_wpiblue already returns the turret center's field pose.
+        fieldToTurret = fieldPose;
+      } else {
+        // MT1: botpose_wpiblue returns the camera's raw field pose.
+        // Step 1: Camera → Turret (inverse of turret-to-camera offset)
+        var turretToCamera2d = state.getTurretToCamera();
+        var cameraToTurret2d = turretToCamera2d.inverse();
+        fieldToTurret = fieldPose.plus(cameraToTurret2d);
       }
 
-      // Transform chain: Field → Camera → Turret Center → Robot Center
-
-      // Step 1: Camera → Turret (inverse of turret-to-camera offset)
-      var turretToCamera2d = state.getTurretToCamera(true);
-      var cameraToTurret2d = turretToCamera2d.inverse();
-      var fieldToTurret = fieldPose.plus(cameraToTurret2d);
-
-      // Step 2: Turret → Robot
-      // The turret offset in robot frame is TURRET_TO_ROBOT_CENTER (turret is forward of robot).
-      // To go turret→robot, the translation in turret frame is:
-      //   (-offset).rotateBy(-robotToTurret)
-      // because we need to express "robot center relative to turret center" in turret coordinates.
-      Rotation2d turretToRobotRotation = robotToTurretRotation.get().unaryMinus();
+      // Step 2 (common): Turret → Robot
+      // ROBOT_TO_TURRET points robot-center → turret-center in robot frame.
+      // Negate to get turret → robot, then rotate into turret-local frame.
+      Rotation2d turretToRobotRotation = robotToTurretRotation.unaryMinus();
       Translation2d turretToRobotTranslation =
-          Constants.Vision.TURRET_TO_ROBOT_CENTER.unaryMinus().rotateBy(turretToRobotRotation);
+          Constants.Vision.ROBOT_TO_TURRET.unaryMinus().rotateBy(turretToRobotRotation);
       var turretToRobot = new Transform2d(turretToRobotTranslation, turretToRobotRotation);
 
       return Optional.of(fieldToTurret.plus(turretToRobot));

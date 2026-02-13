@@ -1,7 +1,6 @@
 package frc.robot.subsystems.turret;
 
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -69,11 +68,13 @@ public class TurretSubsystem extends SubsystemBase {
     Logger.recordOutput("Turret/State", currentState.toString());
     Logger.recordOutput("Turret/SetpointRad", positionSetpointRad);
 
-    // Report turret rotation to RobotState so vision can use it
+    // Report turret rotation to RobotState so vision can use it.
+    // Use raw radians (not Rotation2d) to avoid wrapping to [-π, π] — the turret
+    // can travel beyond ±180° with the current asymmetric limits.
     double turretPositionRad = Units.rotationsToRadians(inputs.positionRot);
     double turretVelocityRadPerSec = Units.rotationsToRadians(inputs.velocityRotPerSec);
     robotState.addTurretUpdates(
-        Timer.getFPGATimestamp(), new Rotation2d(turretPositionRad), turretVelocityRadPerSec);
+        Timer.getFPGATimestamp(), turretPositionRad, turretVelocityRadPerSec);
 
     // Calculate turret absolute field heading (robot heading + turret position)
     double robotHeadingRad = robotPoseSupplier.get().getRotation().getRadians();
@@ -171,49 +172,84 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   /**
-   * Adjusts setpoint to minimize rotation while respecting physical limits. If the shortest path
-   * through wrapping would exceed limits, takes the long way instead.
+   * Adjusts setpoint to minimize rotation while respecting physical limits. Finds the 2π-equivalent
+   * of the target angle that is closest to the current turret position, then verifies it lies
+   * within the turret's travel range. If not, the closest in-bounds equivalent is used instead.
+   *
+   * <p>Key insight: the raw target from ShooterSetpoint is always in [-π, π], but the turret can
+   * physically travel [-2π, ~1.745 rad]. By picking the equivalent nearest the current position we
+   * allow the turret to take the shortest-path through the extended range instead of always staying
+   * within [-π, π].
    */
   private double adjustSetpointForWrap(double targetAngle) {
     double currentPos = getCurrentPosition();
-
-    // Normalize target angle to [-π, π]
-    double normalizedTarget = Math.atan2(Math.sin(targetAngle), Math.cos(targetAngle));
-
-    // Calculate alternative angle (wrapped by ±2π)
-    double alternative =
-        normalizedTarget > 0.0
-            ? normalizedTarget - 2.0 * Math.PI
-            : normalizedTarget + 2.0 * Math.PI;
-
-    // Check which path is shorter
-    double distanceToTarget = Math.abs(currentPos - normalizedTarget);
-    double distanceToAlternative = Math.abs(currentPos - alternative);
-
-    // Choose the path that:
-    // 1. Is shorter
-    // 2. Doesn't exceed physical limits
-    // Limits are now in radians directly
     double minLimit = Constants.TurretConstants.MIN_POSITION_RAD;
     double maxLimit = Constants.TurretConstants.MAX_POSITION_RAD;
 
-    // Check if normalized target is within limits
-    boolean targetInBounds = normalizedTarget >= minLimit && normalizedTarget <= maxLimit;
+    // 1. Find the 2π-equivalent of targetAngle closest to currentPos.
+    //    This is the "shortest rotation" candidate.
+    double diff = targetAngle - currentPos;
+    // Normalize diff to (-π, π]
+    diff = diff - 2.0 * Math.PI * Math.floor((diff + Math.PI) / (2.0 * Math.PI));
+    double closest = currentPos + diff;
 
-    // Check if alternative is within limits
-    boolean alternativeInBounds = alternative >= minLimit && alternative <= maxLimit;
+    // Log wrapping internals
+    Logger.recordOutput("Turret/Wrap/TargetAngleRad", targetAngle);
+    Logger.recordOutput("Turret/Wrap/TargetAngleDeg", Math.toDegrees(targetAngle));
+    Logger.recordOutput("Turret/Wrap/CurrentPosRad", currentPos);
+    Logger.recordOutput("Turret/Wrap/CurrentPosDeg", Math.toDegrees(currentPos));
+    Logger.recordOutput("Turret/Wrap/ClosestRad", closest);
+    Logger.recordOutput("Turret/Wrap/ClosestDeg", Math.toDegrees(closest));
+    Logger.recordOutput("Turret/Wrap/MinLimitRad", minLimit);
+    Logger.recordOutput("Turret/Wrap/MaxLimitRad", maxLimit);
+    Logger.recordOutput("Turret/Wrap/MinLimitDeg", Math.toDegrees(minLimit));
+    Logger.recordOutput("Turret/Wrap/MaxLimitDeg", Math.toDegrees(maxLimit));
+    Logger.recordOutput("Turret/Wrap/ClosestInBounds", closest >= minLimit && closest <= maxLimit);
 
-    // Decision logic:
-    // 1. If both in bounds, choose shortest path
-    // 2. If only one in bounds, choose that one
-    // 3. If neither in bounds (shouldn't happen), choose normalized
-    if (targetInBounds && alternativeInBounds) {
-      return distanceToAlternative < distanceToTarget ? alternative : normalizedTarget;
-    } else if (alternativeInBounds) {
-      return alternative;
-    } else {
-      return normalizedTarget;
+    // 2. Check if the closest candidate is in bounds — if so, use it.
+    if (closest >= minLimit && closest <= maxLimit) {
+      Logger.recordOutput("Turret/Wrap/ResultRad", closest);
+      Logger.recordOutput("Turret/Wrap/ResultDeg", Math.toDegrees(closest));
+      Logger.recordOutput("Turret/Wrap/UsedFallback", false);
+      return closest;
     }
+
+    // 3. Otherwise sweep ±2π offsets from `closest` looking for the nearest
+    //    candidate that IS in bounds.
+    double bestCandidate = closest;
+    double bestDistance = Double.MAX_VALUE;
+    boolean foundInBounds = false;
+
+    for (int k = -2; k <= 2; k++) {
+      double candidate = closest + k * 2.0 * Math.PI;
+      boolean inBounds = candidate >= minLimit && candidate <= maxLimit;
+
+      if (inBounds) {
+        double dist = Math.abs(currentPos - candidate);
+        if (!foundInBounds || dist < bestDistance) {
+          bestCandidate = candidate;
+          bestDistance = dist;
+          foundInBounds = true;
+        }
+      } else if (!foundInBounds) {
+        double dist = Math.abs(currentPos - candidate);
+        if (dist < bestDistance) {
+          bestCandidate = candidate;
+          bestDistance = dist;
+        }
+      }
+    }
+
+    // 4. If still nothing in bounds, clamp to limits.
+    if (!foundInBounds) {
+      bestCandidate = Math.max(minLimit, Math.min(maxLimit, bestCandidate));
+    }
+
+    Logger.recordOutput("Turret/Wrap/ResultRad", bestCandidate);
+    Logger.recordOutput("Turret/Wrap/ResultDeg", Math.toDegrees(bestCandidate));
+    Logger.recordOutput("Turret/Wrap/UsedFallback", true);
+    Logger.recordOutput("Turret/Wrap/FallbackFoundInBounds", foundInBounds);
+    return bestCandidate;
   }
 
   /** Checks if turret is unwrapped (not currently crossing the wrap boundary). */

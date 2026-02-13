@@ -33,12 +33,18 @@ public class VisionIOHardwareLimelight implements VisionIO {
   public VisionIOHardwareLimelight(RobotState robotState) {
     this.robotState = robotState;
     configureDrivetrainCameras();
+    configureTurretCamera();
 
-    // Enable internal IMU assist on all Limelights (LL4 only, ignored on older models).
-    // Mode 2 = use external orientation (SetRobotOrientation) with internal IMU assist.
-    LimelightHelpers.SetIMUMode(Constants.Vision.FRONT_LIMELIGHT_NAME, 2);
-    LimelightHelpers.SetIMUMode(Constants.Vision.BACK_LIMELIGHT_NAME, 2);
-    LimelightHelpers.SetIMUMode(Constants.Vision.TURRET_LIMELIGHT_NAME, 2);
+    // Drivetrain cameras: Mode 0 — always use external heading from SetRobotOrientation().
+    // These cameras are rigidly mounted to the chassis, so the robot gyro heading is
+    // perfectly time-aligned (no moving joint).
+    LimelightHelpers.SetIMUMode(Constants.Vision.FRONT_LIMELIGHT_NAME, 0);
+    LimelightHelpers.SetIMUMode(Constants.Vision.BACK_LIMELIGHT_NAME, 0);
+
+    // Turret camera: Mode 0 — use external heading only (internal IMU disabled).
+    // TODO: Switch to mode 1 (seed) while disabled → mode 4 (internal + external assist)
+    // when enabled, to eliminate heading-vs-image timing mismatch that causes turret oscillation.
+    LimelightHelpers.SetIMUMode(Constants.Vision.TURRET_LIMELIGHT_NAME, 0);
   }
 
   /** Set camerapose_robotspace_set for drivetrain-mounted cameras (one-time at startup). */
@@ -62,6 +68,29 @@ public class VisionIOHardwareLimelight implements VisionIO {
       Units.radiansToDegrees(Constants.Vision.BACK_CAMERA_TO_ROBOT.getRotation().getZ())
     };
     backTable.getEntry("camerapose_robotspace_set").setDoubleArray(backCamerapose);
+  }
+
+  /**
+   * Set camerapose_robotspace_set for the turret-mounted camera (one-time at startup).
+   *
+   * <p>Because we send the turret's field heading via SetRobotOrientation, the Limelight treats the
+   * turret center as the "robot" origin. So camerapose_robotspace_set should describe the camera's
+   * position relative to the turret center — which is exactly TURRET_TO_CAMERA.
+   *
+   * <p>With this configured, MT2's botpose_wpiblue returns the <b>turret center's</b> field pose
+   * instead of the raw camera pose, so VisionSubsystem only needs to apply turret→robot (not the
+   * full camera→turret→robot chain).
+   */
+  private void configureTurretCamera() {
+    double[] turretCamerapose = {
+      Constants.Vision.TURRET_TO_CAMERA.getX(),
+      Constants.Vision.TURRET_TO_CAMERA.getY(),
+      Constants.Vision.TURRET_TO_CAMERA.getZ(),
+      Units.radiansToDegrees(Constants.Vision.TURRET_TO_CAMERA.getRotation().getX()),
+      Units.radiansToDegrees(Constants.Vision.TURRET_TO_CAMERA.getRotation().getY()),
+      Units.radiansToDegrees(Constants.Vision.TURRET_TO_CAMERA.getRotation().getZ())
+    };
+    turretTable.getEntry("camerapose_robotspace_set").setDoubleArray(turretCamerapose);
   }
 
   /**
@@ -100,8 +129,9 @@ public class VisionIOHardwareLimelight implements VisionIO {
         0,
         0);
 
-    // Turret camera — send turret's field-relative heading
-    var turretFieldHeading = robotHeading.rotateBy(robotState.getLatestRobotToTurret().getValue());
+    // Turret camera — send turret's field-relative heading (raw radians, no wrapping)
+    double turretAngleRad = robotState.getLatestRobotToTurret().getValue();
+    double turretFieldHeadingDeg = robotHeading.getDegrees() + Math.toDegrees(turretAngleRad);
     double turretOmegaDegPerSec =
         Units.radiansToDegrees(
             robotState.getLatestTurretAngularVelocity()
@@ -109,7 +139,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
 
     LimelightHelpers.SetRobotOrientation(
         Constants.Vision.TURRET_LIMELIGHT_NAME,
-        turretFieldHeading.getDegrees(),
+        turretFieldHeadingDeg,
         turretOmegaDegPerSec,
         0,
         0,

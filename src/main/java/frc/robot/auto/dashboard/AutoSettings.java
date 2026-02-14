@@ -6,6 +6,7 @@ package frc.robot.auto.dashboard;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
+import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
 import frc.robot.auto.dashboard.FieldConstants.Lane;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
@@ -56,6 +57,7 @@ public class AutoSettings {
   private final Set<Lane> partnerLanes = EnumSet.noneOf(Lane.class);
   private boolean attemptClimb = false;
   private ClimbLevel climbLevel = ClimbLevel.LEVEL_1;
+  private ClimbPose climbPose = ClimbPose.DEPOT_SIDE;
   private boolean shootWhileDriving = false;
   private RiskLevel riskLevel = RiskLevel.BALANCED;
   private boolean preloadFuel = true;
@@ -69,6 +71,7 @@ public class AutoSettings {
   private final SendableChooser<StartPose> startPoseChooser = new SendableChooser<>();
   private final SendableChooser<IntakeLocation> preferredIntakeChooser = new SendableChooser<>();
   private final SendableChooser<ClimbLevel> climbLevelChooser = new SendableChooser<>();
+  private final SendableChooser<ClimbPose> climbPoseChooser = new SendableChooser<>();
   private final SendableChooser<RiskLevel> riskLevelChooser = new SendableChooser<>();
 
   // Fingerprint for change detection
@@ -111,6 +114,16 @@ public class AutoSettings {
     }
     SmartDashboard.putData(PREFIX + "Climb Level", climbLevelChooser);
 
+    // --- Dropdown: Climb Pose (which side of TOWER to approach) ---
+    for (ClimbPose cp : ClimbPose.values()) {
+      if (cp == ClimbPose.DEPOT_SIDE) {
+        climbPoseChooser.setDefaultOption(cp.name(), cp);
+      } else {
+        climbPoseChooser.addOption(cp.name(), cp);
+      }
+    }
+    SmartDashboard.putData(PREFIX + "Climb Pose", climbPoseChooser);
+
     // --- Dropdown: Risk Level ---
     for (RiskLevel rl : RiskLevel.values()) {
       if (rl == RiskLevel.BALANCED) {
@@ -124,12 +137,8 @@ public class AutoSettings {
     // --- Multi-value boolean toggles ---
     // Shooting Priority: one toggle per scoring waypoint (enabled = included in priority list)
     for (ScoringWaypoint sl : ScoringWaypoint.values()) {
-      // Default: enable the 3 main positions
-      boolean defaultOn =
-          sl == ScoringWaypoint.HUB_BACK_CENTER
-              || sl == ScoringWaypoint.HUB_UPPER_CLOSE
-              || sl == ScoringWaypoint.HUB_LOWER_CLOSE;
-      SmartDashboard.putBoolean(PREFIX + "Score/" + sl.name(), defaultOn);
+      // Default: enable all 3 positions
+      SmartDashboard.putBoolean(PREFIX + "Score/" + sl.name(), true);
     }
 
     // Allowed Lanes: one toggle per lane (default: all enabled)
@@ -218,6 +227,12 @@ public class AutoSettings {
       climbLevel = selectedClimb;
     }
 
+    // Climb Pose (dropdown)
+    ClimbPose selectedClimbPose = climbPoseChooser.getSelected();
+    if (selectedClimbPose != null) {
+      climbPose = selectedClimbPose;
+    }
+
     // Risk Level (dropdown)
     RiskLevel selectedRisk = riskLevelChooser.getSelected();
     if (selectedRisk != null) {
@@ -285,6 +300,10 @@ public class AutoSettings {
     return climbLevel;
   }
 
+  public ClimbPose getClimbPose() {
+    return climbPose;
+  }
+
   public boolean isShootWhileDriving() {
     return shootWhileDriving;
   }
@@ -335,6 +354,8 @@ public class AutoSettings {
         + "|"
         + climbLevel.name()
         + "|"
+        + climbPose.name()
+        + "|"
         + shootWhileDriving
         + "|"
         + riskLevel.name()
@@ -357,6 +378,7 @@ public class AutoSettings {
     Logger.recordOutput("AutoSettings/EffectiveLanes", getEffectiveLanes().toString());
     Logger.recordOutput("AutoSettings/AttemptClimb", attemptClimb);
     Logger.recordOutput("AutoSettings/ClimbLevel", climbLevel.name());
+    Logger.recordOutput("AutoSettings/ClimbPose", climbPose.name());
     Logger.recordOutput("AutoSettings/ShootWhileDriving", shootWhileDriving);
     Logger.recordOutput("AutoSettings/RiskLevel", riskLevel.name());
     Logger.recordOutput("AutoSettings/HasPreloadFuel", preloadFuel);
@@ -381,6 +403,8 @@ public class AutoSettings {
         + attemptClimb
         + ", climbLevel="
         + climbLevel
+        + ", climbPose="
+        + climbPose
         + ", shootMoving="
         + shootWhileDriving
         + ", risk="

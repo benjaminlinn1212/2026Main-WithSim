@@ -48,12 +48,13 @@
  * <table>
  *   <tr><th>Setting</th><th>Type</th><th>Example</th></tr>
  *   <tr><td>Start Pose</td><td>String</td><td>UPPER, CENTER, LOWER</td></tr>
- *   <tr><td>Shooting Priority</td><td>String</td><td>HUB_BACK_CENTER,HUB_UPPER_CLOSE</td></tr>
- *   <tr><td>Preferred Intake</td><td>String</td><td>OUTPOST, DEPOT, NEUTRAL_ZONE_CENTER</td></tr>
+ *   <tr><td>Shooting Priority</td><td>String</td><td>HUB_UPPER, HUB_CENTER, HUB_LOWER</td></tr>
+ *   <tr><td>Preferred Intake</td><td>String</td><td>OUTPOST, DEPOT, NEUTRAL_ZONE_UPPER, NEUTRAL_ZONE_LOWER</td></tr>
  *   <tr><td>Allowed Lanes</td><td>String</td><td>UPPER,CENTER</td></tr>
  *   <tr><td>Partner Lanes</td><td>String</td><td>LOWER</td></tr>
  *   <tr><td>Attempt TOWER Climb</td><td>Boolean</td><td>true/false</td></tr>
  *   <tr><td>Climb Level</td><td>String</td><td>LEVEL_1, LEVEL_2, LEVEL_3</td></tr>
+ *   <tr><td>Climb Pose</td><td>String</td><td>DEPOT_SIDE, OUTPOST_SIDE</td></tr>
  *   <tr><td>Shoot While Driving</td><td>Boolean</td><td>true/false</td></tr>
  *   <tr><td>Risk Level</td><td>String</td><td>CONSERVATIVE, BALANCED, AGGRESSIVE</td></tr>
  *   <tr><td>Preload FUEL Count</td><td>Integer</td><td>8 (max per game manual)</td></tr>

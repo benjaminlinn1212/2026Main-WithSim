@@ -287,6 +287,46 @@ public class TurretSubsystem extends SubsystemBase {
         < Constants.TurretConstants.AIMING_TOLERANCE_RAD;
   }
 
+  // ==================== Direct Apply Methods (for Superstructure periodic) ====================
+
+  /**
+   * Directly apply the stow position. Called by Superstructure.periodic() every cycle when the
+   * wanted state requires the turret to be stowed. Unlike the stow() command, this is a plain void
+   * method — no command scheduling overhead.
+   */
+  public void applyStow() {
+    if (currentState != TurretState.STOW) {
+      currentState = TurretState.STOW;
+      updateModeChange();
+    }
+    double setpoint = adjustSetpointForWrap(Constants.TurretConstants.STOW_POSITION);
+    setPositionSetpointImpl(setpoint, 0.0);
+    positionSetpointRad = setpoint;
+  }
+
+  /**
+   * Directly apply the aiming position using ShooterSetpoint. Called by Superstructure.periodic()
+   * every cycle when the wanted state requires the turret to aim. Unlike the aiming() command, this
+   * is a plain void method — no command scheduling overhead.
+   */
+  public void applyAiming() {
+    if (currentState != TurretState.AIMING) {
+      currentState = TurretState.AIMING;
+      updateModeChange();
+    }
+    ShooterSetpoint setpoint = setpointSupplier.get();
+    double targetRad = setpoint.getTurretAngleRad();
+    double feedforwardRadPerSec = setpoint.getTurretFeedforwardRadPerSec();
+    double wrappedTarget = adjustSetpointForWrap(targetRad);
+
+    Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.isValid());
+    Logger.recordOutput("Turret/Aiming/IsNeutralZoneShot", setpoint.isNeutralZoneShot());
+
+    double feedforwardVolts = feedforwardRadPerSec * Constants.TurretConstants.KV;
+    setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
+    positionSetpointRad = wrappedTarget;
+  }
+
   /** Command for open-loop duty cycle control (for testing). */
   public Command setDutyCycle(DoubleSupplier dutyCycle) {
     return run(() -> io.setOpenLoopDutyCycle(dutyCycle.getAsDouble()))

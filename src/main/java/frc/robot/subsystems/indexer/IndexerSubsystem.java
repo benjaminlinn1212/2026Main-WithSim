@@ -55,4 +55,13 @@ public class IndexerSubsystem extends SubsystemBase {
   public void stopMotor() {
     io.stop();
   }
+
+  /**
+   * Directly apply feed-to-shooter output. Called by Superstructure.periodic() every cycle when the
+   * wanted state requires the indexer to feed. Unlike toShooter() command, this is a plain void
+   * method.
+   */
+  public void applyFeedToShooter() {
+    io.setDutyCycle(IndexerConstants.TO_SHOOTER_DUTY_CYCLE);
+  }
 }

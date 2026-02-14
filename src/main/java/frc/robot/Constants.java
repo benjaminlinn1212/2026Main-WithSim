@@ -9,6 +9,7 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.MetersPerSecond;
 
+import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
@@ -152,7 +153,7 @@ public final class Constants {
     // Hardware Configuration
     public static final int UPPER_MOTOR_CAN_ID = 41;
     public static final int LOWER_MOTOR_CAN_ID = 42;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
@@ -185,7 +186,7 @@ public final class Constants {
   public static class IntakePivotConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 43;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO = 1.0; // Direct drive or specify actual ratio
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
@@ -225,7 +226,7 @@ public final class Constants {
   public static class ConveyorConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 45;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
@@ -253,7 +254,7 @@ public final class Constants {
     // Hardware Configuration
     public static final int LEADER_MOTOR_CAN_ID = 47;
     public static final int FOLLOWER_MOTOR_CAN_ID = 48;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue LEADER_INVERTED = InvertedValue.Clockwise_Positive;
     public static final InvertedValue FOLLOWER_INVERTED = InvertedValue.CounterClockwise_Positive;
@@ -297,7 +298,7 @@ public final class Constants {
   public static class TurretConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 44;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO =
         1.0 / 26.812; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
@@ -343,7 +344,7 @@ public final class Constants {
   public static class ShooterConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 49;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO =
         1.0; // 1 mechanism rotation per 1 motor rotation (direct drive)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
@@ -375,7 +376,7 @@ public final class Constants {
   public static class HoodConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 50;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
     public static final double GEAR_RATIO =
         1.0 / 12.6; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
@@ -428,7 +429,7 @@ public final class Constants {
     public static final int RIGHT_BACK_MOTOR_CAN_ID = 52;
     public static final int LEFT_FRONT_MOTOR_CAN_ID = 53;
     public static final int LEFT_BACK_MOTOR_CAN_ID = 54;
-    public static final String CAN_BUS = "Superstructure";
+    public static final CANBus CAN_BUS = new CANBus("Superstructure");
 
     // Passive Hook Release Servos (REV Smart Robot Servo, REV-41-1097)
     // Without an SRS Programmer the servo acts as a 270° standard servo

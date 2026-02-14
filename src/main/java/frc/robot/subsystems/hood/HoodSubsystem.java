@@ -136,6 +136,33 @@ public class HoodSubsystem extends SubsystemBase {
         < Constants.HoodConstants.AIMING_TOLERANCE_RAD;
   }
 
+  // ==================== Direct Apply Methods (for Superstructure periodic) ====================
+
+  /**
+   * Directly apply the stow position. Called by Superstructure.periodic() every cycle when the
+   * wanted state requires the hood to be stowed. Unlike the stow() command, this is a plain void
+   * method — no command scheduling overhead.
+   */
+  public void applyStow() {
+    currentState = HoodState.STOW;
+    setPositionSetpointImpl(Constants.HoodConstants.STOW_POSITION, 0.0);
+    positionSetpointRad = Constants.HoodConstants.STOW_POSITION;
+  }
+
+  /**
+   * Directly apply the aiming position using ShooterSetpoint. Called by Superstructure.periodic()
+   * every cycle when the wanted state requires the hood to aim. Unlike the aimHub() command, this
+   * is a plain void method — no command scheduling overhead.
+   */
+  public void applyAiming() {
+    currentState = HoodState.AIM_HUB;
+    ShooterSetpoint setpoint = setpointSupplier.get();
+    double hoodAngle = setpoint.getHoodAngleRad();
+    double feedforward = setpoint.getHoodFeedforwardRadPerSec();
+    setPositionSetpointImpl(hoodAngle, feedforward);
+    positionSetpointRad = hoodAngle;
+  }
+
   /** Command for open-loop duty cycle control (for testing). */
   public Command setDutyCycle(DoubleSupplier dutyCycle) {
     return run(() -> io.setOpenLoopDutyCycle(dutyCycle.getAsDouble()))

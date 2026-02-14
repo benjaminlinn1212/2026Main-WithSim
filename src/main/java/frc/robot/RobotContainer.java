@@ -13,14 +13,14 @@ import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.pathfinding.LocalADStar;
 import com.pathplanner.lib.pathfinding.Pathfinding;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.auto.PathfindingAuto;
+import frc.robot.auto.HardcodedAutos;
 import frc.robot.auto.dashboard.DashboardAutoManager;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.Superstructure;
@@ -103,6 +103,9 @@ public class RobotContainer {
 
   // Dashboard-driven autonomous system (254/6328 style)
   private DashboardAutoManager dashboardAutoManager;
+
+  // Hardcoded fallback autos (one per lane)
+  private HardcodedAutos hardcodedAutos;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -225,73 +228,23 @@ public class RobotContainer {
         break;
     }
 
-    // Initialize SmartDashboard entry for auto sequence input (Team 254 style)
-    // Put under Auto subtable for better organization
-    SmartDashboard.putString("Auto/Sequence Input", "");
-
     // ===== CONFIGURE PATHPLANNER AUTOBUILDER =====
     // Must be done BEFORE creating any auto commands
     configureAutoBuilder();
 
-    // ===== CONFIGURE AUTO CHOOSER =====
-
-    // ----- Legacy / test autos (PathfindingAuto with hardcoded positions) -----
-    // These use placeholder coordinates and no real Superstructure integration.
-    // Useful for pathfinding testing only. For matches, use "Dashboard Auto (Generated)".
-    autoChooser.addOption(
-        "[Test] ABC Sequence",
-        Commands.defer(
-            () -> new PathfindingAuto(swerveIO, superstructure, robotState, "ABC"),
-            Set.of(swerveIO)));
-
-    autoChooser.addOption(
-        "[Test] ABCD Full",
-        Commands.defer(
-            () -> PathfindingAuto.allWaypoints(swerveIO, superstructure, robotState),
-            Set.of(swerveIO)));
-
-    autoChooser.addOption(
-        "[Test] AB Fast",
-        Commands.defer(
-            () -> PathfindingAuto.fastSequence(swerveIO, superstructure, robotState),
-            Set.of(swerveIO)));
-
-    autoChooser.addOption(
-        "[Test] With Intakes",
-        Commands.defer(
-            () -> PathfindingAuto.withIntakes(swerveIO, superstructure, robotState),
-            Set.of(swerveIO)));
-
-    autoChooser.addOption(
-        "[Test] Obstacle Avoidance",
-        Commands.defer(
-            () -> new PathfindingAuto(swerveIO, superstructure, robotState, "T"),
-            Set.of(swerveIO)));
-
-    // Legacy dashboard input (reads a character string like "ABC" from SmartDashboard)
-    autoChooser.addOption(
-        "[Test] Dashboard Input",
-        Commands.defer(
-            () -> {
-              String sequence =
-                  SmartDashboard.getString("Auto/Sequence Input", "").toUpperCase().trim();
-              if (sequence.isEmpty()) {
-                System.err.println(
-                    "[RobotContainer] No sequence entered in 'Auto/Sequence Input' on SmartDashboard!");
-                return Commands.none();
-              }
-              System.out.println(
-                  "[RobotContainer] Creating auto from dashboard input: " + sequence);
-              return new PathfindingAuto(swerveIO, superstructure, robotState, sequence);
-            },
-            Set.of(swerveIO)));
-
-    // ----- Match auto: Dashboard-driven auto (REBUILT field-aware, generated at runtime) -----
+    // ===== CONFIGURE AUTO MODE SELECTOR (254-style) =====
+    // Single source of truth: DashboardAutoManager owns all auto planning.
+    // The planner reads field-aware settings from Shuffleboard, generates an
+    // optimal action sequence, and builds the command tree at autonomousInit().
     // Configure settings in the "Auto Settings" Shuffleboard tab before each match.
     dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure, robotState);
     autoChooser.addOption(
-        "Dashboard Auto (Generated)",
+        "Dashboard Auto",
         Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(swerveIO)));
+
+    // Hardcoded fallback autos — pick lane via sub-chooser on dashboard
+    hardcodedAutos = new HardcodedAutos(swerveIO, superstructure, robotState);
+    autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
     // Create a ShooterSetpoint supplier that uses robotState for calculations
@@ -457,13 +410,6 @@ public class RobotContainer {
     //                     || superstructure.getState()
     //                         == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING));
 
-    // ===== RIGHT HOOK SERVO TEST (REV SRS 270° servo on PWM 0) =====
-    // B = 0°, Y = 90°, X = 180°, A = 270°
-    controller.b().onTrue(climb.servoTo0Deg());
-    controller.y().onTrue(climb.servoTo90Deg());
-    controller.x().onTrue(climb.servoTo180Deg());
-    controller.a().onTrue(climb.servoTo270Deg());
-
     // ===== CLIMB STATE CONTROLS =====
 
     // POV Up: Enter climb mode
@@ -481,18 +427,26 @@ public class RobotContainer {
     // ===== CLIMB TEST CONTROLS =====
 
     // X button: Run path to reach vertically down 0.15m from stow
-    // controller
-    //    .x()
-    //    .onTrue(
-    //        climb.runPathToPosition(
-    //            new Translation2d(
-    //                Constants.ClimbConstants.START_POSITION_X_METERS,
-    //                Constants.ClimbConstants.START_POSITION_Y_METERS - 0.15),
-    //            2.0,
-    //            false));
+    controller
+        .x()
+        .onTrue(
+            climb.runPathToPosition(
+                new Translation2d(
+                    Constants.ClimbConstants.START_POSITION_X_METERS,
+                    Constants.ClimbConstants.START_POSITION_Y_METERS - 0.15),
+                2.0,
+                false));
 
-    // Y button: Stow climb (return to stowed position)
-    // controller.y().onTrue(climb.setStateCommand(ClimbState.STOWED));
+    // Y button: Stow climb (path-follow back to stowed position)
+    controller
+        .y()
+        .onTrue(
+            climb.runPathToPosition(
+                new Translation2d(
+                    Constants.ClimbConstants.START_POSITION_X_METERS,
+                    Constants.ClimbConstants.START_POSITION_Y_METERS),
+                2.0,
+                false));
   }
 
   /**

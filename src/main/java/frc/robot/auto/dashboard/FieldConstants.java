@@ -7,6 +7,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 
@@ -39,6 +40,74 @@ public final class FieldConstants {
   public static final Translation2d FIELD_CENTER =
       new Translation2d(FIELD_LENGTH / 2.0, FIELD_WIDTH / 2.0);
 
+  // ===== Trench Geometry =====
+  // TRENCHES are 22.25in tall tunnels running along the upper and lower field edges.
+  // Robots must drive straight (cardinal headings only: 0/90/180/270°) to pass through.
+  // Each trench spans the full field length and is ~1.22m (48in) wide from the field wall inward.
+  // A buffer zone extends OUTSIDE the trench so the robot snaps heading BEFORE entering.
+  public static final double TRENCH_HEIGHT_METERS = Units.inchesToMeters(22.25);
+  public static final double TRENCH_WIDTH_METERS = Units.inchesToMeters(48.0);
+
+  /**
+   * Buffer distance (meters) outside the trench boundaries. When the robot is within this distance
+   * of a trench, its heading should already be snapped to a cardinal direction so it enters
+   * straight.
+   */
+  public static final double TRENCH_APPROACH_BUFFER = 0.5; // meters
+
+  /** Upper trench Y boundaries (high Y, near scoring table wall). */
+  public static final double TRENCH_UPPER_MIN_Y = FIELD_WIDTH - TRENCH_WIDTH_METERS; // ~6.85m
+
+  public static final double TRENCH_UPPER_MAX_Y = FIELD_WIDTH; // 8.07m
+
+  /** Lower trench Y boundaries (low Y, away from scoring table). */
+  public static final double TRENCH_LOWER_MIN_Y = 0.0;
+
+  public static final double TRENCH_LOWER_MAX_Y = TRENCH_WIDTH_METERS; // ~1.22m
+
+  /**
+   * Check if a blue-origin position is near either trench (inside OR within the approach buffer).
+   * Used by the auto path generator to snap heading to cardinal BEFORE the robot enters the trench.
+   */
+  public static boolean isNearTrench(Translation2d bluePosition) {
+    double y = bluePosition.getY();
+    // Upper trench: extend the approach buffer downward (lower Y)
+    boolean nearUpper =
+        y >= (TRENCH_UPPER_MIN_Y - TRENCH_APPROACH_BUFFER) && y <= TRENCH_UPPER_MAX_Y;
+    // Lower trench: extend the approach buffer upward (higher Y)
+    boolean nearLower =
+        y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + TRENCH_APPROACH_BUFFER);
+    return nearUpper || nearLower;
+  }
+
+  /**
+   * Check if an alliance-aware position is near either trench (flips red to blue first). Used by
+   * the auto path generator to snap heading to cardinal BEFORE the robot enters the trench.
+   */
+  public static boolean isNearTrenchAlliance(Translation2d alliancePosition) {
+    Translation2d blue = isRedAlliance() ? flipTranslation(alliancePosition) : alliancePosition;
+    return isNearTrench(blue);
+  }
+
+  /**
+   * Snap an angle to the nearest cardinal direction (0°, 90°, 180°, 270°). Used by the auto path
+   * generator when the robot's target pose is near a TRENCH, so it arrives aligned to pass through
+   * the 22.25in tunnel.
+   *
+   * @param currentHeading The heading to snap
+   * @return The nearest cardinal Rotation2d (0, 90, 180, or -90 degrees)
+   */
+  public static Rotation2d snapToCardinal(Rotation2d currentHeading) {
+    double degrees = currentHeading.getDegrees();
+    // Normalize to [0, 360)
+    degrees = ((degrees % 360) + 360) % 360;
+    // Round to nearest 90°
+    double snapped = Math.round(degrees / 90.0) * 90.0;
+    // Wrap 360 → 0
+    if (snapped >= 360.0) snapped = 0.0;
+    return Rotation2d.fromDegrees(snapped);
+  }
+
   // ===== HUB 3D Positions =====
   // Used by ShooterSetpoint for distance-based aiming
   public static final Translation3d BLUE_HUB_TRANSLATION3D =
@@ -47,18 +116,90 @@ public final class FieldConstants {
       new Translation3d(FIELD_LENGTH - 4.625689, 4.040981, 0);
 
   // ===== Zones =====
-  // Zones define regions of the REBUILT field. The planner uses these for constraint-checking.
+  // Zones define rectangular regions of the REBUILT field (blue-alliance origin).
+  // Boundaries are axis-aligned rectangles: (minX, minY) to (maxX, maxY) in meters.
+  // The planner uses these for constraint-checking and spatial queries.
+  //
+  // Field layout (blue origin, X right, Y up):
+  //   x=0.00        x=2.00    x=3.60         x=5.50       x=8.27         x=11.04       x=16.54
+  //   |  OUTPOST    |         | ROBOT        | HUB_ZONE   | NEUTRAL      | OPPONENT    |
+  //   |  (corner)   | ALLIANCE| STARTING     |             | ZONE         | SIDE        |
+  //   |             | ZONE    | LINE         |             |              |             |
+  //
   public enum Zone {
-    /** ALLIANCE ZONE — behind the ROBOT STARTING LINE, contains our TOWER and DEPOT. */
-    ALLIANCE_ZONE,
-    /** OUTPOST AREA — human player station with CHUTE and CORRAL. */
-    OUTPOST_AREA,
-    /** Area around our HUB where we shoot FUEL. Between ALLIANCE ZONE and NEUTRAL ZONE. */
-    HUB_ZONE,
-    /** NEUTRAL ZONE — center of field with scattered FUEL. Contested territory. */
-    NEUTRAL_ZONE,
-    /** Opponent's half — risky, penalties possible. */
-    OPPONENT_SIDE
+    /**
+     * ALLIANCE ZONE — behind the ROBOT STARTING LINE (x=3.60m), contains our TOWER and DEPOT. Spans
+     * full field width. Safe territory.
+     */
+    ALLIANCE_ZONE(0.0, 0.0, 3.60, FIELD_WIDTH),
+
+    /**
+     * OUTPOST AREA — human player station corner with CHUTE and CORRAL. Overlaps the lower-left
+     * corner of the ALLIANCE ZONE. Checked first for more specific matching.
+     */
+    OUTPOST_AREA(0.0, 0.0, 2.00, 2.00),
+
+    /**
+     * HUB ZONE — area around our HUB where we shoot FUEL. Between the ROBOT STARTING LINE (x=3.60m)
+     * and the edge of the NEUTRAL ZONE (x=5.50m). Contains all scoring waypoints.
+     */
+    HUB_ZONE(3.60, 0.0, 5.50, FIELD_WIDTH),
+
+    /**
+     * NEUTRAL ZONE — center of field with scattered FUEL (~360-408). Contested territory between
+     * x=5.50m and x=11.04m (symmetric about field center x=8.27m).
+     */
+    NEUTRAL_ZONE(5.50, 0.0, 10.884, FIELD_WIDTH),
+
+    /**
+     * OPPONENT SIDE — opponent's half of the field beyond the NEUTRAL ZONE. Risky territory,
+     * penalties possible for FUEL interference.
+     */
+    OPPONENT_SIDE(10.884, 0.0, FIELD_LENGTH, FIELD_WIDTH);
+
+    /** Blue-origin bounding box corners (meters). */
+    public final double minX, minY, maxX, maxY;
+
+    Zone(double minX, double minY, double maxX, double maxY) {
+      this.minX = minX;
+      this.minY = minY;
+      this.maxX = maxX;
+      this.maxY = maxY;
+    }
+
+    /** Check if a blue-origin point is inside this zone's bounding box. */
+    public boolean contains(Translation2d bluePoint) {
+      return bluePoint.getX() >= minX
+          && bluePoint.getX() <= maxX
+          && bluePoint.getY() >= minY
+          && bluePoint.getY() <= maxY;
+    }
+
+    /** Check if an alliance-aware point is inside this zone (flips red to blue first). */
+    public boolean containsAlliance(Translation2d alliancePoint) {
+      Translation2d blue = isRedAlliance() ? flipTranslation(alliancePoint) : alliancePoint;
+      return contains(blue);
+    }
+
+    /**
+     * Get the most specific zone for a blue-origin position. Checks OUTPOST_AREA first since it
+     * overlaps ALLIANCE_ZONE, then checks remaining zones in order.
+     */
+    public static Zone getZone(Translation2d bluePosition) {
+      // Check OUTPOST first — it overlaps ALLIANCE_ZONE
+      if (OUTPOST_AREA.contains(bluePosition)) return OUTPOST_AREA;
+      for (Zone z : values()) {
+        if (z == OUTPOST_AREA) continue; // already checked
+        if (z.contains(bluePosition)) return z;
+      }
+      return NEUTRAL_ZONE; // fallback
+    }
+
+    /** Get the zone for an alliance-aware position (flips red to blue first). */
+    public static Zone getZoneAlliance(Translation2d alliancePosition) {
+      Translation2d blue = isRedAlliance() ? flipTranslation(alliancePosition) : alliancePosition;
+      return getZone(blue);
+    }
   }
 
   // ===== Lanes =====
@@ -76,18 +217,12 @@ public final class FieldConstants {
 
   // ===== Scoring Waypoints =====
   public enum ScoringWaypoint {
-    /** Upper-close — shooting from the upper side of the HUB, near the BUMP. */
-    HUB_UPPER_CLOSE(new Translation2d(3.50, 5.80), Zone.HUB_ZONE, Lane.UPPER),
-    /** Upper-far — shooting from farther back on the upper side. */
-    HUB_UPPER_FAR(new Translation2d(2.80, 6.20), Zone.HUB_ZONE, Lane.UPPER),
-    /** Front-center — shooting straight at the HUB from the NEUTRAL ZONE side. */
-    HUB_FRONT_CENTER(new Translation2d(5.00, 4.03), Zone.NEUTRAL_ZONE, Lane.CENTER),
-    /** Back-center — shooting from behind the HUB near the ALLIANCE ZONE. */
-    HUB_BACK_CENTER(new Translation2d(2.50, 4.03), Zone.HUB_ZONE, Lane.CENTER),
-    /** Lower-close — shooting from the lower side of the HUB, near the BUMP. */
-    HUB_LOWER_CLOSE(new Translation2d(3.50, 2.27), Zone.HUB_ZONE, Lane.LOWER),
-    /** Lower-far — shooting from farther back on the lower side. */
-    HUB_LOWER_FAR(new Translation2d(2.80, 1.87), Zone.HUB_ZONE, Lane.LOWER);
+    /** Upper — shooting from the upper side. */
+    HUB_UPPER(new Translation2d(2.80, 6.20), Zone.ALLIANCE_ZONE, Lane.UPPER),
+    /** Center — shooting straight at the HUB from the NEUTRAL ZONE side. */
+    HUB_CENTER(new Translation2d(2.50, 4.03), Zone.ALLIANCE_ZONE, Lane.CENTER),
+    /** Lower — shooting from the lower side. */
+    HUB_LOWER(new Translation2d(2.80, 1.87), Zone.ALLIANCE_ZONE, Lane.LOWER);
 
     public final Translation2d bluePosition;
     public final Zone zone;
@@ -120,17 +255,13 @@ public final class FieldConstants {
     OUTPOST(new Pose2d(0.495, 0.656, Rotation2d.fromDegrees(135)), Zone.OUTPOST_AREA, Lane.UPPER),
     /** DEPOT — floor-level FUEL bin along ALLIANCE WALL. */
     DEPOT(new Pose2d(0.665, 5.962, Rotation2d.fromDegrees(180)), Zone.ALLIANCE_ZONE, Lane.LOWER),
-    
+
     /** NEUTRAL ZONE upper — pick up FUEL from the upper side of the neutral zone. */
     NEUTRAL_ZONE_UPPER(
-        new Pose2d(7.084, 5.905, Rotation2d.fromDegrees(-90)),
-        Zone.NEUTRAL_ZONE,
-        Lane.UPPER),
+        new Pose2d(7.84, 5.905, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, Lane.UPPER),
     /** NEUTRAL ZONE lower — pick up FUEL from the lower side of the neutral zone. */
     NEUTRAL_ZONE_LOWER(
-        new Pose2d(7.084, 2.165, Rotation2d.fromDegrees(90)),
-        Zone.NEUTRAL_ZONE,
-        Lane.LOWER);
+        new Pose2d(7.84, 2.165, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, Lane.LOWER);
 
     public final Pose2d bluePose;
     public final Zone zone;
@@ -148,43 +279,17 @@ public final class FieldConstants {
     }
   }
 
-  // ===== Traversal Waypoints =====
-  public enum Waypoint {
-    // Upper lane waypoints (TRENCH/BUMP side, high Y)
-    UPPER_HUB_EXIT(new Pose2d(4.50, 6.50, Rotation2d.fromDegrees(0)), Lane.UPPER),
-    UPPER_NEUTRAL(new Pose2d(FIELD_LENGTH / 2.0, 6.50, Rotation2d.fromDegrees(0)), Lane.UPPER),
-    UPPER_OUTPOST_APPROACH(new Pose2d(2.00, 7.00, Rotation2d.fromDegrees(135)), Lane.UPPER),
-
-    // Lower lane waypoints (TRENCH/BUMP side, low Y)
-    LOWER_HUB_EXIT(new Pose2d(4.50, 1.57, Rotation2d.fromDegrees(0)), Lane.LOWER),
-    LOWER_NEUTRAL(new Pose2d(FIELD_LENGTH / 2.0, 1.57, Rotation2d.fromDegrees(0)), Lane.LOWER),
-    LOWER_DEPOT_APPROACH(new Pose2d(1.50, 2.00, Rotation2d.fromDegrees(180)), Lane.LOWER);
-
-    public final Pose2d bluePose;
-    public final Lane lane;
-
-    Waypoint(Pose2d bluePose, Lane lane) {
-      this.bluePose = bluePose;
-      this.lane = lane;
-    }
-
-    /** Get the alliance-corrected pose. */
-    public Pose2d getPose() {
-      return isRedAlliance() ? flipPose(bluePose) : bluePose;
-    }
-  }
-
   // ===== Start Poses =====
   // Pre-defined starting positions behind the ROBOT STARTING LINE.
   // The ROBOT STARTING LINE is the ALLIANCE colored line at the edge of the ALLIANCE's
   // base in front of two BARRIERs and the ALLIANCE HUB.
   public enum StartPose {
     /** Starting pose near DRIVER STATION 1 (upper side, near OUTPOST). */
-    UPPER(new Pose2d(0.75, 6.70, Rotation2d.fromDegrees(0))),
+    UPPER(new Pose2d(3.6, 7.444, Rotation2d.fromDegrees(0))),
     /** Starting pose near DRIVER STATION 2 (center, near TOWER). */
-    CENTER(new Pose2d(0.75, 4.03, Rotation2d.fromDegrees(0))),
+    CENTER(new Pose2d(3.6, 4.03, Rotation2d.fromDegrees(0))),
     /** Starting pose near DRIVER STATION 3 (lower side, near DEPOT). */
-    LOWER(new Pose2d(0.75, 1.30, Rotation2d.fromDegrees(0)));
+    LOWER(new Pose2d(3.6, 0.652, Rotation2d.fromDegrees(0)));
 
     public final Pose2d bluePose;
 
@@ -198,7 +303,7 @@ public final class FieldConstants {
     }
   }
 
-    // ===== Climb Poses =====
+  // ===== Climb Poses =====
   public enum ClimbPose {
     /** Starting pose near DRIVER STATION 1 (upper side, near OUTPOST). */
     DEPOT_SIDE(new Pose2d(1.554, 3.993, Rotation2d.fromDegrees(180))),
@@ -247,12 +352,13 @@ public final class FieldConstants {
   public static final int MAX_PRELOAD_FUEL = 8;
 
   // ===== Estimated action durations (seconds) =====
-  // Used by the planner for time budgeting.
-  /** Time to dump/shoot a load of FUEL into the HUB. */
-  public static final double SCORE_DURATION = 3.0;
+  // Used by the planner for time budgeting. These should match the actual command
+  // execution times in AutoCommandBuilder (aim + shoot deadlines + idle).
+  /** Time to aim and shoot a load of FUEL into the HUB (0.2s aim + 0.15s shoot + margin). */
+  public static final double SCORE_DURATION = 0.5;
 
-  /** Time to intake FUEL at a location (ground sweep or OUTPOST/DEPOT pickup). */
-  public static final double INTAKE_DURATION = 2.0;
+  /** Time to intake FUEL at a location (mostly overlaps with drive time, plus 0.3s settle). */
+  public static final double INTAKE_DURATION = 0.5;
 
   /** AUTO period duration — 20 seconds per REBUILT game manual. */
   public static final double AUTO_DURATION = 20.0;

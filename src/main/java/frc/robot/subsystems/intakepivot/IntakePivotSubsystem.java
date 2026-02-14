@@ -72,4 +72,20 @@ public class IntakePivotSubsystem extends SubsystemBase {
   public void stopMotor() {
     io.stop();
   }
+
+  /**
+   * Directly apply the deployed position. Called by Superstructure.periodic() for states that need
+   * intake deployed. Unlike the deploy() command, this is a plain void method.
+   */
+  public void applyDeploy() {
+    io.setPosition(IntakePivotConstants.DEPLOYED_POSITION);
+  }
+
+  /**
+   * Directly apply the stowed position. Called by Superstructure.periodic() for states that need
+   * intake stowed. Unlike the stow() command, this is a plain void method.
+   */
+  public void applyStow() {
+    io.setPosition(IntakePivotConstants.STOWED_POSITION);
+  }
 }

@@ -5,6 +5,7 @@ package frc.robot.auto.dashboard;
 
 import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.RobotState;
@@ -59,6 +60,10 @@ public class AutoCommandBuilder {
     }
 
     ChezySequenceCommandGroup sequence = new ChezySequenceCommandGroup();
+
+    // Reset superstructure to IDLE so the guard doesn't block commands
+    // (e.g. if a previous auto run ended in CLIMB_MODE or EMERGENCY)
+    sequence.addCommands(Commands.runOnce(() -> superstructure.forceIdleState()));
 
     sequence.addCommands(
         Commands.print("[DashboardAuto] Starting auto with " + actions.size() + " actions"));
@@ -126,10 +131,10 @@ public class AutoCommandBuilder {
     Pose2d target = action.getLocation().toPose();
     return Commands.sequence(
             Commands.print("[DashboardAuto] Scoring preload at " + action.getLocation().name()),
-            // Short drive to exact scoring pose
-            Commands.defer(
-                () -> AutoBuilder.pathfindToPose(target, getPathConstraints(), 0.0), Set.of(drive)),
-            // Aim and shoot
+            // Start aiming while driving to score pose
+            superstructure.onlyAiming(),
+            pathfindTo(target),
+            // Fire once arrived and aimed
             buildScoringSequence(action.getLocation()))
         .withName("ScorePreload_" + action.getLocation().name());
   }
@@ -138,63 +143,35 @@ public class AutoCommandBuilder {
   private Command buildScoreAt(AutoAction.ScoreAt action) {
     Pose2d target = action.getLocation().toPose();
 
-    if (action.isShootWhileMoving()) {
-      // Shoot-while-driving: start aiming superstructure while pathfinding
-      // TODO: Consider using superstructure.intakeWhileAimingHub() for combined states
-      //       when collecting FUEL en route to the HUB (intake + aim simultaneously).
-      return Commands.sequence(
-              Commands.print(
-                  "[DashboardAuto] Shoot-while-driving to " + action.getLocation().name()),
-              Commands.parallel(
-                  // Drive to scoring location
-                  Commands.defer(
-                      () -> AutoBuilder.pathfindToPose(target, getPathConstraints(), 0.0),
-                      Set.of(drive)),
-                  // Pre-aim while driving
-                  superstructure.aimHubFromAllianceZone()),
-              // Fire once arrived and aimed
-              buildScoringSequence(action.getLocation()))
-          .withName("ScoreWhileMoving_" + action.getLocation().name());
-    } else {
-      // Standard: drive first, then aim and shoot
-      return Commands.sequence(
-              Commands.print("[DashboardAuto] Driving to score at " + action.getLocation().name()),
-              Commands.defer(
-                  () -> AutoBuilder.pathfindToPose(target, getPathConstraints(), 0.0),
-                  Set.of(drive)),
-              buildScoringSequence(action.getLocation()))
-          .withName("ScoreAt_" + action.getLocation().name());
-    }
+    // Always start aiming while driving — setWantedState is instant so the
+    // sequence continues immediately to pathfindTo. periodic() keeps the
+    // turret/hood/shooter tracking the target the whole way.
+    return Commands.sequence(
+            Commands.print("[DashboardAuto] Driving to score at " + action.getLocation().name()),
+            superstructure.onlyAiming(),
+            pathfindTo(target),
+            buildScoringSequence(action.getLocation()))
+        .withName("ScoreAt_" + action.getLocation().name());
   }
 
   /**
    * Drive to a FUEL intake location (OUTPOST, DEPOT, or NEUTRAL ZONE) and collect FUEL.
    *
-   * <p>TODO: Differentiate intake behavior by location type:
-   *
-   * <ul>
-   *   <li>OUTPOST — human player feeds via CHUTE; may need different positioning/timing
-   *   <li>DEPOT — floor-level bin; current intakeFromGround() is appropriate
-   *   <li>NEUTRAL ZONE — scattered ground FUEL; current intakeFromGround() is appropriate
-   * </ul>
-   *
-   * <p>When Superstructure gains an intakeFromOutpost() command, switch on
-   * action.getLocation().zone.
+   * <p>setWantedState(ONLY_INTAKE) is instant — periodic() deploys the intake pivot and runs the
+   * intake motors continuously while pathfindTo drives to the location. When the path finishes, we
+   * wait briefly to secure FUEL then idle.
    */
   private Command buildIntakeAt(AutoAction.IntakeAt action) {
     Pose2d target = action.getLocation().getPose();
     return Commands.sequence(
             Commands.print("[DashboardAuto] Intaking at " + action.getLocation().name()),
-            Commands.parallel(
-                // Drive to intake location
-                Commands.defer(
-                    () -> AutoBuilder.pathfindToPose(target, getPathConstraints(), 0.0),
-                    Set.of(drive)),
-                // Deploy intake while driving
-                superstructure.intakeFromGround()),
+            // Start intaking (instant — periodic applies it continuously)
+            superstructure.onlyIntake(),
+            // Drive to intake location (intake runs the whole time via periodic)
+            pathfindTo(target),
             // Brief wait to ensure FUEL is secured
             Commands.waitSeconds(0.3),
-            // Stow intake
+            // Return to idle (instant)
             superstructure.idle())
         .withName("IntakeAt_" + action.getLocation().name());
   }
@@ -203,9 +180,7 @@ public class AutoCommandBuilder {
   private Command buildDriveTo(AutoAction.DriveTo action) {
     Pose2d target = action.getTarget();
     return Commands.sequence(
-            Commands.print("[DashboardAuto] Driving to " + action.getLabel()),
-            Commands.defer(
-                () -> AutoBuilder.pathfindToPose(target, getPathConstraints(), 0.0), Set.of(drive)))
+            Commands.print("[DashboardAuto] Driving to " + action.getLabel()), pathfindTo(target))
         .withName("DriveTo_" + action.getLabel());
   }
 
@@ -231,20 +206,23 @@ public class AutoCommandBuilder {
   /**
    * Build the aim + fire sequence for scoring FUEL into the HUB.
    *
+   * <p>With the 254-style architecture, state commands are instant and periodic() continuously
+   * applies them. We just sequence: aim → wait for settle → shoot → wait for shot → idle.
+   *
    * @param location The HUB shooting position (for logging)
    * @return Command sequence to aim at HUB and fire FUEL
    */
   private Command buildScoringSequence(ScoringWaypoint location) {
     return Commands.sequence(
-        // Aim at hub
-        superstructure.aimHubFromAllianceZone(),
-        // Brief settle time
+        // Aim at hub (instant — periodic applies continuously)
+        superstructure.onlyAiming(),
+        // Let turret/hood/shooter settle
         Commands.waitSeconds(0.2),
-        // Fire
-        superstructure.scoreHubFromAllianceZone(),
-        // Brief post-shot delay
+        // Fire (instant — periodic starts feeding)
+        superstructure.onlyShooting(),
+        // Wait for FUEL to leave
         Commands.waitSeconds(0.15),
-        // Return to idle
+        // Return to idle (instant)
         superstructure.idle());
   }
 
@@ -254,5 +232,37 @@ public class AutoCommandBuilder {
    */
   private com.pathplanner.lib.path.PathConstraints getPathConstraints() {
     return drive.getPathConstraints();
+  }
+
+  /**
+   * Build a deferred pathfind command to a target pose, automatically snapping the heading to a
+   * cardinal direction (0°/90°/180°/270°) if the target is near a TRENCH. This ensures the robot
+   * arrives at the trench already aligned to fit through the 22.25in tunnel.
+   *
+   * @param target The desired target pose
+   * @return A deferred pathfinding command with trench-aware heading
+   */
+  private Command pathfindTo(Pose2d target) {
+    return Commands.defer(
+        () -> AutoBuilder.pathfindToPose(trenchAwarePose(target), getPathConstraints(), 0.0),
+        Set.of(drive));
+  }
+
+  /**
+   * If the target pose is near a TRENCH, snap its heading to the nearest cardinal direction
+   * (0°/90°/180°/270°). Otherwise, return the pose unchanged.
+   *
+   * <p>This uses the approach buffer defined in {@link FieldConstants#TRENCH_APPROACH_BUFFER} so
+   * the robot is already oriented correctly before it enters the trench.
+   *
+   * @param pose The original target pose
+   * @return The pose with heading snapped to cardinal if near a trench, otherwise unchanged
+   */
+  private static Pose2d trenchAwarePose(Pose2d pose) {
+    if (FieldConstants.isNearTrench(pose.getTranslation())) {
+      Rotation2d snapped = FieldConstants.snapToCardinal(pose.getRotation());
+      return new Pose2d(pose.getTranslation(), snapped);
+    }
+    return pose;
   }
 }

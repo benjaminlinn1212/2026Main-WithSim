@@ -68,6 +68,20 @@ public class ConveyorSubsystem extends SubsystemBase {
     io.stop();
   }
 
+  /**
+   * Directly apply feed-to-shooter output. Called by Superstructure.periodic() every cycle when the
+   * wanted state requires the conveyor to feed. Unlike goToShooter() command, this is a plain void
+   * method.
+   */
+  public void applyFeedToShooter() {
+    io.setPercent(ConveyorConstants.TO_SHOOTER_PERCENT);
+  }
+
+  /** Directly apply feed-to-bucket output. Called by Superstructure.periodic() for eject state. */
+  public void applyFeedToBucket() {
+    io.setPercent(ConveyorConstants.TO_BUCKET_PERCENT);
+  }
+
   /** Toggle the conveyor direction */
   public void toggleDirection() {
     io.toggleDirection();

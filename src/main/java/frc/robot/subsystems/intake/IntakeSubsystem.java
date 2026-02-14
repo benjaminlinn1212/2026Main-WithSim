@@ -70,4 +70,21 @@ public class IntakeSubsystem extends SubsystemBase {
   public void stopMotor() {
     io.stop();
   }
+
+  /**
+   * Directly apply intake motor output. Called by Superstructure.periodic() every cycle when the
+   * wanted state requires the intake to run. Unlike the intake() command, this is a plain void
+   * method — no command scheduling overhead.
+   */
+  public void applyIntake() {
+    io.setPercent(IntakeConstants.INTAKE_PERCENT);
+  }
+
+  /**
+   * Directly apply outtake motor output. Called by Superstructure.periodic() every cycle when the
+   * wanted state requires the intake to eject.
+   */
+  public void applyOuttake() {
+    io.setPercent(IntakeConstants.OUTTAKE_PERCENT);
+  }
 }

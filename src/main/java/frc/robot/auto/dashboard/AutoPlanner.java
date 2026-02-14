@@ -69,11 +69,9 @@ public class AutoPlanner {
         // Drive to HUB shooting position and dump preloaded FUEL
         double driveTime =
             FieldConstants.estimateDriveTime(currentPose, preloadTarget.toPose()) * timeMargin;
-        // Scale score time by preload count — more FUEL takes longer to dump
-        double preloadScoreTime =
-            FieldConstants.SCORE_DURATION
-                * (1.0 + (settings.getPreloadCount() - 1) * 0.15)
-                * timeMargin;
+        // Scoring time is roughly constant regardless of preload count
+        // (the actual command is aim + shoot, not duration-scaled)
+        double preloadScoreTime = FieldConstants.SCORE_DURATION * timeMargin;
 
         if (driveTime + preloadScoreTime < timeRemaining) {
           actions.add(new AutoAction.ScorePreload(preloadTarget));
@@ -124,7 +122,7 @@ public class AutoPlanner {
       double climbReserve = 0.0;
       if (settings.shouldAttemptClimb()) {
         ClimbLevel cl = settings.getClimbLevel();
-        ClimbPose cp = ClimbPose.DEPOT_SIDE; // TODO: make configurable via dashboard
+        ClimbPose cp = settings.getClimbPose();
         double driveToTower =
             FieldConstants.estimateDriveTime(nextTarget.toPose(), cp.getPose()) * timeMargin;
         climbReserve = driveToTower + cl.estimatedClimbDuration * timeMargin;
@@ -157,7 +155,7 @@ public class AutoPlanner {
     // But we plan it here so the robot is already in position for teleop climb.
     if (settings.shouldAttemptClimb()) {
       ClimbLevel cl = settings.getClimbLevel();
-      ClimbPose cp = ClimbPose.DEPOT_SIDE; // TODO: make configurable via dashboard
+      ClimbPose cp = settings.getClimbPose();
       double driveToTower =
           FieldConstants.estimateDriveTime(currentPose, cp.getPose()) * timeMargin;
       double climbTime = cl.estimatedClimbDuration * timeMargin;

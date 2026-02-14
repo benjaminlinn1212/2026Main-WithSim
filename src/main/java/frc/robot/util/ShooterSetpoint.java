@@ -256,8 +256,7 @@ public class ShooterSetpoint {
         return new Translation3d(0, robotPose.getY(), hubTarget.getZ());
       } else {
         // Red: shoot towards X=field_length (red wall)
-        return new Translation3d(
-            FieldConstants.FIELD_LENGTH, robotPose.getY(), hubTarget.getZ());
+        return new Translation3d(FieldConstants.FIELD_LENGTH, robotPose.getY(), hubTarget.getZ());
       }
     }
 

@@ -113,6 +113,16 @@ public class ShooterSubsystem extends SubsystemBase {
     io.stop();
   }
 
+  /**
+   * Directly apply spin-up using ShooterSetpoint. Called by Superstructure.periodic() every cycle
+   * when the wanted state requires the shooter spinning. Unlike spinUp() command, this is a plain
+   * void method.
+   */
+  public void applySpinUp() {
+    ShooterSetpoint setpoint = setpointSupplier.get();
+    setVelocity(setpoint.getShooterRPS());
+  }
+
   @Override
   public void periodic() {
     io.updateInputs(inputs);

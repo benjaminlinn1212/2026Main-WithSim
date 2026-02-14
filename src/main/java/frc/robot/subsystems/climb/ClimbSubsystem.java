@@ -656,4 +656,26 @@ public class ClimbSubsystem extends SubsystemBase {
     cmd.setName("ClimbEmergencyStop");
     return cmd;
   }
+
+  // ─── Direct voltage control for testing ───
+
+  /** Set the left front motor voltage directly. */
+  public void setLeftFrontVoltage(double volts) {
+    io.setLeftFrontVoltage(volts);
+  }
+
+  /** Set the left back motor voltage directly. */
+  public void setLeftBackVoltage(double volts) {
+    io.setLeftBackVoltage(volts);
+  }
+
+  /** Set the right front motor voltage directly. */
+  public void setRightFrontVoltage(double volts) {
+    io.setRightFrontVoltage(volts);
+  }
+
+  /** Set the right back motor voltage directly. */
+  public void setRightBackVoltage(double volts) {
+    io.setRightBackVoltage(volts);
+  }
 }

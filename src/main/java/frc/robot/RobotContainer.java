@@ -13,7 +13,6 @@ import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.pathfinding.LocalADStar;
 import com.pathplanner.lib.pathfinding.Pathfinding;
-import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -426,27 +425,63 @@ public class RobotContainer {
 
     // ===== CLIMB TEST CONTROLS =====
 
-    // X button: Run path to reach vertically down 0.15m from stow
+    // --- Left side motors (POV / D-Pad) ---
+    // POV Up: Left Front Motor +3V
     controller
-        .x()
-        .onTrue(
-            climb.runPathToPosition(
-                new Translation2d(
-                    Constants.ClimbConstants.START_POSITION_X_METERS,
-                    Constants.ClimbConstants.START_POSITION_Y_METERS - 0.15),
-                2.0,
-                false));
+        .povUp()
+        .whileTrue(
+            Commands.run(() -> climb.setLeftFrontVoltage(3.0), climb)
+                .finallyDo(() -> climb.setLeftFrontVoltage(0.0)));
 
-    // Y button: Stow climb (path-follow back to stowed position)
+    // POV Down: Left Front Motor -3V
+    controller
+        .povDown()
+        .whileTrue(
+            Commands.run(() -> climb.setLeftFrontVoltage(-3.0), climb)
+                .finallyDo(() -> climb.setLeftFrontVoltage(0.0)));
+
+    // POV Right: Left Back Motor +3V
+    controller
+        .povRight()
+        .whileTrue(
+            Commands.run(() -> climb.setLeftBackVoltage(3.0), climb)
+                .finallyDo(() -> climb.setLeftBackVoltage(0.0)));
+
+    // POV Left: Left Back Motor -3V
+    controller
+        .povLeft()
+        .whileTrue(
+            Commands.run(() -> climb.setLeftBackVoltage(-3.0), climb)
+                .finallyDo(() -> climb.setLeftBackVoltage(0.0)));
+
+    // --- Right side motors (face buttons) ---
+    // Y button: Right Front Motor +3V
     controller
         .y()
-        .onTrue(
-            climb.runPathToPosition(
-                new Translation2d(
-                    Constants.ClimbConstants.START_POSITION_X_METERS,
-                    Constants.ClimbConstants.START_POSITION_Y_METERS),
-                2.0,
-                false));
+        .whileTrue(
+            Commands.run(() -> climb.setRightFrontVoltage(3.0), climb)
+                .finallyDo(() -> climb.setRightFrontVoltage(0.0)));
+
+    // A button: Right Front Motor -3V
+    controller
+        .a()
+        .whileTrue(
+            Commands.run(() -> climb.setRightFrontVoltage(-3.0), climb)
+                .finallyDo(() -> climb.setRightFrontVoltage(0.0)));
+
+    // X button: Right Back Motor +3V
+    controller
+        .x()
+        .whileTrue(
+            Commands.run(() -> climb.setRightBackVoltage(3.0), climb)
+                .finallyDo(() -> climb.setRightBackVoltage(0.0)));
+
+    // B button: Right Back Motor -3V
+    controller
+        .b()
+        .whileTrue(
+            Commands.run(() -> climb.setRightBackVoltage(-3.0), climb)
+                .finallyDo(() -> climb.setRightBackVoltage(0.0)));
   }
 
   /**

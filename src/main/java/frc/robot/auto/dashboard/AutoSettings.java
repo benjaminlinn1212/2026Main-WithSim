@@ -12,6 +12,7 @@ import frc.robot.auto.dashboard.FieldConstants.Lane;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import frc.robot.auto.dashboard.FieldConstants.StartPose;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -52,7 +53,7 @@ public class AutoSettings {
   // ===== Backing fields (read from dashboard each cycle) =====
   private StartPose startPose = StartPose.CENTER;
   private final List<ScoringWaypoint> scoringPriority = new ArrayList<>();
-  private IntakeLocation preferredIntake = IntakeLocation.OUTPOST;
+  private final List<IntakeLocation> intakePriority = new ArrayList<>();
   private final Set<Lane> allowedLanes = EnumSet.allOf(Lane.class);
   private final Set<Lane> partnerLanes = EnumSet.noneOf(Lane.class);
   private boolean attemptClimb = false;
@@ -69,7 +70,6 @@ public class AutoSettings {
 
   // ===== SendableChoosers for dropdown settings in Elastic =====
   private final SendableChooser<StartPose> startPoseChooser = new SendableChooser<>();
-  private final SendableChooser<IntakeLocation> preferredIntakeChooser = new SendableChooser<>();
   private final SendableChooser<ClimbLevel> climbLevelChooser = new SendableChooser<>();
   private final SendableChooser<ClimbPose> climbPoseChooser = new SendableChooser<>();
   private final SendableChooser<RiskLevel> riskLevelChooser = new SendableChooser<>();
@@ -94,15 +94,14 @@ public class AutoSettings {
     }
     SmartDashboard.putData(PREFIX + "Start Pose", startPoseChooser);
 
-    // --- Dropdown: Preferred Intake ---
-    for (IntakeLocation il : IntakeLocation.values()) {
-      if (il == IntakeLocation.OUTPOST) {
-        preferredIntakeChooser.setDefaultOption(il.name(), il);
-      } else {
-        preferredIntakeChooser.addOption(il.name(), il);
-      }
-    }
-    SmartDashboard.putData(PREFIX + "Preferred Intake", preferredIntakeChooser);
+    // --- Intake Priority ---
+    // Each intake location gets a number: 1 = first priority, 2 = second, etc.
+    // Set to 0 to disable that location entirely.
+    // Example: DEPOT=1, OUTPOST=2 means go to DEPOT first, then OUTPOST.
+    SmartDashboard.putNumber(PREFIX + "Intake/OUTPOST", 1);
+    SmartDashboard.putNumber(PREFIX + "Intake/DEPOT", 2);
+    SmartDashboard.putNumber(PREFIX + "Intake/NEUTRAL_ZONE_UPPER", 3);
+    SmartDashboard.putNumber(PREFIX + "Intake/NEUTRAL_ZONE_LOWER", 4);
 
     // --- Dropdown: Climb Level ---
     for (ClimbLevel cl : ClimbLevel.values()) {
@@ -182,11 +181,18 @@ public class AutoSettings {
       }
     }
 
-    // Preferred Intake (dropdown)
-    IntakeLocation selectedIntake = preferredIntakeChooser.getSelected();
-    if (selectedIntake != null) {
-      preferredIntake = selectedIntake;
+    // Intake Priority (numbered per location — lower number = higher priority, 0 = disabled)
+    intakePriority.clear();
+    for (IntakeLocation il : IntakeLocation.values()) {
+      int priority = (int) SmartDashboard.getNumber(PREFIX + "Intake/" + il.name(), 0);
+      if (priority > 0) {
+        intakePriority.add(il);
+      }
     }
+    // Sort by the dashboard-assigned priority number (ascending: 1 first, 2 second, etc.)
+    intakePriority.sort(
+        Comparator.comparingInt(
+            il -> (int) SmartDashboard.getNumber(PREFIX + "Intake/" + il.name(), 99)));
 
     // Allowed Lanes (boolean toggles per lane)
     allowedLanes.clear();
@@ -264,8 +270,9 @@ public class AutoSettings {
     return List.copyOf(scoringPriority);
   }
 
-  public IntakeLocation getPreferredIntake() {
-    return preferredIntake;
+  /** Ordered list of intake locations, highest priority first. */
+  public List<IntakeLocation> getIntakePriority() {
+    return List.copyOf(intakePriority);
   }
 
   /** Lanes this robot is allowed to use. */
@@ -344,7 +351,7 @@ public class AutoSettings {
         + "|"
         + scoringPriority
         + "|"
-        + preferredIntake.name()
+        + intakePriority
         + "|"
         + allowedLanes
         + "|"
@@ -372,7 +379,7 @@ public class AutoSettings {
   private void logSettings() {
     Logger.recordOutput("AutoSettings/StartPose", startPose.name());
     Logger.recordOutput("AutoSettings/ShootingPriority", scoringPriority.toString());
-    Logger.recordOutput("AutoSettings/PreferredIntake", preferredIntake.name());
+    Logger.recordOutput("AutoSettings/IntakePriority", intakePriority.toString());
     Logger.recordOutput("AutoSettings/AllowedLanes", allowedLanes.toString());
     Logger.recordOutput("AutoSettings/PartnerLanes", partnerLanes.toString());
     Logger.recordOutput("AutoSettings/EffectiveLanes", getEffectiveLanes().toString());
@@ -394,7 +401,7 @@ public class AutoSettings {
         + ", shooting="
         + scoringPriority
         + ", intake="
-        + preferredIntake
+        + intakePriority
         + ", lanes="
         + allowedLanes
         + ", partner="

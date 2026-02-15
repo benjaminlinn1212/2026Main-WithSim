@@ -252,25 +252,41 @@ public final class FieldConstants {
   // 3. NEUTRAL ZONE — scattered FUEL across the center of the field (~360-408)
   public enum IntakeLocation {
     /** OUTPOST — human player CHUTE delivers FUEL. Located at one end of the field. */
-    OUTPOST(new Pose2d(0.495, 0.656, Rotation2d.fromDegrees(135)), Zone.OUTPOST_AREA, Lane.UPPER),
+    OUTPOST(
+        new Pose2d(0.495, 0.656, Rotation2d.fromDegrees(135)),
+        Zone.OUTPOST_AREA,
+        Lane.UPPER,
+        false),
     /** DEPOT — floor-level FUEL bin along ALLIANCE WALL. */
-    DEPOT(new Pose2d(0.665, 5.962, Rotation2d.fromDegrees(180)), Zone.ALLIANCE_ZONE, Lane.LOWER),
+    DEPOT(
+        new Pose2d(0.665, 5.962, Rotation2d.fromDegrees(180)),
+        Zone.ALLIANCE_ZONE,
+        Lane.LOWER,
+        false),
 
     /** NEUTRAL ZONE upper — pick up FUEL from the upper side of the neutral zone. */
     NEUTRAL_ZONE_UPPER(
-        new Pose2d(7.84, 5.905, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, Lane.UPPER),
+        new Pose2d(7.84, 5.905, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, Lane.UPPER, true),
     /** NEUTRAL ZONE lower — pick up FUEL from the lower side of the neutral zone. */
     NEUTRAL_ZONE_LOWER(
-        new Pose2d(7.84, 2.165, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, Lane.LOWER);
+        new Pose2d(7.84, 2.165, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, Lane.LOWER, true);
 
     public final Pose2d bluePose;
     public final Zone zone;
     public final Lane lane;
 
-    IntakeLocation(Pose2d bluePose, Zone zone, Lane lane) {
+    /**
+     * Whether this intake location can be visited multiple times. OUTPOST and DEPOT are one-shot
+     * (depleted after a single intake visit). NEUTRAL ZONE locations have scattered FUEL that can
+     * be collected repeatedly.
+     */
+    public final boolean reusable;
+
+    IntakeLocation(Pose2d bluePose, Zone zone, Lane lane, boolean reusable) {
       this.bluePose = bluePose;
       this.zone = zone;
       this.lane = lane;
+      this.reusable = reusable;
     }
 
     /** Get the alliance-corrected pose. */

@@ -11,6 +11,7 @@ import frc.robot.auto.dashboard.FieldConstants.Lane;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.littletonrobotics.junction.Logger;
@@ -87,6 +88,8 @@ public class AutoPlanner {
     int cyclesCompleted = 0;
     // Track which HUB positions we've already shot from to diversify angles
     List<ScoringWaypoint> scoredLocations = new ArrayList<>();
+    // Track depleted intake locations (OUTPOST/DEPOT are one-shot; NEUTRAL ZONE is reusable)
+    Set<IntakeLocation> depletedIntakes = new HashSet<>();
 
     while (cyclesCompleted < settings.getMaxCycles()) {
       // Pick next HUB shooting position
@@ -100,8 +103,10 @@ public class AutoPlanner {
       }
 
       // Pick FUEL intake location (OUTPOST, DEPOT, or NEUTRAL ZONE)
+      // Walks the priority list in order, skipping depleted and lane-blocked locations
       IntakeLocation intakeLoc =
-          pickBestIntakeLocation(currentPose, settings.getPreferredIntake(), effectiveLanes);
+          pickBestIntakeLocation(
+              currentPose, settings.getIntakePriority(), effectiveLanes, depletedIntakes);
 
       if (intakeLoc == null) {
         Logger.recordOutput("AutoPlanner/StopReason", "No valid FUEL intake locations");
@@ -141,6 +146,11 @@ public class AutoPlanner {
       actions.add(new AutoAction.IntakeAt(intakeLoc));
       timeRemaining -= driveToIntakeTime + intakeTime;
       currentPose = intakeLoc.getPose();
+
+      // Mark non-reusable locations as depleted (OUTPOST/DEPOT can only be visited once)
+      if (!intakeLoc.reusable) {
+        depletedIntakes.add(intakeLoc);
+      }
 
       actions.add(new AutoAction.ScoreAt(nextTarget, settings.isShootWhileDriving()));
       timeRemaining -= driveToScoreTime + scoreTime;
@@ -234,22 +244,44 @@ public class AutoPlanner {
   }
 
   /**
-   * Pick the best intake location given the current pose, preferred location, and lane constraints.
+   * Pick the best intake location given the current pose, priority list, lane constraints, and
+   * already-depleted locations.
+   *
+   * <p>OUTPOST and DEPOT are one-shot: once visited, they're added to {@code depleted} and excluded
+   * from future cycles. NEUTRAL ZONE locations are reusable and never depleted.
+   *
+   * <p>Strategy:
+   *
+   * <ol>
+   *   <li>Walk the priority list in order — the first location that is allowed and not depleted
+   *       wins. This lets the drive team set an explicit sequence (e.g., DEPOT → OUTPOST → NEUTRAL
+   *       ZONE).
+   *   <li>If no priority-list location is usable, fall back to the closest allowed, non-depleted
+   *       location from all IntakeLocations.
+   * </ol>
    */
   private static IntakeLocation pickBestIntakeLocation(
-      Pose2d currentPose, IntakeLocation preferred, Set<Lane> allowedLanes) {
+      Pose2d currentPose,
+      List<IntakeLocation> priority,
+      Set<Lane> allowedLanes,
+      Set<IntakeLocation> depleted) {
 
-    // If the preferred location is in an allowed lane, use it
-    if (allowedLanes.contains(preferred.lane)) {
-      return preferred;
+    // Walk priority list in order — first eligible location wins
+    for (IntakeLocation loc : priority) {
+      if (allowedLanes.contains(loc.lane) && !depleted.contains(loc)) {
+        return loc;
+      }
     }
 
-    // Otherwise, find the closest allowed intake location
+    // Fallback: closest allowed, non-depleted location not in the priority list
     IntakeLocation best = null;
     double bestDist = Double.MAX_VALUE;
 
     for (IntakeLocation loc : IntakeLocation.values()) {
       if (!allowedLanes.contains(loc.lane)) {
+        continue;
+      }
+      if (depleted.contains(loc)) {
         continue;
       }
       double dist = currentPose.getTranslation().getDistance(loc.getPose().getTranslation());

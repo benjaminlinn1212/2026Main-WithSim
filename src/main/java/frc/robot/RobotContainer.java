@@ -13,6 +13,8 @@ import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.pathfinding.LocalADStar;
 import com.pathplanner.lib.pathfinding.Pathfinding;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -21,6 +23,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.auto.HardcodedAutos;
 import frc.robot.auto.dashboard.DashboardAutoManager;
+import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
@@ -356,26 +359,26 @@ public class RobotContainer {
     //   Blue side: robot near (0.33, 0.33) facing 0° (toward red wall)
     //   Red side:  robot near (FIELD_LENGTH - 0.33, FIELD_WIDTH - 0.33) facing 180° (toward blue
     // wall)
-    // controller
-    //     .leftBumper()
-    //     .onTrue(
-    //         Commands.runOnce(
-    //                 () -> {
-    //                   var alliance = DriverStation.getAlliance();
-    //                   boolean isRed =
-    //                       alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-    //                   if (isRed) {
-    //                     swerveIO.setPose(
-    //                         new Pose2d(
-    //                             FieldConstants.FIELD_LENGTH - 0.33,
-    //                             FieldConstants.FIELD_WIDTH - 0.33,
-    //                             Rotation2d.fromDegrees(180)));
-    //                   } else {
-    //                     swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
-    //                   }
-    //                 },
-    //                 swerveIO)
-    //             .ignoringDisable(true));
+    controller
+        .leftBumper()
+        .onTrue(
+            Commands.runOnce(
+                    () -> {
+                      var alliance = DriverStation.getAlliance();
+                      boolean isRed =
+                          alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+                      if (isRed) {
+                        swerveIO.setPose(
+                            new Pose2d(
+                                FieldConstants.FIELD_LENGTH - 0.33,
+                                FieldConstants.FIELD_WIDTH - 0.33,
+                                Rotation2d.fromDegrees(180)));
+                      } else {
+                        swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
+                      }
+                    },
+                    swerveIO)
+                .ignoringDisable(true));
 
     // // ===== SUPERSTRUCTURE CONTROLS =====
 
@@ -427,6 +430,7 @@ public class RobotContainer {
 
     // --- Left side motors (POV / D-Pad) ---
     // POV Up: Left Front Motor +3V
+    /*
     controller
         .povUp()
         .whileTrue(
@@ -453,7 +457,7 @@ public class RobotContainer {
         .whileTrue(
             Commands.run(() -> climb.setLeftBackVoltage(-3.0), climb)
                 .finallyDo(() -> climb.setLeftBackVoltage(0.0)));
-
+    */
     // --- Right side motors (face buttons) ---
     // Y button: Right Front Motor +3V
     controller

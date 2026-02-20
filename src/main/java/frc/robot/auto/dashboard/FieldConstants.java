@@ -10,6 +10,7 @@ import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import frc.robot.Constants;
 
 /**
  * Field constants for the 2026 REBUILT game field. Defines HUB shooting positions, FUEL intake
@@ -44,9 +45,21 @@ public final class FieldConstants {
   // TRENCHES are 22.25in tall tunnels running along the upper and lower field edges.
   // Robots must drive straight (cardinal headings only: 0/90/180/270°) to pass through.
   // Each trench spans the full field length and is ~1.22m (48in) wide from the field wall inward.
+  // The trench STRUCTURE (low ceiling) only exists in the X range [4.0, 5.2] (blue origin).
+  // Outside that X range the robot is in open field and doesn't need heading constraints.
   // A buffer zone extends OUTSIDE the trench so the robot snaps heading BEFORE entering.
   public static final double TRENCH_HEIGHT_METERS = Units.inchesToMeters(22.25);
   public static final double TRENCH_WIDTH_METERS = Units.inchesToMeters(48.0);
+
+  /** Trench X boundaries (blue origin). The low-ceiling tunnel only spans this X range. */
+  public static final double TRENCH_MIN_X = 4.0; // meters
+
+  public static final double TRENCH_MAX_X = 5.2; // meters
+
+  /** Red trench X boundaries (blue origin, point-symmetric about field center). */
+  public static final double TRENCH_RED_MIN_X = FIELD_LENGTH - TRENCH_MAX_X; // ~11.34m
+
+  public static final double TRENCH_RED_MAX_X = FIELD_LENGTH - TRENCH_MIN_X; // ~12.54m
 
   /**
    * Buffer distance (meters) outside the trench boundaries. When the robot is within this distance
@@ -66,18 +79,37 @@ public final class FieldConstants {
   public static final double TRENCH_LOWER_MAX_Y = TRENCH_WIDTH_METERS; // ~1.22m
 
   /**
-   * Check if a blue-origin position is near either trench (inside OR within the approach buffer).
-   * Used by the auto path generator to snap heading to cardinal BEFORE the robot enters the trench.
+   * Check if a blue-origin position is near any trench on the field (inside OR within the approach
+   * buffer). Both the blue-side trench (X 4.0–5.2) and the red-side trench (X 11.34–12.54,
+   * point-symmetric) are checked, since both physical structures exist regardless of alliance.
+   *
+   * <p>With point symmetry the Y bands also flip: the blue upper trench corresponds to the red
+   * lower trench and vice versa.
    */
   public static boolean isNearTrench(Translation2d bluePosition) {
+    double x = bluePosition.getX();
     double y = bluePosition.getY();
-    // Upper trench: extend the approach buffer downward (lower Y)
-    boolean nearUpper =
-        y >= (TRENCH_UPPER_MIN_Y - TRENCH_APPROACH_BUFFER) && y <= TRENCH_UPPER_MAX_Y;
-    // Lower trench: extend the approach buffer upward (higher Y)
-    boolean nearLower =
-        y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + TRENCH_APPROACH_BUFFER);
-    return nearUpper || nearLower;
+
+    double buf = TRENCH_APPROACH_BUFFER;
+
+    // --- Blue-side trench (X 4.0–5.2) ---
+    boolean inBlueTrenchX = x >= (TRENCH_MIN_X - buf) && x <= (TRENCH_MAX_X + buf);
+    if (inBlueTrenchX) {
+      boolean nearUpper = y >= (TRENCH_UPPER_MIN_Y - buf) && y <= TRENCH_UPPER_MAX_Y;
+      boolean nearLower = y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buf);
+      if (nearUpper || nearLower) return true;
+    }
+
+    // --- Red-side trench (X 11.34–12.54, point-symmetric) ---
+    // Y bands are swapped: blue upper → red lower, blue lower → red upper
+    boolean inRedTrenchX = x >= (TRENCH_RED_MIN_X - buf) && x <= (TRENCH_RED_MAX_X + buf);
+    if (inRedTrenchX) {
+      boolean nearUpper = y >= (TRENCH_UPPER_MIN_Y - buf) && y <= TRENCH_UPPER_MAX_Y;
+      boolean nearLower = y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buf);
+      if (nearUpper || nearLower) return true;
+    }
+
+    return false;
   }
 
   /**
@@ -110,21 +142,26 @@ public final class FieldConstants {
 
   // ===== HUB 3D Positions =====
   // Used by ShooterSetpoint for distance-based aiming
+  // Point-symmetric: RED HUB is 180° rotated from BLUE HUB about field center
   public static final Translation3d BLUE_HUB_TRANSLATION3D =
       new Translation3d(4.625689, 4.040981, 0);
   public static final Translation3d RED_HUB_POSE_TRANSLATION3D =
-      new Translation3d(FIELD_LENGTH - 4.625689, 4.040981, 0);
+      new Translation3d(FIELD_LENGTH - 4.625689, FIELD_WIDTH - 4.040981, 0);
 
   // ===== Zones =====
   // Zones define rectangular regions of the REBUILT field (blue-alliance origin).
   // Boundaries are axis-aligned rectangles: (minX, minY) to (maxX, maxY) in meters.
   // The planner uses these for constraint-checking and spatial queries.
   //
+  // NOTE: AutoCommandBuilder.ALLIANCE_SIDE_MAX_X uses TRENCH_MAX_X (5.2m) instead of HUB_ZONE's
+  // 5.50m for the aiming threshold, so the turret doesn't try to aim inside the trench approach
+  // buffer where Superstructure would stow it anyway.
+  //
   // Field layout (blue origin, X right, Y up):
-  //   x=0.00        x=2.00    x=3.60         x=5.50       x=8.27         x=11.04       x=16.54
-  //   |  OUTPOST    |         | ROBOT        | HUB_ZONE   | NEUTRAL      | OPPONENT    |
-  //   |  (corner)   | ALLIANCE| STARTING     |             | ZONE         | SIDE        |
-  //   |             | ZONE    | LINE         |             |              |             |
+  //   x=0.00        x=2.00    x=3.60    x=5.2  x=5.50       x=8.27         x=11.04       x=16.54
+  //   |  OUTPOST    |         | ROBOT   |TRENCH| HUB_ZONE   | NEUTRAL      | OPPONENT    |
+  //   |  (corner)   | ALLIANCE| STARTING|  MAX |             | ZONE         | SIDE        |
+  //   |             | ZONE    | LINE    |      |             |              |             |
   //
   public enum Zone {
     /**
@@ -202,36 +239,21 @@ public final class FieldConstants {
     }
   }
 
-  // ===== Lanes =====
-  // Lanes are high-level traversal corridors defined by field geometry.
-  // TRENCH side (low clearance, 22.25in) vs. BUMP side (ramp over) vs. CENTER (open).
-  // Drivers/strategists pick which lanes are "ours" vs. partner's to avoid collisions.
-  public enum Lane {
-    /** Upper lane — TRENCH/BUMP side closer to scoring table wall (high Y). */
-    UPPER,
-    /** Center lane — through the middle of the field between HUBs. */
-    CENTER,
-    /** Lower lane — TRENCH/BUMP side away from scoring table (low Y). */
-    LOWER
-  }
-
   // ===== Scoring Waypoints =====
   public enum ScoringWaypoint {
     /** Upper — shooting from the upper side. */
-    HUB_UPPER(new Translation2d(2.80, 6.20), Zone.ALLIANCE_ZONE, Lane.UPPER),
+    HUB_UPPER(new Translation2d(2.80, 6.20), Zone.ALLIANCE_ZONE),
     /** Center — shooting straight at the HUB from the NEUTRAL ZONE side. */
-    HUB_CENTER(new Translation2d(2.50, 4.03), Zone.ALLIANCE_ZONE, Lane.CENTER),
+    HUB_CENTER(new Translation2d(2.50, 4.03), Zone.ALLIANCE_ZONE),
     /** Lower — shooting from the lower side. */
-    HUB_LOWER(new Translation2d(2.80, 1.87), Zone.ALLIANCE_ZONE, Lane.LOWER);
+    HUB_LOWER(new Translation2d(2.80, 1.87), Zone.ALLIANCE_ZONE);
 
     public final Translation2d bluePosition;
     public final Zone zone;
-    public final Lane lane;
 
-    ScoringWaypoint(Translation2d bluePosition, Zone zone, Lane lane) {
+    ScoringWaypoint(Translation2d bluePosition, Zone zone) {
       this.bluePosition = bluePosition;
       this.zone = zone;
-      this.lane = lane;
     }
 
     /** Get the alliance-corrected position. */
@@ -251,29 +273,20 @@ public final class FieldConstants {
   // 2. DEPOT — floor-level bin along ALLIANCE WALL (24 FUEL)
   // 3. NEUTRAL ZONE — scattered FUEL across the center of the field (~360-408)
   public enum IntakeLocation {
-    /** OUTPOST — human player CHUTE delivers FUEL. Located at one end of the field. */
-    OUTPOST(
-        new Pose2d(0.495, 0.656, Rotation2d.fromDegrees(135)),
-        Zone.OUTPOST_AREA,
-        Lane.UPPER,
-        false),
-    /** DEPOT — floor-level FUEL bin along ALLIANCE WALL. */
-    DEPOT(
-        new Pose2d(0.665, 5.962, Rotation2d.fromDegrees(180)),
-        Zone.ALLIANCE_ZONE,
-        Lane.LOWER,
-        false),
+    /** OUTPOST — human player CHUTE delivers FUEL. Located at lower end of the field (low Y). */
+    OUTPOST(new Pose2d(0.495, 0.656, Rotation2d.fromDegrees(0)), Zone.OUTPOST_AREA, false),
+    /** DEPOT — floor-level FUEL bin along ALLIANCE WALL (high Y, upper side). */
+    DEPOT(new Pose2d(0.665, 5.962, Rotation2d.fromDegrees(0)), Zone.ALLIANCE_ZONE, false),
 
     /** NEUTRAL ZONE upper — pick up FUEL from the upper side of the neutral zone. */
     NEUTRAL_ZONE_UPPER(
-        new Pose2d(7.84, 5.905, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, Lane.UPPER, true),
+        new Pose2d(7.84, 5.905, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, true),
     /** NEUTRAL ZONE lower — pick up FUEL from the lower side of the neutral zone. */
     NEUTRAL_ZONE_LOWER(
-        new Pose2d(7.84, 2.165, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, Lane.LOWER, true);
+        new Pose2d(7.84, 2.165, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, true);
 
     public final Pose2d bluePose;
     public final Zone zone;
-    public final Lane lane;
 
     /**
      * Whether this intake location can be visited multiple times. OUTPOST and DEPOT are one-shot
@@ -282,10 +295,9 @@ public final class FieldConstants {
      */
     public final boolean reusable;
 
-    IntakeLocation(Pose2d bluePose, Zone zone, Lane lane, boolean reusable) {
+    IntakeLocation(Pose2d bluePose, Zone zone, boolean reusable) {
       this.bluePose = bluePose;
       this.zone = zone;
-      this.lane = lane;
       this.reusable = reusable;
     }
 
@@ -346,7 +358,7 @@ public final class FieldConstants {
   // The TOWER is integrated into the ALLIANCE WALL between DS2 and DS3.
   public enum ClimbLevel {
     /** LEVEL 1 — off the carpet/TOWER BASE. LOW RUNG at 27in. (10 pts teleop, 15 pts auto) */
-    LEVEL_1(10, 15, 3.0),
+    LEVEL_1(10, 15, 1.0),
     /** LEVEL 2 — BUMPERS above LOW RUNG. MID RUNG at 45in. (20 pts teleop) */
     LEVEL_2(20, 0, 5.0),
     /** LEVEL 3 — BUMPERS above MID RUNG. HIGH RUNG at 63in. (30 pts teleop) */
@@ -363,24 +375,14 @@ public final class FieldConstants {
     }
   }
 
-  // ===== FUEL Preload =====
-  /** Maximum FUEL a robot can preload (per game manual 6.3.4.C). */
-  public static final int MAX_PRELOAD_FUEL = 8;
-
   // ===== Estimated action durations (seconds) =====
   // Used by the planner for time budgeting. These should match the actual command
   // execution times in AutoCommandBuilder (aim + shoot deadlines + idle).
   /** Time to aim and shoot a load of FUEL into the HUB (0.2s aim + 0.15s shoot + margin). */
   public static final double SCORE_DURATION = 0.5;
 
-  /** Time to intake FUEL at a location (mostly overlaps with drive time, plus 0.3s settle). */
-  public static final double INTAKE_DURATION = 0.5;
-
   /** AUTO period duration — 20 seconds per REBUILT game manual. */
   public static final double AUTO_DURATION = 20.0;
-
-  // Average drive speed for time estimates (meters/second)
-  public static final double AVG_DRIVE_SPEED = 3.0;
 
   // ===== Ranking Point Thresholds =====
   /** ENERGIZED RP — score at least this many FUEL in HUB (Regional/District). */
@@ -401,26 +403,32 @@ public final class FieldConstants {
   }
 
   /**
-   * Flip a pose from blue origin to red origin. Mirrors X across the field center, flips heading.
+   * Flip a pose from blue origin to red origin. REBUILT has <b>point symmetry</b> (180° rotational
+   * symmetry about the field center), so both X and Y are mirrored and the heading rotates 180°.
    */
   public static Pose2d flipPose(Pose2d bluePose) {
     return new Pose2d(
         FIELD_LENGTH - bluePose.getX(),
-        bluePose.getY(),
-        Rotation2d.fromDegrees(180).minus(bluePose.getRotation()));
+        FIELD_WIDTH - bluePose.getY(),
+        bluePose.getRotation().plus(Rotation2d.fromDegrees(180)));
   }
 
-  /** Flip a translation from blue origin to red origin. Mirrors X across the field center. */
+  /**
+   * Flip a translation from blue origin to red origin. Point-symmetric: both X and Y are mirrored
+   * about the field center.
+   */
   public static Translation2d flipTranslation(Translation2d blueTranslation) {
-    return new Translation2d(FIELD_LENGTH - blueTranslation.getX(), blueTranslation.getY());
+    return new Translation2d(
+        FIELD_LENGTH - blueTranslation.getX(), FIELD_WIDTH - blueTranslation.getY());
   }
 
   /**
    * Estimate drive time between two poses (straight-line distance / avg speed). The planner uses
-   * this for rough time budgeting — not for trajectory generation.
+   * this for rough time budgeting — not for trajectory generation. Speed is derived from {@link
+   * Constants.AutoConstants#AVG_DRIVE_SPEED_MPS}.
    */
   public static double estimateDriveTime(Pose2d from, Pose2d to) {
     double distance = from.getTranslation().getDistance(to.getTranslation());
-    return distance / AVG_DRIVE_SPEED;
+    return distance / Constants.AutoConstants.AVG_DRIVE_SPEED_MPS;
   }
 }

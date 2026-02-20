@@ -11,9 +11,11 @@ package frc.robot.subsystems.drive;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.RobotState;
+import org.littletonrobotics.junction.Logger;
 
 /**
  * Simple Drive subsystem that wraps DriveIOHardware/DriveIOSim (which extend SwerveDrivetrain).
@@ -26,6 +28,20 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   // SwerveRequest objects for different drive modes
   private final SwerveRequest.FieldCentric fieldCentricDrive = new SwerveRequest.FieldCentric();
   private final SwerveRequest.RobotCentric robotCentricDrive = new SwerveRequest.RobotCentric();
+
+  // Acceleration tracking (computed from speed deltas each periodic cycle)
+  private ChassisSpeeds previousSpeeds = new ChassisSpeeds();
+  private double previousTimestamp = 0.0;
+  private double linearAccelerationMagnitude = 0.0;
+
+  /**
+   * Exponential moving average of acceleration. Smooths out frame-to-frame noise so the zone-aware
+   * feeding gate doesn't stutter. Alpha controls responsiveness: lower = smoother but more lag,
+   * higher = noisier but faster response.
+   */
+  private static final double ACCEL_FILTER_ALPHA = 0.10;
+
+  private double filteredAcceleration = 0.0;
 
   public DriveSwerveDrivetrain(DriveIOHardware driveIO, RobotState robotState) {
     this.driveIO = driveIO;
@@ -40,6 +56,23 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     // Compute field-relative speeds by rotating by robot heading
     var heading = getPose().getRotation();
     var fieldRelativeSpeeds = ChassisSpeeds.fromRobotRelativeSpeeds(robotRelativeSpeeds, heading);
+
+    // Compute linear acceleration magnitude (m/s²) from speed deltas
+    double now = Timer.getFPGATimestamp();
+    double dt = now - previousTimestamp;
+    if (dt > 0.005 && dt < 0.5) { // Guard against first-cycle and large gaps
+      double dvx = fieldRelativeSpeeds.vxMetersPerSecond - previousSpeeds.vxMetersPerSecond;
+      double dvy = fieldRelativeSpeeds.vyMetersPerSecond - previousSpeeds.vyMetersPerSecond;
+      linearAccelerationMagnitude = Math.sqrt(dvx * dvx + dvy * dvy) / dt;
+      // Exponential moving average to smooth out frame-to-frame noise
+      filteredAcceleration =
+          ACCEL_FILTER_ALPHA * linearAccelerationMagnitude
+              + (1.0 - ACCEL_FILTER_ALPHA) * filteredAcceleration;
+    }
+    previousSpeeds = fieldRelativeSpeeds;
+    previousTimestamp = now;
+    Logger.recordOutput("Drive/LinearAccelMagnitude", linearAccelerationMagnitude);
+    Logger.recordOutput("Drive/FilteredAcceleration", filteredAcceleration);
 
     robotState.updateChassisSpeeds(fieldRelativeSpeeds, robotRelativeSpeeds);
 
@@ -68,6 +101,24 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   /** Get current chassis speeds */
   public ChassisSpeeds getChassisSpeeds() {
     return driveIO.getState().Speeds;
+  }
+
+  /**
+   * Get the magnitude of the robot's linear acceleration (m/s²). Computed from field-relative speed
+   * deltas each periodic cycle. Used by the Superstructure to gate conveyor/indexer feeding — FUEL
+   * should only be fed to the shooter when the robot is at low acceleration (steady-state driving).
+   */
+  public double getLinearAccelerationMagnitude() {
+    return linearAccelerationMagnitude;
+  }
+
+  /**
+   * Get the filtered (smoothed) linear acceleration magnitude. Uses an exponential moving average
+   * to eliminate frame-to-frame noise. Use this for gating decisions (e.g. when to start feeding
+   * FUEL) to avoid stutter from noisy raw acceleration.
+   */
+  public double getFilteredAcceleration() {
+    return filteredAcceleration;
   }
 
   /** Reset the robot's pose. */

@@ -8,14 +8,10 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
 import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
-import frc.robot.auto.dashboard.FieldConstants.Lane;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import frc.robot.auto.dashboard.FieldConstants.StartPose;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
@@ -29,9 +25,7 @@ import org.littletonrobotics.junction.Logger;
  *   <li>Start pose — which DRIVER STATION side to start at
  *   <li>Shooting priority — preferred positions around the HUB to shoot FUEL
  *   <li>Preferred intake — OUTPOST (human player), DEPOT (floor bin), or NEUTRAL ZONE (ground)
- *   <li>Lane management — TRENCH/BUMP side vs center, partner coordination
  *   <li>Climb level — which TOWER RUNG to attempt (LEVEL 1/2/3, different point values)
- *   <li>Preload count — how many FUEL to preload (1-8 per game manual 6.3.4.C)
  *   <li>Shoot while driving — continuous scoring vs stop-and-shoot
  *   <li>Risk level — conservative/balanced/aggressive time budgets
  * </ul>
@@ -54,15 +48,11 @@ public class AutoSettings {
   private StartPose startPose = StartPose.CENTER;
   private final List<ScoringWaypoint> scoringPriority = new ArrayList<>();
   private final List<IntakeLocation> intakePriority = new ArrayList<>();
-  private final Set<Lane> allowedLanes = EnumSet.allOf(Lane.class);
-  private final Set<Lane> partnerLanes = EnumSet.noneOf(Lane.class);
   private boolean attemptClimb = false;
   private ClimbLevel climbLevel = ClimbLevel.LEVEL_1;
   private ClimbPose climbPose = ClimbPose.DEPOT_SIDE;
   private boolean shootWhileDriving = false;
   private RiskLevel riskLevel = RiskLevel.BALANCED;
-  private boolean preloadFuel = true;
-  private int preloadCount = 8; // FUEL preloaded (1-8 per game manual)
   private int maxCycles = 4; // max score+intake cycles to attempt
 
   // ===== SmartDashboard Keys (under "Auto/" subtable for Elastic) =====
@@ -94,14 +84,12 @@ public class AutoSettings {
     }
     SmartDashboard.putData(PREFIX + "Start Pose", startPoseChooser);
 
-    // --- Intake Priority ---
-    // Each intake location gets a number: 1 = first priority, 2 = second, etc.
-    // Set to 0 to disable that location entirely.
-    // Example: DEPOT=1, OUTPOST=2 means go to DEPOT first, then OUTPOST.
-    SmartDashboard.putNumber(PREFIX + "Intake/OUTPOST", 1);
-    SmartDashboard.putNumber(PREFIX + "Intake/DEPOT", 2);
-    SmartDashboard.putNumber(PREFIX + "Intake/NEUTRAL_ZONE_UPPER", 3);
-    SmartDashboard.putNumber(PREFIX + "Intake/NEUTRAL_ZONE_LOWER", 4);
+    // --- Intake Sequence (string input) ---
+    // Type a sequence of characters to define intake visit order:
+    //   U = NEUTRAL_ZONE_UPPER, L = NEUTRAL_ZONE_LOWER, D = DEPOT, O = OUTPOST
+    // Example: "ULDO" → Upper Neutral first, then Lower Neutral, Depot, Outpost
+    // Duplicate or unknown characters are ignored.
+    SmartDashboard.putString(PREFIX + "Intake Sequence", "ULDO");
 
     // --- Dropdown: Climb Level ---
     for (ClimbLevel cl : ClimbLevel.values()) {
@@ -140,23 +128,11 @@ public class AutoSettings {
       SmartDashboard.putBoolean(PREFIX + "Score/" + sl.name(), true);
     }
 
-    // Allowed Lanes: one toggle per lane (default: all enabled)
-    for (Lane lane : Lane.values()) {
-      SmartDashboard.putBoolean(PREFIX + "Lane/" + lane.name(), true);
-    }
-
-    // Partner Lanes: one toggle per lane (default: all disabled)
-    for (Lane lane : Lane.values()) {
-      SmartDashboard.putBoolean(PREFIX + "Partner Lane/" + lane.name(), false);
-    }
-
     // --- Boolean toggles ---
     SmartDashboard.putBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
     SmartDashboard.putBoolean(PREFIX + "Shoot While Driving", shootWhileDriving);
-    SmartDashboard.putBoolean(PREFIX + "Has Preload FUEL", preloadFuel);
 
     // --- Number fields ---
-    SmartDashboard.putNumber(PREFIX + "Preload FUEL Count", preloadCount);
     SmartDashboard.putNumber(PREFIX + "Max Cycles", maxCycles);
   }
 
@@ -181,35 +157,15 @@ public class AutoSettings {
       }
     }
 
-    // Intake Priority (numbered per location — lower number = higher priority, 0 = disabled)
+    // Intake Sequence (string input — each character maps to an IntakeLocation)
+    // Duplicates are allowed: "UUDO" means cycle 1→U, cycle 2→U, cycle 3→D, cycle 4→O
     intakePriority.clear();
-    for (IntakeLocation il : IntakeLocation.values()) {
-      int priority = (int) SmartDashboard.getNumber(PREFIX + "Intake/" + il.name(), 0);
-      if (priority > 0) {
-        intakePriority.add(il);
-      }
-    }
-    // Sort by the dashboard-assigned priority number (ascending: 1 first, 2 second, etc.)
-    intakePriority.sort(
-        Comparator.comparingInt(
-            il -> (int) SmartDashboard.getNumber(PREFIX + "Intake/" + il.name(), 99)));
-
-    // Allowed Lanes (boolean toggles per lane)
-    allowedLanes.clear();
-    for (Lane lane : Lane.values()) {
-      if (SmartDashboard.getBoolean(PREFIX + "Lane/" + lane.name(), true)) {
-        allowedLanes.add(lane);
-      }
-    }
-    if (allowedLanes.isEmpty()) {
-      allowedLanes.addAll(EnumSet.allOf(Lane.class)); // fallback: all lanes
-    }
-
-    // Partner Lanes (boolean toggles per lane)
-    partnerLanes.clear();
-    for (Lane lane : Lane.values()) {
-      if (SmartDashboard.getBoolean(PREFIX + "Partner Lane/" + lane.name(), false)) {
-        partnerLanes.add(lane);
+    String intakeSequence =
+        SmartDashboard.getString(PREFIX + "Intake Sequence", "ULDO").toUpperCase().trim();
+    for (char c : intakeSequence.toCharArray()) {
+      IntakeLocation loc = charToIntakeLocation(c);
+      if (loc != null) {
+        intakePriority.add(loc);
       }
     }
 
@@ -217,15 +173,6 @@ public class AutoSettings {
     attemptClimb = SmartDashboard.getBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
     shootWhileDriving =
         SmartDashboard.getBoolean(PREFIX + "Shoot While Driving", shootWhileDriving);
-    preloadFuel = SmartDashboard.getBoolean(PREFIX + "Has Preload FUEL", preloadFuel);
-
-    // Preload Count (1-8)
-    preloadCount =
-        Math.max(
-            1,
-            Math.min(
-                FieldConstants.MAX_PRELOAD_FUEL,
-                (int) SmartDashboard.getNumber(PREFIX + "Preload FUEL Count", preloadCount)));
 
     // Climb Level (dropdown)
     ClimbLevel selectedClimb = climbLevelChooser.getSelected();
@@ -270,33 +217,9 @@ public class AutoSettings {
     return List.copyOf(scoringPriority);
   }
 
-  /** Ordered list of intake locations, highest priority first. */
+  /** Ordered list of intake locations in sequence order (1st visited first). */
   public List<IntakeLocation> getIntakePriority() {
     return List.copyOf(intakePriority);
-  }
-
-  /** Lanes this robot is allowed to use. */
-  public Set<Lane> getAllowedLanes() {
-    return EnumSet.copyOf(allowedLanes);
-  }
-
-  /** Lanes our alliance partner will use — we should avoid these. */
-  public Set<Lane> getPartnerLanes() {
-    return partnerLanes.isEmpty() ? EnumSet.noneOf(Lane.class) : EnumSet.copyOf(partnerLanes);
-  }
-
-  /**
-   * Effective lanes = allowed lanes minus partner lanes. These are the lanes the planner should
-   * prefer.
-   */
-  public Set<Lane> getEffectiveLanes() {
-    Set<Lane> effective = EnumSet.copyOf(allowedLanes);
-    effective.removeAll(partnerLanes);
-    if (effective.isEmpty()) {
-      // If removing partner lanes leaves nothing, fall back to allowed lanes
-      return EnumSet.copyOf(allowedLanes);
-    }
-    return effective;
   }
 
   public boolean shouldAttemptClimb() {
@@ -317,15 +240,6 @@ public class AutoSettings {
 
   public RiskLevel getRiskLevel() {
     return riskLevel;
-  }
-
-  public boolean hasPreload() {
-    return preloadFuel;
-  }
-
-  /** Number of FUEL preloaded into the robot (1-8). */
-  public int getPreloadCount() {
-    return preloadCount;
   }
 
   public int getMaxCycles() {
@@ -353,10 +267,6 @@ public class AutoSettings {
         + "|"
         + intakePriority
         + "|"
-        + allowedLanes
-        + "|"
-        + partnerLanes
-        + "|"
         + attemptClimb
         + "|"
         + climbLevel.name()
@@ -367,10 +277,6 @@ public class AutoSettings {
         + "|"
         + riskLevel.name()
         + "|"
-        + preloadFuel
-        + "|"
-        + preloadCount
-        + "|"
         + maxCycles;
   }
 
@@ -379,17 +285,15 @@ public class AutoSettings {
   private void logSettings() {
     Logger.recordOutput("AutoSettings/StartPose", startPose.name());
     Logger.recordOutput("AutoSettings/ShootingPriority", scoringPriority.toString());
+    Logger.recordOutput(
+        "AutoSettings/IntakeSequence",
+        SmartDashboard.getString(PREFIX + "Intake Sequence", "ULDO"));
     Logger.recordOutput("AutoSettings/IntakePriority", intakePriority.toString());
-    Logger.recordOutput("AutoSettings/AllowedLanes", allowedLanes.toString());
-    Logger.recordOutput("AutoSettings/PartnerLanes", partnerLanes.toString());
-    Logger.recordOutput("AutoSettings/EffectiveLanes", getEffectiveLanes().toString());
     Logger.recordOutput("AutoSettings/AttemptClimb", attemptClimb);
     Logger.recordOutput("AutoSettings/ClimbLevel", climbLevel.name());
     Logger.recordOutput("AutoSettings/ClimbPose", climbPose.name());
     Logger.recordOutput("AutoSettings/ShootWhileDriving", shootWhileDriving);
     Logger.recordOutput("AutoSettings/RiskLevel", riskLevel.name());
-    Logger.recordOutput("AutoSettings/HasPreloadFuel", preloadFuel);
-    Logger.recordOutput("AutoSettings/PreloadCount", preloadCount);
     Logger.recordOutput("AutoSettings/MaxCycles", maxCycles);
   }
 
@@ -402,10 +306,6 @@ public class AutoSettings {
         + scoringPriority
         + ", intake="
         + intakePriority
-        + ", lanes="
-        + allowedLanes
-        + ", partner="
-        + partnerLanes
         + ", climb="
         + attemptClimb
         + ", climbLevel="
@@ -416,12 +316,33 @@ public class AutoSettings {
         + shootWhileDriving
         + ", risk="
         + riskLevel
-        + ", preloadFuel="
-        + preloadFuel
-        + ", preloadCount="
-        + preloadCount
         + ", maxCycles="
         + maxCycles
         + "}";
+  }
+
+  // ===== Intake Sequence Parsing =====
+
+  /**
+   * Map a single character to an {@link IntakeLocation}.
+   *
+   * <ul>
+   *   <li>{@code U} → NEUTRAL_ZONE_UPPER
+   *   <li>{@code L} → NEUTRAL_ZONE_LOWER
+   *   <li>{@code D} → DEPOT
+   *   <li>{@code O} → OUTPOST
+   * </ul>
+   *
+   * @param c The character (case-insensitive, already uppercased by caller)
+   * @return The matching IntakeLocation, or null if unknown
+   */
+  private static IntakeLocation charToIntakeLocation(char c) {
+    return switch (c) {
+      case 'U' -> IntakeLocation.NEUTRAL_ZONE_UPPER;
+      case 'L' -> IntakeLocation.NEUTRAL_ZONE_LOWER;
+      case 'D' -> IntakeLocation.DEPOT;
+      case 'O' -> IntakeLocation.OUTPOST;
+      default -> null;
+    };
   }
 }

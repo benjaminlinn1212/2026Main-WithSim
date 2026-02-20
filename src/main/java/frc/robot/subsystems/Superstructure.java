@@ -1,8 +1,11 @@
 package frc.robot.subsystems;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorSubsystem;
@@ -12,6 +15,7 @@ import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
 import frc.robot.subsystems.turret.TurretSubsystem;
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
@@ -57,6 +61,25 @@ public class Superstructure extends SubsystemBase {
   private SuperstructureState currentState = SuperstructureState.IDLE;
   private SuperstructureState wantedState = SuperstructureState.IDLE;
 
+  /**
+   * Robot pose supplier — used to detect when the robot is near a TRENCH so we can override the
+   * hood to stow (the trench is only 22.25in tall, hood must be down to fit).
+   */
+  private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
+
+  /** Whether the robot is currently near/inside a trench (updated each periodic cycle). */
+  private boolean inTrenchZone = false;
+
+  /**
+   * Hysteresis latch for trench exit. Once the robot enters the trench zone, we keep {@link
+   * #inTrenchZone} true for at least {@link #TRENCH_EXIT_HOLDOFF_SECONDS} after the geometric check
+   * returns false. This prevents turret stutter from boundary flicker (pose noise at the zone edge
+   * causing rapid stow↔aim oscillations).
+   */
+  private double trenchExitTimestamp = 0.0;
+
+  private static final double TRENCH_EXIT_HOLDOFF_SECONDS = 0.15;
+
   public Superstructure(
       ShooterSubsystem shooter,
       TurretSubsystem turret,
@@ -99,6 +122,41 @@ public class Superstructure extends SubsystemBase {
     }
     Logger.recordOutput("Superstructure/State", currentState.toString());
 
+    // ===== Trench Zone Detection (with exit hysteresis) =====
+    // Compute trench zone FIRST so the main switch can use it to avoid calling
+    // turret.applyAiming() when the turret must stay stowed. This eliminates the
+    // wasteful applyAiming() → applyStow() double-call each cycle, which caused
+    // turret state flip-flopping inside the trench.
+    //
+    // Exit hysteresis: once inTrenchZone goes true, keep it latched for
+    // TRENCH_EXIT_HOLDOFF_SECONDS after the geometric check goes false. This prevents
+    // turret stutter from pose noise at the trench boundary causing rapid stow↔aim
+    // oscillation on exit.
+    Pose2d robotPose = robotPoseSupplier.get();
+    boolean geometricTrench = FieldConstants.isNearTrench(robotPose.getTranslation());
+    double now = Timer.getFPGATimestamp();
+
+    if (geometricTrench) {
+      // Inside trench — keep latched and reset the exit timer
+      inTrenchZone = true;
+      trenchExitTimestamp = now;
+    } else if (inTrenchZone) {
+      // Just left the geometric zone — hold the latch for the holdoff period
+      if (now - trenchExitTimestamp >= TRENCH_EXIT_HOLDOFF_SECONDS) {
+        inTrenchZone = false; // Holdoff expired, safe to release
+      }
+      // else: still within holdoff, keep inTrenchZone = true
+    }
+    Logger.recordOutput("Superstructure/InTrenchZone", inTrenchZone);
+
+    // When in the trench zone, aiming states force turret/hood to stow instead of aiming.
+    // The trench is only 22.25in (56.5cm) tall — hood MUST be stowed to fit through.
+    boolean trenchStow =
+        inTrenchZone
+            && wantedState != SuperstructureState.IDLE
+            && wantedState != SuperstructureState.CLIMB_MODE
+            && wantedState != SuperstructureState.EMERGENCY;
+
     // Apply the wanted state to all subsystems every cycle.
     // CLIMB_MODE and EMERGENCY are handled specially — they don't continuously apply
     // because climb has its own state machine.
@@ -124,8 +182,13 @@ public class Superstructure extends SubsystemBase {
         break;
 
       case ONLY_AIMING:
-        turret.applyAiming();
-        hood.applyAiming();
+        if (trenchStow) {
+          turret.applyStow();
+          hood.applyStow();
+        } else {
+          turret.applyAiming();
+          hood.applyAiming();
+        }
         shooter.applySpinUp();
         intakePivot.applyStow();
         intake.stopMotor();
@@ -134,8 +197,13 @@ public class Superstructure extends SubsystemBase {
         break;
 
       case ONLY_SHOOTING:
-        turret.applyAiming();
-        hood.applyAiming();
+        if (trenchStow) {
+          turret.applyStow();
+          hood.applyStow();
+        } else {
+          turret.applyAiming();
+          hood.applyAiming();
+        }
         shooter.applySpinUp();
         intakePivot.applyStow();
         intake.stopMotor();
@@ -144,8 +212,13 @@ public class Superstructure extends SubsystemBase {
         break;
 
       case AIMING_WHILE_INTAKING:
-        turret.applyAiming();
-        hood.applyAiming();
+        if (trenchStow) {
+          turret.applyStow();
+          hood.applyStow();
+        } else {
+          turret.applyAiming();
+          hood.applyAiming();
+        }
         shooter.applySpinUp();
         intakePivot.applyDeploy();
         intake.applyIntake();
@@ -154,8 +227,13 @@ public class Superstructure extends SubsystemBase {
         break;
 
       case SHOOTING_WHILE_INTAKING:
-        turret.applyAiming();
-        hood.applyAiming();
+        if (trenchStow) {
+          turret.applyStow();
+          hood.applyStow();
+        } else {
+          turret.applyAiming();
+          hood.applyAiming();
+        }
         shooter.applySpinUp();
         intakePivot.applyDeploy();
         intake.applyIntake();
@@ -183,6 +261,16 @@ public class Superstructure extends SubsystemBase {
 
   public SuperstructureState getState() {
     return currentState;
+  }
+
+  /** Whether the robot is currently in or approaching a trench zone. */
+  public boolean isInTrenchZone() {
+    return inTrenchZone;
+  }
+
+  /** Wire the robot pose supplier so Superstructure can detect trench proximity. */
+  public void setRobotPoseSupplier(Supplier<Pose2d> supplier) {
+    this.robotPoseSupplier = supplier;
   }
 
   // ==================== Instant State Commands (254-style) ====================
@@ -313,6 +401,20 @@ public class Superstructure extends SubsystemBase {
     Logger.recordOutput("Superstructure/StateTransition", currentState + " -> IDLE (forced)");
     this.wantedState = SuperstructureState.IDLE;
     this.currentState = SuperstructureState.IDLE;
+  }
+
+  /**
+   * Directly set the wanted state from a non-command context (e.g. inside a {@code Commands.run()}
+   * lambda that needs to switch states every cycle based on sensor data).
+   *
+   * <p>This bypasses the climb/emergency guard — callers must not use this while in CLIMB_MODE or
+   * EMERGENCY. Prefer the Command-returning {@link #setWantedState(SuperstructureState)} API for
+   * one-shot state changes in sequences. Use this only for continuous polling loops.
+   *
+   * @param state The desired superstructure state
+   */
+  public void forceWantedState(SuperstructureState state) {
+    this.wantedState = state;
   }
 
   /**

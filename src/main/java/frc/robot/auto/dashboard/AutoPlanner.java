@@ -7,7 +7,6 @@ import edu.wpi.first.math.geometry.Pose2d;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
 import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
-import frc.robot.auto.dashboard.FieldConstants.Lane;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,10 +24,9 @@ import org.littletonrobotics.junction.Logger;
  *
  * <ol>
  *   <li>Reset pose to known start position behind the ROBOT STARTING LINE.
- *   <li>If preloaded FUEL, drive to best HUB shooting position and score.
+ *   <li>Drive to best HUB shooting position and score preloaded FUEL.
  *   <li>For each remaining cycle (up to maxCycles): collect FUEL from OUTPOST/DEPOT/NEUTRAL ZONE →
  *       drive to HUB shooting position → score FUEL.
- *   <li>Filter all locations through lane constraints (TRENCH/BUMP sides) and partner avoidance.
  *   <li>Time-budget every action; stop adding cycles when time runs out.
  *   <li>Optionally drive to TOWER and climb to selected RUNG level if configured and time remains.
  *   <li>Note: LEVEL 1 TOWER climb is worth 15 pts during AUTO (vs 10 pts teleop).
@@ -54,31 +52,43 @@ public class AutoPlanner {
 
     // Current pose tracker (for distance/time estimation)
     Pose2d currentPose = settings.getStartPose().getPose();
-    Set<Lane> effectiveLanes = settings.getEffectiveLanes();
 
     // ===== Step 1: Set start pose =====
     actions.add(new AutoAction.SetStartPose(currentPose));
 
     // ===== Step 2: Score preloaded FUEL =====
-    // The robot can preload 1-8 FUEL. All preloaded FUEL is dumped in a single scoring action
-    // at the first HUB shooting position. More FUEL = slightly longer score duration.
-    if (settings.hasPreload()) {
+    // All preloaded FUEL is dumped in a single scoring action.
+    // With SWD enabled, the robot drives directly toward the first intake and shoots mid-transit
+    // instead of detouring to a HUB scoring waypoint.
+    {
       ScoringWaypoint preloadTarget =
-          pickBestScoringWaypoint(currentPose, settings.getScoringPriority(), effectiveLanes, null);
+          pickBestScoringWaypoint(currentPose, settings.getScoringPriority(), null);
 
       if (preloadTarget != null) {
-        // Drive to HUB shooting position and dump preloaded FUEL
-        double driveTime =
-            FieldConstants.estimateDriveTime(currentPose, preloadTarget.toPose()) * timeMargin;
-        // Scoring time is roughly constant regardless of preload count
-        // (the actual command is aim + shoot, not duration-scaled)
         double preloadScoreTime = FieldConstants.SCORE_DURATION * timeMargin;
 
-        if (driveTime + preloadScoreTime < timeRemaining) {
-          actions.add(new AutoAction.ScorePreload(preloadTarget));
-          timeRemaining -= driveTime + preloadScoreTime;
-          currentPose = preloadTarget.toPose();
-          Logger.recordOutput("AutoPlanner/PreloadFuelCount", settings.getPreloadCount());
+        if (settings.isShootWhileDriving()) {
+          // SWD preload: peek at the first intake location and drive there while shooting
+          IntakeLocation firstIntake =
+              pickBestIntakeLocation(currentPose, settings.getIntakePriority(), new HashSet<>(), 0);
+          if (firstIntake != null) {
+            double driveTime =
+                FieldConstants.estimateDriveTime(currentPose, firstIntake.getPose()) * timeMargin;
+            if (driveTime + preloadScoreTime < timeRemaining) {
+              actions.add(new AutoAction.ScorePreload(preloadTarget, true, firstIntake.getPose()));
+              timeRemaining -= driveTime + preloadScoreTime;
+              currentPose = firstIntake.getPose();
+            }
+          }
+        } else {
+          // Stop-and-shoot preload: drive to scoring waypoint, stop, aim, fire
+          double driveTime =
+              FieldConstants.estimateDriveTime(currentPose, preloadTarget.toPose()) * timeMargin;
+          if (driveTime + preloadScoreTime < timeRemaining) {
+            actions.add(new AutoAction.ScorePreload(preloadTarget));
+            timeRemaining -= driveTime + preloadScoreTime;
+            currentPose = preloadTarget.toPose();
+          }
         }
       }
     }
@@ -94,34 +104,31 @@ public class AutoPlanner {
     while (cyclesCompleted < settings.getMaxCycles()) {
       // Pick next HUB shooting position
       ScoringWaypoint nextTarget =
-          pickBestScoringWaypoint(
-              currentPose, settings.getScoringPriority(), effectiveLanes, scoredLocations);
+          pickBestScoringWaypoint(currentPose, settings.getScoringPriority(), scoredLocations);
 
       if (nextTarget == null) {
         Logger.recordOutput("AutoPlanner/StopReason", "No valid HUB shooting positions");
         break;
       }
 
-      // Pick FUEL intake location (OUTPOST, DEPOT, or NEUTRAL ZONE)
-      // Walks the priority list in order, skipping depleted and lane-blocked locations
+      // Pick FUEL intake location — advances through the sequence string each cycle
       IntakeLocation intakeLoc =
           pickBestIntakeLocation(
-              currentPose, settings.getIntakePriority(), effectiveLanes, depletedIntakes);
+              currentPose, settings.getIntakePriority(), depletedIntakes, cyclesCompleted);
 
       if (intakeLoc == null) {
         Logger.recordOutput("AutoPlanner/StopReason", "No valid FUEL intake locations");
         break;
       }
 
-      // Estimate cycle time: drive-to-intake + intake + drive-to-HUB + score
+      // Estimate cycle time: drive-to-intake (full speed) + drive-to-HUB + score
       double driveToIntakeTime =
           FieldConstants.estimateDriveTime(currentPose, intakeLoc.getPose()) * timeMargin;
-      double intakeTime = FieldConstants.INTAKE_DURATION * timeMargin;
       double driveToScoreTime =
           FieldConstants.estimateDriveTime(intakeLoc.getPose(), nextTarget.toPose()) * timeMargin;
       double scoreTime = FieldConstants.SCORE_DURATION * timeMargin;
 
-      double cycleTime = driveToIntakeTime + intakeTime + driveToScoreTime + scoreTime;
+      double cycleTime = driveToIntakeTime + driveToScoreTime + scoreTime;
 
       // Reserve time for TOWER climb if needed
       double climbReserve = 0.0;
@@ -144,7 +151,7 @@ public class AutoPlanner {
 
       // Add the cycle
       actions.add(new AutoAction.IntakeAt(intakeLoc));
-      timeRemaining -= driveToIntakeTime + intakeTime;
+      timeRemaining -= driveToIntakeTime;
       currentPose = intakeLoc.getPose();
 
       // Mark non-reusable locations as depleted (OUTPOST/DEPOT can only be visited once)
@@ -152,9 +159,51 @@ public class AutoPlanner {
         depletedIntakes.add(intakeLoc);
       }
 
-      actions.add(new AutoAction.ScoreAt(nextTarget, settings.isShootWhileDriving()));
-      timeRemaining -= driveToScoreTime + scoreTime;
-      currentPose = nextTarget.toPose();
+      // Determine if shoot-while-driving is feasible for this cycle.
+      // SWD works when the robot naturally passes through the alliance/HUB zone on its way
+      // to the next intake (e.g., DEPOT→OUTPOST, OUTPOST→NEUTRAL, NEUTRAL→DEPOT).
+      // SWD does NOT work for NEUTRAL→NEUTRAL: the robot stays in the neutral zone and
+      // must intentionally drive back to the HUB to score (stop-and-shoot).
+      boolean shootWhileMoving = false;
+      IntakeLocation nextIntake = null;
+      if (settings.isShootWhileDriving()) {
+        // Peek ahead: what would the NEXT cycle's intake be?
+        nextIntake =
+            pickBestIntakeLocation(
+                nextTarget.toPose(),
+                settings.getIntakePriority(),
+                depletedIntakes,
+                cyclesCompleted + 1);
+
+        if (intakeLoc.zone == FieldConstants.Zone.NEUTRAL_ZONE) {
+          // SWD only if the next intake pulls us back through the alliance zone,
+          // or if this is the last cycle (no next intake / next intake is non-neutral)
+          shootWhileMoving =
+              nextIntake == null || nextIntake.zone != FieldConstants.Zone.NEUTRAL_ZONE;
+        } else {
+          // Coming from DEPOT/OUTPOST — we always pass through the HUB zone on the way out
+          shootWhileMoving = true;
+        }
+      }
+
+      if (shootWhileMoving && nextIntake != null) {
+        // SWD: robot drives directly to the next intake while shooting mid-transit.
+        // No detour to a scoring waypoint — turret tracks HUB automatically.
+        actions.add(new AutoAction.ScoreAt(nextTarget, true, nextIntake.getPose()));
+        // SWD ends at the next intake, not the scoring waypoint
+        timeRemaining -= driveToScoreTime + scoreTime;
+        currentPose = nextIntake.getPose();
+      } else if (shootWhileMoving) {
+        // SWD but last cycle (no next intake) — drive toward scoring waypoint as fallback
+        actions.add(new AutoAction.ScoreAt(nextTarget, true, null));
+        timeRemaining -= driveToScoreTime + scoreTime;
+        currentPose = nextTarget.toPose();
+      } else {
+        // Stop-and-shoot: drive to scoring waypoint, stop, aim, fire
+        actions.add(new AutoAction.ScoreAt(nextTarget));
+        timeRemaining -= driveToScoreTime + scoreTime;
+        currentPose = nextTarget.toPose();
+      }
 
       scoredLocations.add(nextTarget);
       cyclesCompleted++;
@@ -192,34 +241,25 @@ public class AutoPlanner {
   // ===== Location Selection Heuristics =====
 
   /**
-   * Pick the best scoring location given the current pose, priority list, lane constraints, and
-   * previously scored locations.
+   * Pick the best scoring location given the current pose, priority list, and previously scored
+   * locations.
    *
    * <p>Strategy:
    *
    * <ol>
-   *   <li>Filter by lane constraint.
    *   <li>Prefer locations earlier in the priority list.
    *   <li>Among equal-priority locations, prefer closer ones.
    *   <li>Deprioritize locations we've already scored at (but don't exclude — we might revisit).
    * </ol>
    */
   private static ScoringWaypoint pickBestScoringWaypoint(
-      Pose2d currentPose,
-      List<ScoringWaypoint> priority,
-      Set<Lane> allowedLanes,
-      List<ScoringWaypoint> alreadyScored) {
+      Pose2d currentPose, List<ScoringWaypoint> priority, List<ScoringWaypoint> alreadyScored) {
 
     ScoringWaypoint best = null;
     double bestScore = Double.MAX_VALUE;
 
     for (int i = 0; i < priority.size(); i++) {
       ScoringWaypoint loc = priority.get(i);
-
-      // Lane filter
-      if (!allowedLanes.contains(loc.lane)) {
-        continue;
-      }
 
       // Compute a score: lower = better
       // Priority index is the primary factor, distance is secondary
@@ -244,8 +284,7 @@ public class AutoPlanner {
   }
 
   /**
-   * Pick the best intake location given the current pose, priority list, lane constraints, and
-   * already-depleted locations.
+   * Pick the next intake location from the sequence list.
    *
    * <p>OUTPOST and DEPOT are one-shot: once visited, they're added to {@code depleted} and excluded
    * from future cycles. NEUTRAL ZONE locations are reusable and never depleted.
@@ -253,34 +292,39 @@ public class AutoPlanner {
    * <p>Strategy:
    *
    * <ol>
-   *   <li>Walk the priority list in order — the first location that is allowed and not depleted
-   *       wins. This lets the drive team set an explicit sequence (e.g., DEPOT → OUTPOST → NEUTRAL
-   *       ZONE).
-   *   <li>If no priority-list location is usable, fall back to the closest allowed, non-depleted
-   *       location from all IntakeLocations.
+   *   <li>Start at {@code sequenceIndex % sequence.size()} and walk forward (wrapping around),
+   *       returning the first location that is not depleted. This means the input string "UDO"
+   *       produces the order U → D → O → U → U → U… (D and O are one-shot and get depleted, so
+   *       after the first pass U is the only remaining option).
+   *   <li>If no sequence location is usable, fall back to the closest non-depleted location from
+   *       all IntakeLocations.
    * </ol>
+   *
+   * @param sequenceIndex Which cycle we're on (0-based). Advances through the sequence list.
    */
   private static IntakeLocation pickBestIntakeLocation(
       Pose2d currentPose,
-      List<IntakeLocation> priority,
-      Set<Lane> allowedLanes,
-      Set<IntakeLocation> depleted) {
+      List<IntakeLocation> sequence,
+      Set<IntakeLocation> depleted,
+      int sequenceIndex) {
 
-    // Walk priority list in order — first eligible location wins
-    for (IntakeLocation loc : priority) {
-      if (allowedLanes.contains(loc.lane) && !depleted.contains(loc)) {
-        return loc;
+    if (!sequence.isEmpty()) {
+      int size = sequence.size();
+      int start = sequenceIndex % size;
+      // Walk forward from the sequence position, wrapping once through the full list
+      for (int i = 0; i < size; i++) {
+        IntakeLocation loc = sequence.get((start + i) % size);
+        if (!depleted.contains(loc)) {
+          return loc;
+        }
       }
     }
 
-    // Fallback: closest allowed, non-depleted location not in the priority list
+    // Fallback: closest non-depleted location not in the sequence list
     IntakeLocation best = null;
     double bestDist = Double.MAX_VALUE;
 
     for (IntakeLocation loc : IntakeLocation.values()) {
-      if (!allowedLanes.contains(loc.lane)) {
-        continue;
-      }
       if (depleted.contains(loc)) {
         continue;
       }
@@ -319,7 +363,7 @@ public class AutoPlanner {
 
     for (AutoAction action : actions) {
       // Add drive time to reach the action's target
-      Pose2d target = getActionTargetPose(action);
+      Pose2d target = action.getTargetPose();
       if (target != null) {
         total += FieldConstants.estimateDriveTime(currentPose, target);
         currentPose = target;
@@ -329,10 +373,5 @@ public class AutoPlanner {
     }
 
     return total;
-  }
-
-  /** Get the target pose of an action (where the robot ends up after executing it). */
-  private static Pose2d getActionTargetPose(AutoAction action) {
-    return action.getTargetPose();
   }
 }

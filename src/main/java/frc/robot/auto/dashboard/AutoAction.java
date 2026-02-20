@@ -84,17 +84,36 @@ public abstract class AutoAction {
   }
 
   /**
-   * Drive from the current pose to a HUB shooting position, then execute the scoring sequence (aim
-   * + shoot FUEL).
+   * Score FUEL. Two modes:
+   *
+   * <ul>
+   *   <li><b>Stop-and-shoot:</b> Drive to the HUB shooting waypoint ({@code location}), stop, aim,
+   *       shoot. The scoring waypoint is the target pose.
+   *   <li><b>Shoot-while-driving (SWD):</b> The robot does NOT detour to a scoring waypoint.
+   *       Instead, it drives directly to {@code swdDestination} (typically the next intake
+   *       location) while the turret tracks and shoots the HUB in real-time mid-transit.
+   * </ul>
    */
   public static final class ScoreAt extends AutoAction {
     private final ScoringWaypoint location;
     private final boolean shootWhileMoving;
+    /**
+     * The pose the robot actually drives toward during SWD (e.g., the next intake). Null when
+     * stop-and-shoot is used — in that case the robot drives to {@code location.toPose()}.
+     */
+    private final Pose2d swdDestination;
 
-    public ScoreAt(ScoringWaypoint location, boolean shootWhileMoving) {
+    /** Stop-and-shoot constructor. */
+    public ScoreAt(ScoringWaypoint location) {
+      this(location, false, null);
+    }
+
+    /** SWD constructor — destination is where the robot drives while shooting. */
+    public ScoreAt(ScoringWaypoint location, boolean shootWhileMoving, Pose2d swdDestination) {
       super(Type.SCORE_AT);
       this.location = location;
       this.shootWhileMoving = shootWhileMoving;
+      this.swdDestination = swdDestination;
     }
 
     public ScoringWaypoint getLocation() {
@@ -103,6 +122,14 @@ public abstract class AutoAction {
 
     public boolean isShootWhileMoving() {
       return shootWhileMoving;
+    }
+
+    /**
+     * The actual drive destination during SWD (next intake pose). Returns null for stop-and-shoot
+     * cycles.
+     */
+    public Pose2d getSwdDestination() {
+      return swdDestination;
     }
 
     @Override
@@ -119,7 +146,8 @@ public abstract class AutoAction {
 
     @Override
     public Pose2d getTargetPose() {
-      return location.toPose();
+      // SWD: the robot ends at the SWD destination (next intake), not the scoring waypoint
+      return shootWhileMoving && swdDestination != null ? swdDestination : location.toPose();
     }
   }
 
@@ -143,7 +171,7 @@ public abstract class AutoAction {
 
     @Override
     public double estimatedDuration() {
-      return FieldConstants.INTAKE_DURATION;
+      return 0.0; // No stop — robot drives through at full speed
     }
 
     @Override
@@ -261,24 +289,49 @@ public abstract class AutoAction {
   }
 
   /**
-   * Score preloaded FUEL at the first shooting position. Similar to ScoreAt but the robot is
-   * assumed to already be positioned.
+   * Score preloaded FUEL. Two modes:
+   *
+   * <ul>
+   *   <li><b>Stop-and-shoot:</b> Drive to scoring waypoint, stop, aim, fire.
+   *   <li><b>Shoot-while-driving (SWD):</b> Drive directly to {@code swdDestination} (the first
+   *       intake location) while dumping preloaded FUEL mid-transit through the HUB zone.
+   * </ul>
    */
   public static final class ScorePreload extends AutoAction {
     private final ScoringWaypoint location;
+    private final boolean shootWhileMoving;
+    private final Pose2d swdDestination;
 
+    /** Stop-and-shoot constructor. */
     public ScorePreload(ScoringWaypoint location) {
+      this(location, false, null);
+    }
+
+    /** SWD constructor — destination is where the robot drives while shooting preload. */
+    public ScorePreload(ScoringWaypoint location, boolean shootWhileMoving, Pose2d swdDestination) {
       super(Type.SCORE_PRELOAD);
       this.location = location;
+      this.shootWhileMoving = shootWhileMoving;
+      this.swdDestination = swdDestination;
     }
 
     public ScoringWaypoint getLocation() {
       return location;
     }
 
+    public boolean isShootWhileMoving() {
+      return shootWhileMoving;
+    }
+
+    public Pose2d getSwdDestination() {
+      return swdDestination;
+    }
+
     @Override
     public String describe() {
-      return "Score preloaded FUEL at " + location.name();
+      return "Score preloaded FUEL at "
+          + location.name()
+          + (shootWhileMoving ? " (shoot-while-driving)" : "");
     }
 
     @Override
@@ -288,7 +341,7 @@ public abstract class AutoAction {
 
     @Override
     public Pose2d getTargetPose() {
-      return location.toPose();
+      return shootWhileMoving && swdDestination != null ? swdDestination : location.toPose();
     }
   }
 }

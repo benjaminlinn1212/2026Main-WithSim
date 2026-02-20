@@ -6,7 +6,6 @@ package frc.robot.auto.dashboard;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.RobotState;
 import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import java.util.ArrayList;
@@ -48,13 +47,11 @@ public class DashboardAutoManager {
    *
    * @param drive The swerve drive subsystem
    * @param superstructure The superstructure
-   * @param robotState The robot state tracker
    */
-  public DashboardAutoManager(
-      DriveSwerveDrivetrain drive, Superstructure superstructure, RobotState robotState) {
+  public DashboardAutoManager(DriveSwerveDrivetrain drive, Superstructure superstructure) {
     this.drive = drive;
     this.settings = new AutoSettings();
-    this.commandBuilder = new AutoCommandBuilder(drive, superstructure, robotState);
+    this.commandBuilder = new AutoCommandBuilder(drive, superstructure);
 
     System.out.println(
         "[DashboardAutoManager] Initialized — configure settings in 'Auto Settings' tab");
@@ -122,8 +119,11 @@ public class DashboardAutoManager {
     }
 
     // Build a fresh command (uses Commands.defer internally for PathPlanner commands)
+    // Pass settings so the command builder can check climb config at runtime
+    final AutoSettings settingsSnapshot = settings;
     cachedCommand =
-        Commands.defer(() -> commandBuilder.buildAutoCommand(currentPlan), Set.of(drive))
+        Commands.defer(
+                () -> commandBuilder.buildAutoCommand(currentPlan, settingsSnapshot), Set.of(drive))
             .withName("DashboardAuto");
 
     System.out.println(

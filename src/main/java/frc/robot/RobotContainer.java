@@ -239,7 +239,7 @@ public class RobotContainer {
     // The planner reads field-aware settings from Shuffleboard, generates an
     // optimal action sequence, and builds the command tree at autonomousInit().
     // Configure settings in the "Auto Settings" Shuffleboard tab before each match.
-    dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure, robotState);
+    dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure);
     autoChooser.addOption(
         "Dashboard Auto",
         Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(swerveIO)));
@@ -259,6 +259,9 @@ public class RobotContainer {
 
     // Provide robot pose for turret's field-relative tracking
     turret.setRobotPoseSupplier(() -> swerveIO.getPose());
+
+    // Provide robot pose for trench detection (hood stow override)
+    superstructure.setRobotPoseSupplier(() -> swerveIO.getPose());
 
     // Configure the button bindings
     configureButtonBindings();
@@ -298,6 +301,21 @@ public class RobotContainer {
           );
 
       System.out.println("[RobotContainer] AutoBuilder configured successfully");
+
+      // ===== Trench Heading Override =====
+      // When the robot is inside/near a TRENCH, override PathPlanner's rotation target
+      // to the nearest cardinal direction (0/90/180/270°). This ensures the robot
+      // maintains the correct heading DURING transit through the 22.25in tunnel,
+      // not just at the destination.
+      PPHolonomicDriveController.setRotationTargetOverride(
+          () -> {
+            Pose2d pose = swerveIO.getPose();
+            if (FieldConstants.isNearTrench(pose.getTranslation())) {
+              return java.util.Optional.of(FieldConstants.snapToCardinal(pose.getRotation()));
+            }
+            return java.util.Optional.empty();
+          });
+      System.out.println("[RobotContainer] Trench rotation override configured");
     } catch (Exception e) {
       System.err.println("[RobotContainer] CRITICAL: Failed to configure AutoBuilder!");
       System.err.println("  Pathfinding and auto commands will NOT work.");

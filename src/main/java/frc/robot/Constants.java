@@ -87,10 +87,25 @@ public final class Constants {
 
     // PathPlanner pathfinding constraints (single source of truth)
     public static final double PATHFINDING_MAX_VELOCITY_MPS = 3.0;
-    public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 3.0;
+    public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 5.0;
     public static final double PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC = Math.toRadians(360);
     public static final double PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2 =
         Math.toRadians(540);
+
+    /**
+     * Derating factor for time estimation. AD* paths are longer than straight-line (curves,
+     * obstacle avoidance, accel/decel phases), so the robot's average speed is lower than the max
+     * constraint. 0.75 means we estimate at 75% of max velocity.
+     */
+    public static final double AVG_SPEED_DERATING = 0.5;
+
+    /**
+     * Estimated average drive speed (m/s) derived from the actual path constraint. Used by the
+     * planner for rough time budgeting — not for trajectory generation. =
+     * PATHFINDING_MAX_VELOCITY_MPS * AVG_SPEED_DERATING
+     */
+    public static final double AVG_DRIVE_SPEED_MPS =
+        PATHFINDING_MAX_VELOCITY_MPS * AVG_SPEED_DERATING;
 
     // Default pose for gyro/pose reset
     public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =

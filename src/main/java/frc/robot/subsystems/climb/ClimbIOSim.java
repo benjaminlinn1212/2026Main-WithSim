@@ -33,7 +33,6 @@ public class ClimbIOSim implements ClimbIO {
   private final Mechanism2d mechanism;
   private final MechanismRoot2d leftWinch1Root;
   private final MechanismLigament2d leftLink1;
-  private final MechanismLigament2d leftLink2;
 
   // Simple physics parameters
   private static final double DT = 0.02; // 20ms loop time
@@ -54,14 +53,9 @@ public class ClimbIOSim implements ClimbIO {
                 45,
                 6,
                 new Color8Bit(Color.kBlue)));
-    leftLink2 =
-        leftLink1.append(
-            new MechanismLigament2d(
-                "LeftLink2",
-                ClimbConstants.LINK_2_LENGTH_METERS,
-                -30,
-                4,
-                new Color8Bit(Color.kGreen)));
+    leftLink1.append(
+        new MechanismLigament2d(
+            "LeftLink2", ClimbConstants.LINK_2_LENGTH_METERS, -30, 4, new Color8Bit(Color.kGreen)));
   }
 
   @Override

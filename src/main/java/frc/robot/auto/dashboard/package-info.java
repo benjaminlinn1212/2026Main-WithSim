@@ -53,9 +53,8 @@
  *   <tr><td>Attempt TOWER Climb</td><td>Boolean</td><td>true/false</td></tr>
  *   <tr><td>Climb Level</td><td>String</td><td>LEVEL_1, LEVEL_2, LEVEL_3</td></tr>
  *   <tr><td>Climb Pose</td><td>String</td><td>DEPOT_SIDE, OUTPOST_SIDE</td></tr>
- *   <tr><td>Shoot While Driving</td><td>Boolean</td><td>true/false</td></tr>
+ *   <tr><td>Score Preload</td><td>Boolean</td><td>true/false</td></tr>
  *   <tr><td>Risk Level</td><td>String</td><td>CONSERVATIVE, BALANCED, AGGRESSIVE</td></tr>
- *   <tr><td>Max Cycles</td><td>Integer</td><td>4</td></tr>
  * </table>
  */
 package frc.robot.auto.dashboard;

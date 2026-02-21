@@ -23,7 +23,6 @@ public enum ClimbState {
       "Stowed",
       new Translation2d(
           ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
-      null,
       1.0,
       false),
 
@@ -32,7 +31,6 @@ public enum ClimbState {
   /** Extend arm up to L1 bar - curved path */
   EXTEND_L1(
       "Extending to L1",
-      new Translation2d(0.40, 0.55),
       List.of(
           new Translation2d(
               ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
@@ -44,7 +42,6 @@ public enum ClimbState {
   /** Retract cables to pull robot up on L1 bar (teleop) */
   RETRACT_L1(
       "Retracting on L1",
-      new Translation2d(0.38, 0.50),
       List.of(new Translation2d(0.40, 0.55), new Translation2d(0.38, 0.50)),
       2.5,
       true),
@@ -54,7 +51,6 @@ public enum ClimbState {
   /** Extend arm from L1 up to L2 bar - curved path */
   EXTEND_L2(
       "Extending to L2",
-      new Translation2d(0.42, 0.58),
       List.of(
           new Translation2d(0.38, 0.50),
           new Translation2d(0.40, 0.54),
@@ -65,7 +61,6 @@ public enum ClimbState {
   /** Retract cables to pull robot up on L2 bar */
   RETRACT_L2(
       "Retracting on L2",
-      new Translation2d(0.39, 0.52),
       List.of(new Translation2d(0.42, 0.58), new Translation2d(0.39, 0.52)),
       2.5,
       true),
@@ -75,7 +70,6 @@ public enum ClimbState {
   /** Extend arm from L2 up to L3 bar - curved path */
   EXTEND_L3(
       "Extending to L3",
-      new Translation2d(0.43, 0.60),
       List.of(
           new Translation2d(0.39, 0.52),
           new Translation2d(0.41, 0.56),
@@ -86,14 +80,32 @@ public enum ClimbState {
   /** Retract cables to pull robot up on L3 bar (final climb position) */
   RETRACT_L3(
       "Retracting on L3",
-      new Translation2d(0.40, 0.54),
       List.of(new Translation2d(0.43, 0.60), new Translation2d(0.40, 0.54)),
       3.0,
       true),
 
+  // ── Auto-only L1 sequence (NOT part of teleop state cycle) ──
+
+  /** Extend arm up to L1 bar for auto climb only */
+  EXTEND_L1_AUTO(
+      "Auto Extending to L1",
+      List.of(
+          new Translation2d(
+              ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
+          new Translation2d(0.6, 0.6)),
+      2.0,
+      false),
+
+  /** Retract cables on L1 bar for auto climb only */
+  RETRACT_L1_AUTO(
+      "Auto Retracting on L1",
+      List.of(new Translation2d(0.6, 0.6), new Translation2d(0.6, 0.46)),
+      2.5,
+      true),
+
   // ── Special states ──
-  MANUAL("Manual", new Translation2d(0.0, 0.0), null, 0.0, false),
-  EMERGENCY_STOP("E-Stop", new Translation2d(0.0, 0.0), null, 0.0, false);
+  MANUAL("Manual", new Translation2d(0.0, 0.0), 0.0, false),
+  EMERGENCY_STOP("E-Stop", new Translation2d(0.0, 0.0), 0.0, false);
 
   // State data
   private final String name;
@@ -102,7 +114,18 @@ public enum ClimbState {
   private final double defaultDuration;
   private final boolean isPulling;
 
-  ClimbState(
+  /** Constructor for states WITH a path — target is derived from the last waypoint. */
+  ClimbState(String name, List<Translation2d> waypoints, double duration, boolean isPulling) {
+    this(name, waypoints.get(waypoints.size() - 1), waypoints, duration, isPulling);
+  }
+
+  /** Constructor for states WITHOUT a path (STOWED, MANUAL, EMERGENCY_STOP). */
+  ClimbState(String name, Translation2d target, double duration, boolean isPulling) {
+    this(name, target, null, duration, isPulling);
+  }
+
+  /** Private canonical constructor. */
+  private ClimbState(
       String name,
       Translation2d target,
       List<Translation2d> waypoints,

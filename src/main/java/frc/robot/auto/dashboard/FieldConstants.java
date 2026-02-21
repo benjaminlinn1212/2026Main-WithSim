@@ -153,9 +153,8 @@ public final class FieldConstants {
   // Boundaries are axis-aligned rectangles: (minX, minY) to (maxX, maxY) in meters.
   // The planner uses these for constraint-checking and spatial queries.
   //
-  // NOTE: AutoCommandBuilder.ALLIANCE_SIDE_MAX_X uses TRENCH_MAX_X (5.2m) instead of HUB_ZONE's
-  // 5.50m for the aiming threshold, so the turret doesn't try to aim inside the trench approach
-  // buffer where Superstructure would stow it anyway.
+  // NOTE: AutoCommandBuilder.ALLIANCE_SIDE_MAX_X uses ALLIANCE_ZONE.maxX (3.60m) as the aiming
+  // threshold. The turret stops aiming when the robot leaves the alliance zone.
   //
   // Field layout (blue origin, X right, Y up):
   //   x=0.00        x=2.00    x=3.60    x=5.2  x=5.50       x=8.27         x=11.04       x=16.54
@@ -242,11 +241,11 @@ public final class FieldConstants {
   // ===== Scoring Waypoints =====
   public enum ScoringWaypoint {
     /** Upper — shooting from the upper side. */
-    HUB_UPPER(new Translation2d(2.80, 6.20), Zone.ALLIANCE_ZONE),
+    HUB_UPPER(new Translation2d(3.0, 7.44), Zone.ALLIANCE_ZONE),
     /** Center — shooting straight at the HUB from the NEUTRAL ZONE side. */
     HUB_CENTER(new Translation2d(2.50, 4.03), Zone.ALLIANCE_ZONE),
     /** Lower — shooting from the lower side. */
-    HUB_LOWER(new Translation2d(2.80, 1.87), Zone.ALLIANCE_ZONE);
+    HUB_LOWER(new Translation2d(3.0, 0.652), Zone.ALLIANCE_ZONE);
 
     public final Translation2d bluePosition;
     public final Zone zone;
@@ -376,10 +375,12 @@ public final class FieldConstants {
   }
 
   // ===== Estimated action durations (seconds) =====
-  // Used by the planner for time budgeting. These should match the actual command
-  // execution times in AutoCommandBuilder (aim + shoot deadlines + idle).
-  /** Time to aim and shoot a load of FUEL into the HUB (0.2s aim + 0.15s shoot + margin). */
-  public static final double SCORE_DURATION = 0.5;
+  // Runtime time-check budgeting uses the constants in AutoTuning:
+  //   - STOP_AND_SHOOT_DURATION (1.5s) — stop, aim, fire
+  //   - SWD_SCORE_DURATION (2.0s)      — drive through hub zone while shooting
+  //   - INTAKE_DWELL_ESTIMATE (1.0s)   — deceleration + FUEL pickup
+  //
+  // The planner uses these same constants (via AutoTuning) for consistent time budgets.
 
   /** AUTO period duration — 20 seconds per REBUILT game manual. */
   public static final double AUTO_DURATION = 20.0;

@@ -3,6 +3,8 @@
 
 package frc.robot.auto.dashboard;
 
+import static frc.robot.auto.dashboard.AutoTuning.*;
+
 import edu.wpi.first.math.geometry.Pose2d;
 import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
 import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
@@ -24,8 +26,7 @@ public abstract class AutoAction {
     SCORE_PRELOAD,
     INTAKE_AT,
     DRIVE_TO,
-    CLIMB,
-    WAIT
+    CLIMB
   }
 
   private final Type type;
@@ -141,7 +142,7 @@ public abstract class AutoAction {
 
     @Override
     public double estimatedDuration() {
-      return FieldConstants.SCORE_DURATION;
+      return shootWhileMoving ? SWD_SCORE_DURATION : STOP_AND_SHOOT_DURATION;
     }
 
     @Override
@@ -253,41 +254,6 @@ public abstract class AutoAction {
     }
   }
 
-  /** Wait a fixed duration (e.g., for strategy or to let a partner pass). */
-  public static final class Wait extends AutoAction {
-    private final double seconds;
-    private final String reason;
-
-    public Wait(double seconds, String reason) {
-      super(Type.WAIT);
-      this.seconds = seconds;
-      this.reason = reason;
-    }
-
-    public double getSeconds() {
-      return seconds;
-    }
-
-    public String getReason() {
-      return reason;
-    }
-
-    @Override
-    public String describe() {
-      return String.format("Wait %.1fs (%s)", seconds, reason);
-    }
-
-    @Override
-    public double estimatedDuration() {
-      return seconds;
-    }
-
-    @Override
-    public Pose2d getTargetPose() {
-      return null;
-    }
-  }
-
   /**
    * Score preloaded FUEL. Two modes:
    *
@@ -336,7 +302,8 @@ public abstract class AutoAction {
 
     @Override
     public double estimatedDuration() {
-      return FieldConstants.SCORE_DURATION * 0.7;
+      // Preload has fewer FUEL so it's slightly faster than a full cycle score
+      return (shootWhileMoving ? SWD_SCORE_DURATION : STOP_AND_SHOOT_DURATION) * 0.7;
     }
 
     @Override

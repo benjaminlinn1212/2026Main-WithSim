@@ -123,6 +123,17 @@ public class ShooterSubsystem extends SubsystemBase {
     setVelocity(setpoint.getShooterRPS());
   }
 
+  /**
+   * Get the stator current of the shooter motor (amps). Used for current-based shot detection in
+   * auto — when FUEL passes through the shooter, the current spikes. When current drops back below
+   * a threshold for sustained time, all FUEL has been fired.
+   *
+   * @return Shooter stator current in amps
+   */
+  public double getCurrentAmps() {
+    return inputs.currentAmps;
+  }
+
   @Override
   public void periodic() {
     io.updateInputs(inputs);

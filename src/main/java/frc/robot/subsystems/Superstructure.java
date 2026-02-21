@@ -418,6 +418,16 @@ public class Superstructure extends SubsystemBase {
   }
 
   /**
+   * Check if the intake pivot has physically reached the stowed position. Used by auto to gate
+   * climb extend — the arms must not extend while the intake is still deployed.
+   *
+   * @return true if intake pivot is at stow position (within tolerance)
+   */
+  public boolean isIntakeStowed() {
+    return intakePivot.isStowed();
+  }
+
+  /**
    * Check if superstructure is in climb mode.
    *
    * @return true if in climb mode
@@ -510,5 +520,21 @@ public class Superstructure extends SubsystemBase {
   /** Get a 0-1 readiness value for the shooter (for dashboard/LED use). */
   public double getShooterReadiness() {
     return shooter.isReady() ? 1.0 : 0.5;
+  }
+
+  /**
+   * Get the stator current of the upper intake roller (amps). Pass-through to {@link
+   * IntakeSubsystem#getUpperCurrentAmps()} for current-based FUEL pickup detection in auto.
+   */
+  public double getIntakeUpperCurrentAmps() {
+    return intake.getUpperCurrentAmps();
+  }
+
+  /**
+   * Get the stator current of the shooter motor (amps). Pass-through to {@link
+   * ShooterSubsystem#getCurrentAmps()} for current-based shot completion detection in auto.
+   */
+  public double getShooterCurrentAmps() {
+    return shooter.getCurrentAmps();
   }
 }

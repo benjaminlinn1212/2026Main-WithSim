@@ -7,6 +7,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Superstructure;
+import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,14 +48,16 @@ public class DashboardAutoManager {
    *
    * @param drive The swerve drive subsystem
    * @param superstructure The superstructure
+   * @param climb The climb subsystem (independent from superstructure)
    */
-  public DashboardAutoManager(DriveSwerveDrivetrain drive, Superstructure superstructure) {
+  public DashboardAutoManager(
+      DriveSwerveDrivetrain drive, Superstructure superstructure, ClimbSubsystem climb) {
     this.drive = drive;
     this.settings = new AutoSettings();
-    this.commandBuilder = new AutoCommandBuilder(drive, superstructure);
+    this.commandBuilder = new AutoCommandBuilder(drive, superstructure, climb);
 
-    System.out.println(
-        "[DashboardAutoManager] Initialized — configure settings in 'Auto Settings' tab");
+    Logger.recordOutput(
+        "DashboardAuto/Status", "Initialized — configure settings in 'Auto Settings' tab");
   }
 
   /**
@@ -65,7 +68,7 @@ public class DashboardAutoManager {
     boolean changed = settings.readFromDashboard();
 
     if (changed) {
-      System.out.println("[DashboardAutoManager] Settings changed — replanning...");
+      Logger.recordOutput("DashboardAuto/Status", "Settings changed — replanning...");
       replan();
     }
 
@@ -94,12 +97,9 @@ public class DashboardAutoManager {
 
     long elapsed = System.nanoTime() - startTime;
     Logger.recordOutput("DashboardAuto/PlanTimeUs", elapsed / 1000.0);
-    System.out.println(
-        "[DashboardAutoManager] Plan generated: "
-            + currentPlan.size()
-            + " actions in "
-            + (elapsed / 1000)
-            + "μs");
+    Logger.recordOutput(
+        "DashboardAuto/Status",
+        "Plan generated: " + currentPlan.size() + " actions in " + (elapsed / 1000) + "μs");
   }
 
   /**
@@ -113,7 +113,7 @@ public class DashboardAutoManager {
     forceReplan();
 
     if (currentPlan.isEmpty()) {
-      System.out.println("[DashboardAutoManager] WARNING: Empty plan — returning no-op");
+      Logger.recordOutput("DashboardAuto/Status", "WARNING: Empty plan — returning no-op");
       return Commands.print("[DashboardAuto] No plan generated — check Auto Settings tab!")
           .withName("DashboardAuto_NoPlan");
     }
@@ -126,8 +126,8 @@ public class DashboardAutoManager {
                 () -> commandBuilder.buildAutoCommand(currentPlan, settingsSnapshot), Set.of(drive))
             .withName("DashboardAuto");
 
-    System.out.println(
-        "[DashboardAutoManager] Auto command ready: " + currentPlan.size() + " actions");
+    Logger.recordOutput(
+        "DashboardAuto/Status", "Auto command ready: " + currentPlan.size() + " actions");
     Logger.recordOutput("DashboardAuto/CommandReady", true);
 
     return cachedCommand;

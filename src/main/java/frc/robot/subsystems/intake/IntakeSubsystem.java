@@ -87,4 +87,14 @@ public class IntakeSubsystem extends SubsystemBase {
   public void applyOuttake() {
     io.setPercent(IntakeConstants.OUTTAKE_PERCENT);
   }
+
+  /**
+   * Get the stator current of the upper intake roller (amps). Used for current-based FUEL pickup
+   * detection in auto — a current spike above a threshold indicates FUEL has contacted the rollers.
+   *
+   * @return Upper roller stator current in amps
+   */
+  public double getUpperCurrentAmps() {
+    return inputs.upperCurrentAmps;
+  }
 }

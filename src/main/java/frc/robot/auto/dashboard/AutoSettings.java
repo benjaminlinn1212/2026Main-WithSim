@@ -26,7 +26,6 @@ import org.littletonrobotics.junction.Logger;
  *   <li>Shooting priority — preferred positions around the HUB to shoot FUEL
  *   <li>Preferred intake — OUTPOST (human player), DEPOT (floor bin), or NEUTRAL ZONE (ground)
  *   <li>Climb level — which TOWER RUNG to attempt (LEVEL 1/2/3, different point values)
- *   <li>Shoot while driving — continuous scoring vs stop-and-shoot
  *   <li>Risk level — conservative/balanced/aggressive time budgets
  * </ul>
  *
@@ -48,12 +47,11 @@ public class AutoSettings {
   private StartPose startPose = StartPose.CENTER;
   private final List<ScoringWaypoint> scoringPriority = new ArrayList<>();
   private final List<IntakeLocation> intakePriority = new ArrayList<>();
-  private boolean attemptClimb = false;
+  private boolean attemptClimb = true;
   private ClimbLevel climbLevel = ClimbLevel.LEVEL_1;
   private ClimbPose climbPose = ClimbPose.DEPOT_SIDE;
-  private boolean shootWhileDriving = false;
+  private boolean scorePreload = true;
   private RiskLevel riskLevel = RiskLevel.BALANCED;
-  private int maxCycles = 4; // max score+intake cycles to attempt
 
   // ===== SmartDashboard Keys (under "Auto/" subtable for Elastic) =====
   private static final String PREFIX = "Auto/";
@@ -89,7 +87,7 @@ public class AutoSettings {
     //   U = NEUTRAL_ZONE_UPPER, L = NEUTRAL_ZONE_LOWER, D = DEPOT, O = OUTPOST
     // Example: "ULDO" → Upper Neutral first, then Lower Neutral, Depot, Outpost
     // Duplicate or unknown characters are ignored.
-    SmartDashboard.putString(PREFIX + "Intake Sequence", "ULDO");
+    SmartDashboard.putString(PREFIX + "Intake Sequence", "UUUU");
 
     // --- Dropdown: Climb Level ---
     for (ClimbLevel cl : ClimbLevel.values()) {
@@ -130,10 +128,7 @@ public class AutoSettings {
 
     // --- Boolean toggles ---
     SmartDashboard.putBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
-    SmartDashboard.putBoolean(PREFIX + "Shoot While Driving", shootWhileDriving);
-
-    // --- Number fields ---
-    SmartDashboard.putNumber(PREFIX + "Max Cycles", maxCycles);
+    SmartDashboard.putBoolean(PREFIX + "Score Preload", scorePreload);
   }
 
   // ===== Read from Dashboard =====
@@ -152,7 +147,7 @@ public class AutoSettings {
     // Scoring Priority (boolean toggles per location)
     scoringPriority.clear();
     for (ScoringWaypoint sl : ScoringWaypoint.values()) {
-      if (SmartDashboard.getBoolean(PREFIX + "Score/" + sl.name(), false)) {
+      if (SmartDashboard.getBoolean(PREFIX + "Score/" + sl.name(), true)) {
         scoringPriority.add(sl);
       }
     }
@@ -171,8 +166,7 @@ public class AutoSettings {
 
     // Booleans
     attemptClimb = SmartDashboard.getBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
-    shootWhileDriving =
-        SmartDashboard.getBoolean(PREFIX + "Shoot While Driving", shootWhileDriving);
+    scorePreload = SmartDashboard.getBoolean(PREFIX + "Score Preload", scorePreload);
 
     // Climb Level (dropdown)
     ClimbLevel selectedClimb = climbLevelChooser.getSelected();
@@ -191,9 +185,6 @@ public class AutoSettings {
     if (selectedRisk != null) {
       riskLevel = selectedRisk;
     }
-
-    // Max Cycles
-    maxCycles = (int) SmartDashboard.getNumber(PREFIX + "Max Cycles", maxCycles);
 
     // Change detection
     String fingerprint = computeFingerprint();
@@ -234,16 +225,12 @@ public class AutoSettings {
     return climbPose;
   }
 
-  public boolean isShootWhileDriving() {
-    return shootWhileDriving;
+  public boolean isScorePreload() {
+    return scorePreload;
   }
 
   public RiskLevel getRiskLevel() {
     return riskLevel;
-  }
-
-  public int getMaxCycles() {
-    return maxCycles;
   }
 
   /**
@@ -273,11 +260,9 @@ public class AutoSettings {
         + "|"
         + climbPose.name()
         + "|"
-        + shootWhileDriving
+        + scorePreload
         + "|"
-        + riskLevel.name()
-        + "|"
-        + maxCycles;
+        + riskLevel.name();
   }
 
   // ===== Logging =====
@@ -292,9 +277,8 @@ public class AutoSettings {
     Logger.recordOutput("AutoSettings/AttemptClimb", attemptClimb);
     Logger.recordOutput("AutoSettings/ClimbLevel", climbLevel.name());
     Logger.recordOutput("AutoSettings/ClimbPose", climbPose.name());
-    Logger.recordOutput("AutoSettings/ShootWhileDriving", shootWhileDriving);
+    Logger.recordOutput("AutoSettings/ScorePreload", scorePreload);
     Logger.recordOutput("AutoSettings/RiskLevel", riskLevel.name());
-    Logger.recordOutput("AutoSettings/MaxCycles", maxCycles);
   }
 
   @Override
@@ -312,12 +296,10 @@ public class AutoSettings {
         + climbLevel
         + ", climbPose="
         + climbPose
-        + ", shootMoving="
-        + shootWhileDriving
+        + ", scorePreload="
+        + scorePreload
         + ", risk="
         + riskLevel
-        + ", maxCycles="
-        + maxCycles
         + "}";
   }
 

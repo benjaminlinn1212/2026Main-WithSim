@@ -9,6 +9,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.util.Color;
 import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.ClimbConstants;
 import frc.robot.subsystems.climb.util.ClimbIK;
@@ -291,6 +292,16 @@ public class ClimbSubsystem extends SubsystemBase {
               state.getPrePlannedWaypoints(), state.getDefaultDuration(), state.isPulling());
         },
         "ClimbSetState_" + state.name());
+  }
+
+  /**
+   * Auto-only L1 climb command. Sequences EXTEND_L1_AUTO then RETRACT_L1_AUTO. This is separate
+   * from the teleop climb state cycle.
+   */
+  public Command autoClimbL1() {
+    return Commands.sequence(
+            setStateCommand(ClimbState.EXTEND_L1_AUTO), setStateCommand(ClimbState.RETRACT_L1_AUTO))
+        .withName("AutoClimbL1");
   }
 
   // -- Helper: reusable path-following command --

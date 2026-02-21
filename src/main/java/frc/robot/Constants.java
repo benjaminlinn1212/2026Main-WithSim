@@ -95,9 +95,9 @@ public final class Constants {
     /**
      * Derating factor for time estimation. AD* paths are longer than straight-line (curves,
      * obstacle avoidance, accel/decel phases), so the robot's average speed is lower than the max
-     * constraint. 0.75 means we estimate at 75% of max velocity.
+     * constraint. 0.7 means we estimate at 70% of max velocity.
      */
-    public static final double AVG_SPEED_DERATING = 0.5;
+    public static final double AVG_SPEED_DERATING = 0.7;
 
     /**
      * Estimated average drive speed (m/s) derived from the actual path constraint. Used by the
@@ -552,8 +552,8 @@ public final class Constants {
     // This represents where the end effector is when the robot powers on
     // Measure this position with the climb mechanism in its physical starting state
     // Initial cable lengths are computed automatically from this position by ClimbIK.
-    public static final double START_POSITION_X_METERS = 0.38; // Forward offset from winch base
-    public static final double START_POSITION_Y_METERS = 0.585; // Height above winch base
+    public static final double START_POSITION_X_METERS = 0.37; // Forward offset from winch base
+    public static final double START_POSITION_Y_METERS = 0.46; // Height above winch base
 
     // IK Solver Tolerance
     public static final double IK_POSITION_TOLERANCE_METERS = 0.005; // 5mm tolerance

@@ -96,10 +96,6 @@ public class RobotContainer {
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
 
-  // Shooter tuning variables for teleop testing
-  private double shooterTestRPS = 0.0;
-  private double hoodTestAngleRad = Constants.HoodConstants.STOW_POSITION;
-
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
 
@@ -239,7 +235,7 @@ public class RobotContainer {
     // The planner reads field-aware settings from Shuffleboard, generates an
     // optimal action sequence, and builds the command tree at autonomousInit().
     // Configure settings in the "Auto Settings" Shuffleboard tab before each match.
-    dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure);
+    dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure, climb);
     autoChooser.addOption(
         "Dashboard Auto",
         Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(swerveIO)));
@@ -268,6 +264,7 @@ public class RobotContainer {
   }
 
   /** Configure PathPlanner AutoBuilder for pathfinding and auto paths. */
+  @SuppressWarnings("deprecation")
   private void configureAutoBuilder() {
     try {
       // Use AD* pathfinder (PathPlannerLib's LocalADStar) for real-time pathfinding

@@ -4,8 +4,10 @@ import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.Servo;
 import frc.robot.Constants.ClimbConstants;
+import frc.robot.subsystems.climb.util.ClimbIK;
 
 public class ClimbIOTalonFX implements ClimbIO {
 
@@ -138,11 +140,24 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftFrontMotor.getConfigurator().apply(leftFrontConfig);
     leftBackMotor.getConfigurator().apply(leftBackConfig);
 
-    // Reset positions on startup
-    rightFrontMotor.setPosition(0);
-    rightBackMotor.setPosition(0);
-    leftFrontMotor.setPosition(0);
-    leftBackMotor.setPosition(0);
+    // Seed encoder positions to match the STOWED cable-length rotations from IK.
+    // The robot physically starts in STOWED, so the encoders must reflect the correct
+    // mechanism rotations (converted to motor rotations via gear ratio) for the IK/FK
+    // system to produce valid arm positions from the first periodic() call.
+    Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+    ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
+    if (stowedIK.isValid) {
+      rightFrontMotor.setPosition(stowedIK.frontMotorRotations / ClimbConstants.FRONT_GEAR_RATIO);
+      rightBackMotor.setPosition(stowedIK.backMotorRotations / ClimbConstants.BACK_GEAR_RATIO);
+      leftFrontMotor.setPosition(stowedIK.frontMotorRotations / ClimbConstants.FRONT_GEAR_RATIO);
+      leftBackMotor.setPosition(stowedIK.backMotorRotations / ClimbConstants.BACK_GEAR_RATIO);
+    } else {
+      // Fallback — shouldn't happen for STOWED
+      rightFrontMotor.setPosition(0);
+      rightBackMotor.setPosition(0);
+      leftFrontMotor.setPosition(0);
+      leftBackMotor.setPosition(0);
+    }
 
     rightFrontMotor.optimizeBusUtilization();
     rightBackMotor.optimizeBusUtilization();

@@ -43,6 +43,9 @@ public class DashboardAutoManager {
   // Plan visualization
   private Pose2d[] planPosePreview = new Pose2d[0];
 
+  // Track whether settings changed on the last update() call (for 254-style pre-seeding)
+  private boolean lastUpdateHadChanges = false;
+
   /**
    * Create a new DashboardAutoManager.
    *
@@ -66,6 +69,7 @@ public class DashboardAutoManager {
    */
   public void update() {
     boolean changed = settings.readFromDashboard();
+    lastUpdateHadChanges = changed;
 
     if (changed) {
       Logger.recordOutput("DashboardAuto/Status", "Settings changed — replanning...");
@@ -190,5 +194,24 @@ public class DashboardAutoManager {
   /** Get the settings object (for direct access if needed). */
   public AutoSettings getSettings() {
     return settings;
+  }
+
+  /**
+   * Whether the most recent {@link #update()} call detected a settings change. Used by Robot.java
+   * to know when to pre-seed the starting pose (254-style).
+   */
+  public boolean didSettingsChange() {
+    return lastUpdateHadChanges;
+  }
+
+  /**
+   * Get the alliance-corrected starting pose for the currently selected auto. Returns the pose from
+   * the dashboard start pose chooser, flipped for red alliance. Used by Robot.java to pre-seed
+   * odometry during disabled (254-style).
+   *
+   * @return The starting pose, or null if no settings loaded yet
+   */
+  public Pose2d getStartingPose() {
+    return settings.getStartPose().getPose(); // Already alliance-corrected via FieldConstants
   }
 }

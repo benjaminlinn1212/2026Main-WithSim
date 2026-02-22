@@ -7,8 +7,12 @@
 
 package frc.robot;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.auto.dashboard.FieldConstants;
 import org.ironmaple.simulation.SimulatedArena;
 import org.littletonrobotics.junction.LogFileUtil;
 import org.littletonrobotics.junction.LoggedRobot;
@@ -26,6 +30,21 @@ import org.littletonrobotics.junction.wpilog.WPILOGWriter;
 public class Robot extends LoggedRobot {
   private Command autonomousCommand;
   private RobotContainer robotContainer;
+
+  /**
+   * 254-style: Track whether the robot has been enabled at least once this power cycle. Used for
+   * fallback heading reset in teleopInit() — if the robot goes directly to teleop without ever
+   * running auto, we reset heading to alliance wall orientation.
+   */
+  private boolean hasBeenEnabled = false;
+
+  /**
+   * 254-style disabled periodic iteration counter. We only run the pose pre-seeding logic every N
+   * iterations to avoid overwhelming the CAN bus and dashboard with updates.
+   */
+  private int disabledPeriodicCount = 0;
+
+  private static final int DISABLED_PERIODIC_CHECK_INTERVAL = 50; // every ~1 second (50 * 20ms)
 
   public Robot() {
     // Record metadata
@@ -105,22 +124,83 @@ public class Robot extends LoggedRobot {
       autonomousCommand.cancel();
       autonomousCommand = null; // Clear reference so it can be recreated
     }
+
+    // Reset the periodic counter so the first disabledPeriodic immediately pre-seeds
+    disabledPeriodicCount = 0;
   }
 
-  /** This function is called periodically when disabled. */
+  /**
+   * This function is called periodically when disabled.
+   *
+   * <p><b>254-style pose pre-seeding:</b> Every N iterations, check if the auto settings changed.
+   * When they do, pre-seed the odometry with the selected auto's starting pose
+   * (alliance-corrected). This allows vision corrections to refine the pose before auto starts.
+   * Also publishes a "Near Auto Starting Pose" boolean so the drive team can verify physical
+   * placement.
+   */
   @Override
   public void disabledPeriodic() {
     // Run warmup for selected auto during disabled
     robotContainer.runAutoWarmup();
+
+    // 254-style: Only run the heavy check every N iterations (~1s)
+    disabledPeriodicCount++;
+    if (disabledPeriodicCount % DISABLED_PERIODIC_CHECK_INTERVAL == 0) {
+      var dashboardAutoManager = robotContainer.getDashboardAutoManager();
+
+      // Publish "Near Auto Starting Pose" indicator (254-style, 0.25m / 8° tolerance)
+      Pose2d startingPose = dashboardAutoManager.getStartingPose();
+      if (startingPose != null) {
+        boolean nearStartPose = robotContainer.odometryCloseToPose(startingPose);
+        SmartDashboard.putBoolean("Near Auto Starting Pose", nearStartPose);
+        Logger.recordOutput("Auto/NearAutoStartingPose", nearStartPose);
+      }
+
+      // Pre-seed odometry when auto settings change (254-style)
+      // This sets the robot's pose estimate to the selected starting position so that
+      // vision corrections can refine it during the remaining disabled period.
+      if (dashboardAutoManager.didSettingsChange()) {
+        if (startingPose != null) {
+          robotContainer.getDriveSubsystem().setPose(startingPose);
+          System.out.println(
+              "[Robot] 254-style: Pre-seeded odometry to auto start pose: " + startingPose);
+          Logger.recordOutput("Auto/PreSeededPose", startingPose);
+        }
+      }
+    }
   }
 
-  /** This autonomous runs the autonomous command selected by your {@link RobotContainer} class. */
+  /**
+   * This autonomous runs the autonomous command selected by your {@link RobotContainer} class.
+   *
+   * <p><b>254-style:</b> NO hard pose reset here. The pose was pre-seeded during disabled and
+   * refined by vision. We just schedule the command and trust the existing pose estimate.
+   */
   @Override
   public void autonomousInit() {
+    hasBeenEnabled = true;
+
+    // SIM-only: Always hard-reset pose to the selected auto's starting pose.
+    // On real hardware the pose is pre-seeded during disabled and refined by vision,
+    // but in simulation there is no physical placement or vision — the robot needs
+    // to be teleported to the correct start before the auto command runs.
+    if (Constants.currentMode == Constants.Mode.SIM) {
+      Pose2d startingPose = robotContainer.getDashboardAutoManager().getStartingPose();
+      if (startingPose != null) {
+        robotContainer.getDriveSubsystem().setPose(startingPose);
+        System.out.println("[Robot] SIM: Reset pose to auto start pose: " + startingPose);
+        Logger.recordOutput("Auto/SimResetPose", startingPose);
+      }
+
+      // Reset the climb to STOWED so the Mechanism2d re-initializes properly
+      robotContainer.getClimbSubsystem().resetToStowed();
+      System.out.println("[Robot] SIM: Reset climb to STOWED");
+    }
+
     // Always get a fresh command from the chooser
     autonomousCommand = robotContainer.getAutonomousCommand();
 
-    // schedule the autonomous command (example)
+    // schedule the autonomous command
     if (autonomousCommand != null) {
       System.out.println("[Robot] Scheduling autonomous command: " + autonomousCommand.getName());
       CommandScheduler.getInstance().schedule(autonomousCommand);
@@ -133,15 +213,36 @@ public class Robot extends LoggedRobot {
   @Override
   public void autonomousPeriodic() {}
 
-  /** This function is called once when teleop is enabled. */
+  /**
+   * This function is called once when teleop is enabled.
+   *
+   * <p><b>254-style:</b> If the robot has never been enabled (e.g. skipped auto, or went straight
+   * to teleop from power-on), reset the heading to alliance wall orientation. This ensures
+   * field-relative driving works correctly even without a proper auto pose seed.
+   */
   @Override
   public void teleopInit() {
-    // This makes sure that the autonomous stops running when
-    // teleop starts running. If you want the autonomous to
-    // continue until interrupted by another command, remove
-    // this line or comment it out.
+    // Cancel any running autonomous command
     if (autonomousCommand != null) {
       autonomousCommand.cancel();
+    }
+
+    // 254-style: Fallback heading reset on first enable
+    if (!hasBeenEnabled) {
+      hasBeenEnabled = true;
+      Pose2d currentPose = robotContainer.getDriveSubsystem().getPose();
+      boolean isRed = FieldConstants.isRedAlliance();
+      Pose2d resetPose =
+          new Pose2d(
+              currentPose.getTranslation(), // Keep current translation (from vision or pre-seed)
+              isRed ? Rotation2d.fromDegrees(180) : Rotation2d.fromDegrees(0));
+      robotContainer.getDriveSubsystem().setPose(resetPose);
+      System.out.println(
+          "[Robot] 254-style: First enable heading reset to "
+              + (isRed ? "180°" : "0°")
+              + " (alliance: "
+              + (isRed ? "Red" : "Blue")
+              + ")");
     }
   }
 

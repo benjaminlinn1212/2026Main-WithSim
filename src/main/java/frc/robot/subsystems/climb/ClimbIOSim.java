@@ -1,27 +1,29 @@
 package frc.robot.subsystems.climb;
 
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
 import edu.wpi.first.wpilibj.util.Color;
 import edu.wpi.first.wpilibj.util.Color8Bit;
 import frc.robot.Constants.ClimbConstants;
+import frc.robot.subsystems.climb.util.ClimbIK;
 
 public class ClimbIOSim implements ClimbIO {
 
-  private double rightFrontPositionRotations = 0.0;
+  private double rightFrontPositionRotations;
   private double rightFrontVelocityRotPerSec = 0.0;
   private double rightFrontAppliedVolts = 0.0;
 
-  private double rightBackPositionRotations = 0.0;
+  private double rightBackPositionRotations;
   private double rightBackVelocityRotPerSec = 0.0;
   private double rightBackAppliedVolts = 0.0;
 
-  private double leftFrontPositionRotations = 0.0;
+  private double leftFrontPositionRotations;
   private double leftFrontVelocityRotPerSec = 0.0;
   private double leftFrontAppliedVolts = 0.0;
 
-  private double leftBackPositionRotations = 0.0;
+  private double leftBackPositionRotations;
   private double leftBackVelocityRotPerSec = 0.0;
   private double leftBackAppliedVolts = 0.0;
 
@@ -38,6 +40,22 @@ public class ClimbIOSim implements ClimbIO {
   private static final double DT = 0.02; // 20ms loop time
 
   public ClimbIOSim() {
+    // Initialize motor positions to the STOWED cable-length rotations so the sim starts
+    // with the arm in the correct position (not at 0 rotations which is physically wrong).
+    Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+    ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
+    if (stowedIK.isValid) {
+      leftFrontPositionRotations = stowedIK.frontMotorRotations;
+      leftBackPositionRotations = stowedIK.backMotorRotations;
+      rightFrontPositionRotations = stowedIK.frontMotorRotations;
+      rightBackPositionRotations = stowedIK.backMotorRotations;
+    } else {
+      // Fallback — shouldn't happen for STOWED
+      leftFrontPositionRotations = 0.0;
+      leftBackPositionRotations = 0.0;
+      rightFrontPositionRotations = 0.0;
+      rightBackPositionRotations = 0.0;
+    }
     // Create Mechanism2d for visualization (1.5m x 1.5m)
     mechanism = new Mechanism2d(1.5, 1.5);
 
@@ -198,5 +216,19 @@ public class ClimbIOSim implements ClimbIO {
     this.rightBackVelocityRotPerSec = 0.0;
     this.leftFrontVelocityRotPerSec = 0.0;
     this.leftBackVelocityRotPerSec = 0.0;
+  }
+
+  @Override
+  public void resetToStowed() {
+    Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+    ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
+    if (stowedIK.isValid) {
+      leftFrontPositionRotations = stowedIK.frontMotorRotations;
+      leftBackPositionRotations = stowedIK.backMotorRotations;
+      rightFrontPositionRotations = stowedIK.frontMotorRotations;
+      rightBackPositionRotations = stowedIK.backMotorRotations;
+    }
+    // Zero all velocities and voltages
+    stop();
   }
 }

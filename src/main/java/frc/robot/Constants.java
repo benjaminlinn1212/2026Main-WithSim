@@ -92,20 +92,43 @@ public final class Constants {
     public static final double PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2 =
         Math.toRadians(540);
 
+    // Climb straight-line approach (final segment after pathfinding)
     /**
-     * Derating factor for time estimation. AD* paths are longer than straight-line (curves,
-     * obstacle avoidance, accel/decel phases), so the robot's average speed is lower than the max
-     * constraint. 0.7 means we estimate at 70% of max velocity.
+     * Distance (m) from the climb target at which the robot stops pathfinding and drives straight
      */
-    public static final double AVG_SPEED_DERATING = 0.7;
+    public static final double CLIMB_APPROACH_DISTANCE_M = 0.3;
+    /** Max velocity (m/s) cap for the PID-controlled straight-line drive into the tower */
+    public static final double CLIMB_APPROACH_MAX_VELOCITY_MPS = 3.0;
+    /** Position tolerance (m) to consider the robot arrived at the climb target */
+    public static final double CLIMB_APPROACH_TOLERANCE_M = 0.01;
+    /** Heading tolerance (rad) to consider the robot arrived at the climb target */
+    public static final double CLIMB_APPROACH_THETA_TOLERANCE_RAD = Math.toRadians(3.0);
+
+    // DriveToPose PID gains (2910-style: PID on linear distance + heading PID)
+    /** Proportional gain for linear distance-to-target PID controller */
+    public static final double DRIVE_TO_POSE_KP = 3.5;
+    /** Derivative gain for linear distance-to-target PID controller */
+    public static final double DRIVE_TO_POSE_KD = 0.1;
+    /** Proportional gain for heading PID controller */
+    public static final double DRIVE_TO_POSE_THETA_KP = 5.0;
+    /**
+     * Static friction feedforward constant. Multiplied by max velocity to produce a minimum
+     * velocity that overcomes drivetrain friction when distance > 0.5 inches.
+     */
+    public static final double DRIVE_TO_POSE_FRICTION_FF = 0.02;
 
     /**
-     * Estimated average drive speed (m/s) derived from the actual path constraint. Used by the
-     * planner for rough time budgeting — not for trajectory generation. =
-     * PATHFINDING_MAX_VELOCITY_MPS * AVG_SPEED_DERATING
+     * Derating factor for time estimation. AD* paths are longer than straight-line due to curves
+     * and obstacle avoidance, so we inflate the distance by 1/derating. Since the trapezoidal
+     * motion profile already accounts for acceleration and deceleration phases physically, this
+     * factor only needs to cover path curvature (~10-15% longer than straight-line). 0.9 means we
+     * assume the actual path is ~11% longer than the straight-line distance.
+     *
+     * <p>Note: The old flat-speed model used AVG_SPEED_DERATING=0.7 which covered BOTH curvature
+     * AND accel/decel. With the trapezoidal model handling accel/decel, 0.9 produces comparable
+     * time estimates.
      */
-    public static final double AVG_DRIVE_SPEED_MPS =
-        PATHFINDING_MAX_VELOCITY_MPS * AVG_SPEED_DERATING;
+    public static final double PATH_DISTANCE_DERATING = 0.9;
 
     // Default pose for gyro/pose reset
     public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =

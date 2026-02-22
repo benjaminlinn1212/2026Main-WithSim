@@ -86,4 +86,10 @@ public interface ClimbIO {
 
   /** Stop all climb motors. */
   public default void stop() {}
+
+  /**
+   * Reset all motor positions (and velocities) to the STOWED cable-length rotations. Used in SIM to
+   * re-initialize the climb when restarting auto without restarting the whole program.
+   */
+  public default void resetToStowed() {}
 }

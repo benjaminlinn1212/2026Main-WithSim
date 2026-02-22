@@ -129,8 +129,56 @@ public class ClimbSubsystem extends SubsystemBase {
         frontWinchRoot.append(
             new MechanismLigament2d("FrontCable", 0.1, 90, 1, new Color8Bit(Color.kOrange)));
 
+    // ── Initialize Mechanism2d to the STOWED pose so it renders correctly from frame 0 ──
+    initializeMechanism2dToStowed(sx, sy, wfx, wfy);
+
     // Publish once — SmartDashboard auto-updates from mutated ligaments each cycle
     SmartDashboard.putData("Climb/Mechanism2d", mechanism);
+  }
+
+  /**
+   * Set all Mechanism2d ligament angles/lengths to match the initial STOWED position so the
+   * visualization is correct before the first periodic() call.
+   */
+  private void initializeMechanism2dToStowed(double sx, double sy, double wfx, double wfy) {
+    final double L1 = ClimbConstants.LINK_1_LENGTH_METERS;
+    final double L2 = ClimbConstants.LINK_2_LENGTH_METERS;
+    final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
+    final double frontAttach = ClimbConstants.FRONT_CABLE_ATTACH_ON_LINK2_METERS;
+
+    Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+    ClimbIK.ClimbSideIKResult ik = ClimbIK.calculateIK(stowedPos);
+    if (!ik.isValid) {
+      return; // keep defaults if IK fails (shouldn't happen for STOWED)
+    }
+
+    double jx = ik.jointX;
+    double jy = ik.jointY;
+    double ex = stowedPos.getX();
+    double ey = stowedPos.getY();
+
+    // Link angles
+    double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
+    double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
+
+    targetLink1.setAngle(link1Angle);
+    targetLink2.setAngle(link2AbsAngle - link1Angle);
+    measuredLink1.setAngle(link1Angle);
+    measuredLink2.setAngle(link2AbsAngle - link1Angle);
+
+    // Back cable: from backWinch(0,0) to point P on link 1
+    double t1 = backAttach / L1;
+    double px = jx + t1 * (sx - jx);
+    double py = jy + t1 * (sy - jy);
+    targetBackCable.setLength(Math.hypot(px, py));
+    targetBackCable.setAngle(Math.toDegrees(Math.atan2(py, px)));
+
+    // Front cable: from frontWinch to point Q on link 2
+    double t2 = frontAttach / L2;
+    double qx = ex + t2 * (jx - ex);
+    double qy = ey + t2 * (jy - ey);
+    targetFrontCable.setLength(Math.hypot(qx - wfx, qy - wfy));
+    targetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
   }
 
   @Override
@@ -229,6 +277,16 @@ public class ClimbSubsystem extends SubsystemBase {
   // =============================================================================
   // STATE MANAGEMENT
   // =============================================================================
+
+  /**
+   * Reset the climb to STOWED — resets both the subsystem state and the IO-layer motor positions.
+   * In SIM this teleports the simulated motors back to STOWED cable lengths; on real hardware this
+   * is a no-op at the IO layer (the real encoders already reflect reality).
+   */
+  public void resetToStowed() {
+    io.resetToStowed();
+    setState(ClimbState.STOWED);
+  }
 
   public void setState(ClimbState state) {
     this.currentState = state;

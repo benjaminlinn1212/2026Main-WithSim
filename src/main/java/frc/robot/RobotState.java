@@ -25,7 +25,11 @@ public class RobotState {
   private ChassisSpeeds measuredFieldRelativeChassisSpeeds = new ChassisSpeeds();
   private ChassisSpeeds robotRelativeChassisSpeed = new ChassisSpeeds();
 
-  public RobotState() {}
+  public RobotState() {
+    // Seed with zero pose so getLatestFieldToRobot() is never null (matches 254).
+    // The real pose will be set during disabled via the 254-style pre-seeding strategy.
+    fieldToRobot.put(0.0, new Pose2d());
+  }
 
   /** Add a new robot pose observation at the current timestamp */
   public synchronized void addFieldToRobot(Pose2d pose) {

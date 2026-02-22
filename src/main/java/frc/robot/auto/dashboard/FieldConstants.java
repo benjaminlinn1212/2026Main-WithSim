@@ -66,7 +66,7 @@ public final class FieldConstants {
    * of a trench, its heading should already be snapped to a cardinal direction so it enters
    * straight.
    */
-  public static final double TRENCH_APPROACH_BUFFER = 0.5; // meters
+  public static final double TRENCH_APPROACH_BUFFER = 1.0; // meters
 
   /** Upper trench Y boundaries (high Y, near scoring table wall). */
   public static final double TRENCH_UPPER_MIN_Y = FIELD_WIDTH - TRENCH_WIDTH_METERS; // ~6.85m
@@ -424,12 +424,45 @@ public final class FieldConstants {
   }
 
   /**
-   * Estimate drive time between two poses (straight-line distance / avg speed). The planner uses
-   * this for rough time budgeting — not for trajectory generation. Speed is derived from {@link
-   * Constants.AutoConstants#AVG_DRIVE_SPEED_MPS}.
+   * Estimate drive time between two poses using a trapezoidal motion profile. Accounts for
+   * acceleration and deceleration phases instead of assuming a flat average speed.
+   *
+   * <p>For short drives where the robot never reaches max velocity (triangle profile):
+   *
+   * <pre>t = 2 × √(d / a)</pre>
+   *
+   * For longer drives where max velocity is reached (trapezoid profile):
+   *
+   * <pre>t = 2 × (v / a) + (d - v² / a) / v</pre>
+   *
+   * <p>The straight-line distance is inflated by {@link
+   * Constants.AutoConstants#PATH_DISTANCE_DERATING} to account for AD* paths being longer than
+   * straight-line (curves, obstacle avoidance). Since the trapezoidal profile handles accel/decel
+   * physically, the derating only covers path curvature (~11% with the default 0.9 factor).
+   *
+   * @param from Start pose
+   * @param to End pose
+   * @return Estimated drive time in seconds
    */
   public static double estimateDriveTime(Pose2d from, Pose2d to) {
-    double distance = from.getTranslation().getDistance(to.getTranslation());
-    return distance / Constants.AutoConstants.AVG_DRIVE_SPEED_MPS;
+    double straightLine = from.getTranslation().getDistance(to.getTranslation());
+    // Inflate for path curvature / obstacle avoidance
+    double distance = straightLine / Constants.AutoConstants.PATH_DISTANCE_DERATING;
+    double maxVel = Constants.AutoConstants.PATHFINDING_MAX_VELOCITY_MPS;
+    double accel = Constants.AutoConstants.PATHFINDING_MAX_ACCELERATION_MPS2;
+
+    // Distance needed to ramp from 0 to maxVel (and back down)
+    double rampDistance = (maxVel * maxVel) / (2.0 * accel);
+
+    if (distance <= 2.0 * rampDistance) {
+      // Triangle profile: never reaches max velocity
+      return 2.0 * Math.sqrt(distance / accel);
+    } else {
+      // Trapezoid profile: accel + cruise + decel
+      double rampTime = maxVel / accel;
+      double cruiseDistance = distance - 2.0 * rampDistance;
+      double cruiseTime = cruiseDistance / maxVel;
+      return 2.0 * rampTime + cruiseTime;
+    }
   }
 }

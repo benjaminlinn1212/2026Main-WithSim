@@ -66,6 +66,7 @@ import frc.robot.subsystems.vision.VisionSubsystem;
 import frc.robot.util.ShooterSetpoint;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import java.util.Set;
+import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
@@ -510,6 +511,39 @@ public class RobotContainer {
    */
   public void setSwerveStartingPose(edu.wpi.first.math.geometry.Pose2d pose) {
     swerveIO.setPose(pose);
+  }
+
+  /**
+   * Check if the current odometry pose is close to a target pose (254-style). Used during disabled
+   * to show a dashboard indicator confirming the robot is physically placed near the expected auto
+   * starting position.
+   *
+   * @param pose The target pose to compare against
+   * @return true if within 0.25m translation and 8° rotation
+   */
+  public boolean odometryCloseToPose(Pose2d pose) {
+    Pose2d current = swerveIO.getPose();
+    double distance = current.getTranslation().getDistance(pose.getTranslation());
+    double rotation =
+        Math.abs(current.getRotation().rotateBy(pose.getRotation().unaryMinus()).getDegrees());
+    Logger.recordOutput("Auto/DistanceFromStartPose", distance);
+    Logger.recordOutput("Auto/RotationFromStartPose", rotation);
+    return distance < 0.25 && rotation < 8.0;
+  }
+
+  /** Get the drive subsystem (for Robot.java lifecycle access). */
+  public DriveSwerveDrivetrain getDriveSubsystem() {
+    return swerveIO;
+  }
+
+  /** Get the climb subsystem (for Robot.java sim-reset access). */
+  public ClimbSubsystem getClimbSubsystem() {
+    return climb;
+  }
+
+  /** Get the dashboard auto manager (for Robot.java pre-seeding). */
+  public DashboardAutoManager getDashboardAutoManager() {
+    return dashboardAutoManager;
   }
 
   /**

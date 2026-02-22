@@ -7,8 +7,12 @@ import static frc.robot.auto.dashboard.AutoTuning.*;
 
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.path.PathConstraints;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -789,9 +793,28 @@ public class AutoCommandBuilder {
     }
   }
 
-  /** Reset the robot's pose estimate. */
+  /**
+   * 254-style: The robot's pose was already pre-seeded during disabled and refined by vision.
+   * Instead of hard-resetting odometry (which would discard vision corrections), we just log the
+   * expected starting pose for verification. The pose estimator should already be close to this
+   * pose thanks to the disabled pre-seeding strategy.
+   */
   private Command buildSetStartPose(AutoAction.SetStartPose action) {
-    return Commands.runOnce(() -> drive.setPose(action.getPose()), drive).withName("SetStartPose");
+    return Commands.runOnce(
+            () -> {
+              Logger.recordOutput("DashboardAuto/ExpectedStartPose", action.getPose());
+              Logger.recordOutput("DashboardAuto/ActualStartPose", drive.getPose());
+              double poseError =
+                  drive.getPose().getTranslation().getDistance(action.getPose().getTranslation());
+              Logger.recordOutput("DashboardAuto/StartPoseErrorMeters", poseError);
+              if (poseError > 1.0) {
+                System.out.println(
+                    "[DashboardAuto] WARNING: Start pose error is "
+                        + String.format("%.2f", poseError)
+                        + "m — was the robot placed correctly?");
+              }
+            })
+        .withName("VerifyStartPose");
   }
 
   /**
@@ -1042,7 +1065,7 @@ public class AutoCommandBuilder {
             Commands.parallel(
                 // Group 1: Drive to climb pose with continuous accel-gated shooting
                 Commands.deadline(
-                    pathfindTo(climbTarget),
+                    pathfindThenDriveStraight(climbTarget),
                     // Continuous shooting loop: ONLY_AIMING when accel high, ONLY_SHOOTING
                     // when accel low. No intake (stowing for climb). Idle when within 1m.
                     Commands.run(
@@ -1155,6 +1178,136 @@ public class AutoCommandBuilder {
     return Commands.defer(
         () -> AutoBuilder.pathfindToPose(trenchAwarePose(target), getPathConstraints(), 0.0),
         Set.of(drive));
+  }
+
+  /**
+   * Build a command that pathfinds to a standoff point near the target, then drives in a perfectly
+   * straight line toward the alliance wall to reach the final target. This ensures the climb hook
+   * approaches the tower dead-straight in the alliance direction for a clean latch.
+   *
+   * <p>The standoff point is {@link Constants.AutoConstants#CLIMB_APPROACH_DISTANCE_M} meters in
+   * front of the target (opposite to the target's heading). The robot pathfinds there, then uses a
+   * 2910-style PID drive-to-pose controller to approach the target with feedback control:
+   *
+   * <ul>
+   *   <li>PID on linear distance computes a scalar velocity toward the target
+   *   <li>Static friction feedforward overcomes drivetrain friction at small distances
+   *   <li>Heading PID holds the target rotation throughout the approach
+   *   <li>Velocity is clamped to a max approach speed for controlled docking
+   * </ul>
+   *
+   * @param target The final climb pose (alliance-corrected, facing the alliance wall)
+   * @return A command sequence: pathfind to standoff → PID drive-to-pose → stop
+   */
+  private Command pathfindThenDriveStraight(Pose2d target) {
+    // Compute the standoff pose: offset away from the wall by CLIMB_APPROACH_DISTANCE_M
+    // For a 180° target (facing -X), the standoff is in the +X direction (into the field)
+    double approachDist = Constants.AutoConstants.CLIMB_APPROACH_DISTANCE_M;
+    Translation2d standoffOffset =
+        new Translation2d(approachDist, target.getRotation().plus(Rotation2d.k180deg));
+    Pose2d standoffPose =
+        new Pose2d(target.getTranslation().plus(standoffOffset), target.getRotation());
+
+    double maxVel = Constants.AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS;
+    double tolerance = Constants.AutoConstants.CLIMB_APPROACH_TOLERANCE_M;
+    double thetaTolerance = Constants.AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD;
+
+    return Commands.sequence(
+        // Step 1: Pathfind to the standoff point (stop there)
+        Commands.defer(
+            () -> AutoBuilder.pathfindToPose(standoffPose, getPathConstraints(), 0.0),
+            Set.of(drive)),
+        // Step 2: PID drive-to-pose (2910-style)
+        buildDriveToPose(target, maxVel, tolerance, thetaTolerance),
+        // Step 3: Stop
+        Commands.runOnce(() -> drive.stop(), drive));
+  }
+
+  /**
+   * Build a 2910-style PID drive-to-pose command. Uses a PID controller on linear distance for
+   * translation velocity and a separate PID for heading hold. The translation PID output is
+   * projected along the direction-of-travel vector to produce field-relative XY velocities.
+   *
+   * <p>Inspired by FRC Team 2910's 2025 DRIVE_TO_POINT implementation:
+   *
+   * <ul>
+   *   <li>Linear PID (kP=3.0, kD=0.1) drives distance error to zero
+   *   <li>Static friction FF (0.02 × maxVel) added when > 0.5″ away to overcome friction
+   *   <li>Heading PID (kP=5.0) with continuous input holds the target angle
+   *   <li>Velocity output is clamped to maxVelocity for controlled approach
+   * </ul>
+   *
+   * @param target The desired target pose
+   * @param maxVelocity Maximum translation velocity (m/s) for the approach
+   * @param driveTolerance Position tolerance (m) to end the command
+   * @param thetaTolerance Heading tolerance (rad) to end the command
+   * @return A command that drives to the pose and ends when within tolerance
+   */
+  private Command buildDriveToPose(
+      Pose2d target, double maxVelocity, double driveTolerance, double thetaTolerance) {
+    // Create PID controllers fresh for each command instance
+    PIDController driveController =
+        new PIDController(
+            Constants.AutoConstants.DRIVE_TO_POSE_KP, 0, Constants.AutoConstants.DRIVE_TO_POSE_KD);
+    PIDController thetaController =
+        new PIDController(Constants.AutoConstants.DRIVE_TO_POSE_THETA_KP, 0, 0);
+    thetaController.enableContinuousInput(-Math.PI, Math.PI);
+
+    double frictionFF = Constants.AutoConstants.DRIVE_TO_POSE_FRICTION_FF * maxVelocity;
+
+    return Commands.run(
+            () -> {
+              Pose2d currentPose = drive.getPose();
+
+              // Translation: compute direction and distance to target
+              Translation2d translationToTarget =
+                  target.getTranslation().minus(currentPose.getTranslation());
+              double linearDistance = translationToTarget.getNorm();
+              Rotation2d directionOfTravel = translationToTarget.getAngle();
+
+              // Static friction feedforward: only add when > 0.5 inches away
+              double friction = (linearDistance >= Units.inchesToMeters(0.5)) ? frictionFF : 0.0;
+
+              // PID on distance → velocity magnitude, clamped to max
+              double velocityOutput =
+                  Math.min(
+                      Math.abs(driveController.calculate(linearDistance, 0.0)) + friction,
+                      maxVelocity);
+
+              // Project scalar velocity along direction of travel
+              double vx = velocityOutput * directionOfTravel.getCos();
+              double vy = velocityOutput * directionOfTravel.getSin();
+
+              // Heading PID
+              double omega =
+                  thetaController.calculate(
+                      currentPose.getRotation().getRadians(), target.getRotation().getRadians());
+
+              drive.driveFieldRelative(vx, vy, omega);
+
+              // Logging
+              Logger.recordOutput("Auto/DriveToPose/DistanceToTarget", linearDistance);
+              Logger.recordOutput("Auto/DriveToPose/VelocityOutput", velocityOutput);
+              Logger.recordOutput(
+                  "Auto/DriveToPose/HeadingError",
+                  Math.abs(
+                      MathUtil.angleModulus(
+                          currentPose.getRotation().getRadians()
+                              - target.getRotation().getRadians())));
+              Logger.recordOutput("Auto/DriveToPose/TargetPose", target);
+            },
+            drive)
+        .until(
+            () -> {
+              Pose2d currentPose = drive.getPose();
+              double distError = currentPose.getTranslation().getDistance(target.getTranslation());
+              double headingError =
+                  Math.abs(
+                      MathUtil.angleModulus(
+                          currentPose.getRotation().getRadians()
+                              - target.getRotation().getRadians()));
+              return distError <= driveTolerance && headingError <= thetaTolerance;
+            });
   }
 
   /**

@@ -15,6 +15,7 @@ import com.pathplanner.lib.pathfinding.LocalADStar;
 import com.pathplanner.lib.pathfinding.Pathfinding;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -368,6 +369,69 @@ public class RobotContainer {
                   leftX * Constants.DriveConstants.MAX_TELEOP_SPEED_MPS * allianceFlip;
               double omegaRadPerSec =
                   rightX * Constants.DriveConstants.MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC;
+
+              // ===== Trench Assist =====
+              // Two effects when near a trench:
+              // 1. Chassis orientation alignment — injects omega to rotate bumpers toward
+              //    the nearest cardinal so the robot physically fits through the tunnel.
+              // 2. Lateral centering — deflects velocity direction toward the trench's
+              //    center Y line, guiding the travel path to the middle of the corridor.
+              Translation2d bluePos = swerveIO.getPose().getTranslation();
+              Rotation2d robotHeading = swerveIO.getPose().getRotation();
+              // Convert to blue-origin if on red alliance (field geometry is defined in blue)
+              if (isRed) {
+                bluePos = FieldConstants.flipTranslation(bluePos);
+                // Flip heading too: red heading is 180° offset from blue
+                robotHeading = robotHeading.plus(Rotation2d.fromDegrees(180));
+              }
+
+              // 1. Orientation alignment — adds omega correction to rotate chassis to cardinal
+              //    Reuses DriveToPose.ROTATION_KP — no separate heading gain needed.
+              double trenchBuffer = Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER;
+              double orientationOmega =
+                  FieldConstants.getTrenchOrientationOmega(
+                      bluePos,
+                      robotHeading,
+                      vxMetersPerSec,
+                      vyMetersPerSec,
+                      Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
+                      Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
+                      Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
+                      Constants.DriveConstants.DriveToPose.ROTATION_KP,
+                      Constants.DriveConstants.TrenchAssist.MAX_ORIENTATION_OMEGA_RAD_PER_SEC,
+                      trenchBuffer);
+              omegaRadPerSec += orientationOmega;
+
+              // 2. Lateral centering — deflects velocity toward trench center Y
+              //    + Wall avoidance — prevents bumpers from touching trench walls
+              double[] assisted =
+                  FieldConstants.applyTrenchAssist(
+                      bluePos,
+                      vxMetersPerSec,
+                      vyMetersPerSec,
+                      Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
+                      Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
+                      Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
+                      Constants.DriveConstants.TrenchAssist.CENTERING_DEG_PER_METER,
+                      Constants.DriveConstants.TrenchAssist.MAX_CENTERING_DEG,
+                      trenchBuffer,
+                      Constants.DriveConstants.TrenchAssist.ROBOT_HALF_WIDTH_M,
+                      Constants.DriveConstants.TrenchAssist.WALL_REPULSION_MPS_PER_METER,
+                      Constants.DriveConstants.TrenchAssist.WALL_DANGER_ZONE_M);
+              vxMetersPerSec = assisted[0];
+              vyMetersPerSec = assisted[1];
+
+              // Log trench assist telemetry
+              double blendFactor =
+                  FieldConstants.getTrenchBlendFactor(
+                      bluePos,
+                      Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
+                      trenchBuffer);
+              Logger.recordOutput("Drive/TrenchAssist/BlendFactor", blendFactor);
+              Logger.recordOutput("Drive/TrenchAssist/Active", blendFactor > 1e-4);
+              Logger.recordOutput("Drive/TrenchAssist/CenteringDeg", assisted[2]);
+              Logger.recordOutput("Drive/TrenchAssist/OrientationOmega", orientationOmega);
+
               swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
             swerveIO));

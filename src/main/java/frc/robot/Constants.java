@@ -141,7 +141,7 @@ public final class Constants {
     public static final boolean USE_MAPLE_SIM = true;
     public static final double ROBOT_WEIGHT_KILOGRAMS = 30.0;
     public static final double BUMPER_LENGTH_INCHES = 32.0;
-    public static final double BUMPER_WIDTH_INCHES = 32.0;
+    public static final double BUMPER_WIDTH_INCHES = 35.055;
     public static final int DRIVE_MOTOR_COUNT = 1;
     public static final double WHEEL_COEFFICIENT_OF_FRICTION = 1.2;
 
@@ -175,15 +175,90 @@ public final class Constants {
       public static final double ROTATION_TOLERANCE = Units.degreesToRadians(1);
     }
 
-    public static class AutoAim {
-      // PID constants for auto-aiming at a target while driving
-      public static final double HEADING_KP = 5.0;
-      public static final double HEADING_KI = 0.0;
-      public static final double HEADING_KD = 0.1;
+    /**
+     * Trench Teleop Assist tuning. When the robot is near a trench, two effects activate:
+     *
+     * <ol>
+     *   <li><b>Chassis orientation alignment</b> — injects omega (rotational velocity) to LERP the
+     *       robot's heading toward the nearest cardinal direction, so the bumpers fit through the
+     *       22.25in tunnel. This modifies {@code omega}, not the velocity direction.
+     *   <li><b>Lateral centering</b> — deflects the velocity vector toward the trench's center Y
+     *       line, guiding the travel path toward the middle of the 48in corridor. Speed magnitude
+     *       is preserved.
+     * </ol>
+     *
+     * Both effects ramp from 0 at the buffer edge to full strength inside the trench.
+     */
+    public static class TrenchAssist {
+      /** Maximum blend factor (0–1). 0.7 = the driver always retains at least 30% authority. */
+      public static final double MAX_BLEND_FACTOR = 0.8;
 
-      // Feedforward to compensate for changing angle while driving
-      // Higher value = more aggressive prediction of needed rotation
-      public static final double HEADING_KV = 0.8;
+      /**
+       * Teleop approach buffer (meters). How far outside the trench walls the assist begins
+       * ramping. Independent from {@link
+       * frc.robot.auto.dashboard.FieldConstants#TRENCH_APPROACH_BUFFER} which is used by auto
+       * heading snap and Superstructure hood stow. Larger = assist starts earlier, more time to
+       * center.
+       */
+      public static final double APPROACH_BUFFER = 2.0;
+
+      /**
+       * Minimum speed (m/s) below which the assist is inactive. Prevents the assist from
+       * interfering with fine positioning / stationary rotation near the trench.
+       */
+      public static final double MIN_SPEED_MPS = 0.5;
+
+      /**
+       * Maximum angular error (degrees) between the velocity vector and the nearest cardinal before
+       * the assist activates. If the driver is traveling perpendicular to the trench, they clearly
+       * don't intend to go through it — don't fight them.
+       */
+      public static final double MAX_HEADING_ERROR_DEG = 50.0;
+
+      /**
+       * Lateral centering strength (deg per meter of offset). The trench half-width is ~0.61m, so
+       * 35°/m gives ~21° at the wall — a noticeable but gentle nudge toward center. Lower values
+       * feel more like a suggestion, higher values feel like rails.
+       */
+      public static final double CENTERING_DEG_PER_METER = 45.0;
+
+      /**
+       * Maximum centering deflection angle (degrees). At 25° the lateral component is ~42% of speed
+       * — enough to guide you toward center without stealing all your forward momentum.
+       */
+      public static final double MAX_CENTERING_DEG = 30.0;
+
+      /**
+       * Maximum omega correction (rad/s) for orientation alignment. Caps the injected rotational
+       * rate so the trench assist doesn't spin the robot violently. The heading P-gain itself is
+       * reused from {@link DriveToPose#ROTATION_KP} — no separate KP needed.
+       */
+      public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 2.0;
+
+      // === Wall Avoidance ===
+
+      /**
+       * Half the robot's bumper width in meters. Used to compute the position of the robot's bumper
+       * edges relative to trench walls. 32in bumper → 16in → 0.406m.
+       */
+      public static final double ROBOT_HALF_WIDTH_M =
+          Units.inchesToMeters(BUMPER_WIDTH_INCHES / 2.0);
+
+      /**
+       * Wall repulsion gain (m/s of lateral push per meter of encroachment into the danger zone).
+       * Higher = harder virtual wall. At 4.0, a 0.1m encroachment produces 0.4 m/s of push-back —
+       * firm enough to prevent wall contact without feeling like a spring.
+       */
+      public static final double WALL_REPULSION_MPS_PER_METER = 5.0;
+
+      /**
+       * Distance (meters) from a trench wall at which the repulsion force begins, measured from the
+       * robot's <b>bumper edge</b> (the distance calculation already accounts for {@link
+       * #ROBOT_HALF_WIDTH_M}). The trench has only ~0.20m of clearance per side, so this should be
+       * small — just enough to catch the robot before contact. At 0.12m the repulsion activates
+       * when the bumper is ~4.7in from the wall.
+       */
+      public static final double WALL_DANGER_ZONE_M = 0.12;
     }
   }
 

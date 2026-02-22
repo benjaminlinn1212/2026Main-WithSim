@@ -907,17 +907,22 @@ public class AutoCommandBuilder {
    * tracks in real-time via ShooterSetpoint.
    *
    * <p>Architecture: a single {@link Commands#deadline} with the pathfind as backbone and a
-   * continuous {@link Commands#run} loop that checks zone + acceleration every cycle:
+   * continuous {@link Commands#run} loop that checks zone, hood readiness, and acceleration every
+   * cycle:
    *
    * <ul>
    *   <li><b>Neutral/opponent zone:</b> ONLY_INTAKE (turret stowed, just collect FUEL)
-   *   <li><b>Alliance zone, high accel:</b> AIMING_WHILE_INTAKING (turret tracks, no feed)
-   *   <li><b>Alliance zone, low accel:</b> SHOOTING_WHILE_INTAKING (turret tracks + feed)
+   *   <li><b>Aiming zone, hood not at setpoint:</b> AIMING_WHILE_INTAKING (turret tracks, hood
+   *       deploying, no feed)
+   *   <li><b>Aiming zone, hood ready, high accel:</b> AIMING_WHILE_INTAKING (turret tracks, no
+   *       feed)
+   *   <li><b>Aiming zone, hood ready, low accel:</b> SHOOTING_WHILE_INTAKING (turret tracks + feed)
    * </ul>
    *
    * <p>Acceleration gating uses hysteresis ({@link #FEED_ACCEL_HYSTERESIS}) to prevent stutter. The
-   * robot shoots whenever acceleration is low — not just once — and pauses feeding when
-   * accelerating hard. When the path ends, a zone-aware default state is applied.
+   * robot shoots whenever acceleration is low AND hood is settled — not just once — and pauses
+   * feeding when accelerating hard or hood leaves setpoint. When the path ends, a zone-aware
+   * default state is applied.
    *
    * @param destination Where the robot is actually driving to
    * @param logLabel Label for logging (scoring waypoint name or "TOWER_TRANSIT")
@@ -929,35 +934,17 @@ public class AutoCommandBuilder {
         Commands.deadline(
             // Deadline: the path finishing is what ends this group
             pathfindTo(destination),
-            // Continuous zone-aware shooting: every cycle, check zone + accel and toggle
-            // between AIMING_WHILE_INTAKING and SHOOTING_WHILE_INTAKING. This ensures the
-            // robot shoots whenever accel is low (not just once) and stops shooting when
-            // accel spikes or when in neutral/opponent zone.
+            // Continuous zone-aware shooting: every cycle, check zone + hood + accel and
+            // toggle between AIMING_WHILE_INTAKING and SHOOTING_WHILE_INTAKING. This
+            // ensures the robot shoots whenever accel is low and hood is settled (not just
+            // once) and stops shooting when accel spikes, hood leaves setpoint, or when
+            // in neutral/opponent zone.
             Commands.run(
                 () -> {
-                  if (isOutsideAllianceZone()) {
-                    // Outside alliance zone — just intake, no aiming
-                    zoneAwareFeeding = false;
-                    superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_INTAKE);
-                  } else {
-                    double accel = drive.getFilteredAcceleration();
-                    if (zoneAwareFeeding) {
-                      if (accel > MAX_FEED_ACCELERATION + FEED_ACCEL_HYSTERESIS) {
-                        zoneAwareFeeding = false;
-                      }
-                    } else {
-                      if (accel <= MAX_FEED_ACCELERATION) {
-                        zoneAwareFeeding = true;
-                      }
-                    }
-                    if (zoneAwareFeeding) {
-                      superstructure.forceWantedState(
-                          Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
-                    } else {
-                      superstructure.forceWantedState(
-                          Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
-                    }
-                  }
+                  updateZoneAwareFeeding(
+                      Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
+                      Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
+                      Superstructure.SuperstructureState.ONLY_INTAKE);
                   Logger.recordOutput("DashboardAuto/SWD/Label", logLabel);
                   Logger.recordOutput("DashboardAuto/SWD/Feeding", zoneAwareFeeding);
                 },
@@ -996,35 +983,21 @@ public class AutoCommandBuilder {
    */
   private Command buildIntakeAt(AutoAction.IntakeAt action) {
     FieldConstants.IntakeLocation loc = action.getLocation();
-    boolean allianceZoneIntake =
-        loc.zone == FieldConstants.Zone.ALLIANCE_ZONE
-            || loc.zone == FieldConstants.Zone.OUTPOST_AREA;
-
     Pose2d intakePose = loc.getPose();
 
-    if (allianceZoneIntake) {
-      // Alliance-zone intake (OUTPOST / DEPOT): zone-aware intake + current monitor during drive
-      return Commands.sequence(
-              Commands.print("[DashboardAuto] Intaking at " + loc.name() + " (alliance zone)"),
-              // Reset the pickup latch before starting the drive
-              Commands.runOnce(() -> intakePickedUp = false),
-              // Drive with zone-aware intake AND current monitoring in parallel
-              Commands.deadline(pathfindTo(intakePose), zoneAwareIntake(), intakeCurrentMonitor()),
-              // Upon arrival: check latch immediately — nudge if no FUEL detected during drive
-              waitForIntakePickup(intakePose))
-          .withName("IntakeAt_" + loc.name());
-    } else {
-      // Neutral zone intake — zone-aware intake + current monitor during drive
-      return Commands.sequence(
-              Commands.print("[DashboardAuto] Intaking at " + loc.name()),
-              // Reset the pickup latch before starting the drive
-              Commands.runOnce(() -> intakePickedUp = false),
-              // Drive with zone-aware intake AND current monitoring in parallel
-              Commands.deadline(pathfindTo(intakePose), zoneAwareIntake(), intakeCurrentMonitor()),
-              // Upon arrival: check latch immediately — nudge if no FUEL detected during drive
-              waitForIntakePickup(intakePose))
-          .withName("IntakeAt_" + loc.name());
-    }
+    // All intakes use the same logic: zone-aware intake + current monitor during drive,
+    // then check pickup latch on arrival. The zone-aware command automatically handles
+    // the correct superstructure state based on field position (aiming in alliance/HUB
+    // zone, intake-only in neutral zone).
+    return Commands.sequence(
+            Commands.print("[DashboardAuto] Intaking at " + loc.name()),
+            // Reset the pickup latch before starting the drive
+            Commands.runOnce(() -> intakePickedUp = false),
+            // Drive with zone-aware intake AND current monitoring in parallel
+            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake(), intakeCurrentMonitor()),
+            // Upon arrival: check latch immediately — nudge if no FUEL detected during drive
+            waitForIntakePickup(intakePose))
+        .withName("IntakeAt_" + loc.name());
   }
 
   /** Drive to an arbitrary pose. */
@@ -1066,8 +1039,10 @@ public class AutoCommandBuilder {
                 // Group 1: Drive to climb pose with continuous accel-gated shooting
                 Commands.deadline(
                     pathfindThenDriveStraight(climbTarget),
-                    // Continuous shooting loop: ONLY_AIMING when accel high, ONLY_SHOOTING
-                    // when accel low. No intake (stowing for climb). Idle when within 1m.
+                    // Continuous zone-aware shooting loop: ONLY_AIMING when accel high,
+                    // ONLY_SHOOTING when accel low. No intake (stowing for climb).
+                    // IDLE when outside alliance zone (turret stowed — can't score from
+                    // neutral zone) or within 1m of climb pose (final approach).
                     Commands.run(
                         () -> {
                           double distToTarget =
@@ -1077,26 +1052,14 @@ public class AutoCommandBuilder {
                                   .getDistance(climbTarget.getTranslation());
                           if (distToTarget <= 1.0) {
                             // Within 1m of climb pose — stow everything for final approach
+                            zoneAwareFeeding = false;
                             superstructure.forceWantedState(
                                 Superstructure.SuperstructureState.IDLE);
                           } else {
-                            double accel = drive.getFilteredAcceleration();
-                            if (zoneAwareFeeding) {
-                              if (accel > MAX_FEED_ACCELERATION + FEED_ACCEL_HYSTERESIS) {
-                                zoneAwareFeeding = false;
-                              }
-                            } else {
-                              if (accel <= MAX_FEED_ACCELERATION) {
-                                zoneAwareFeeding = true;
-                              }
-                            }
-                            if (zoneAwareFeeding) {
-                              superstructure.forceWantedState(
-                                  Superstructure.SuperstructureState.ONLY_SHOOTING);
-                            } else {
-                              superstructure.forceWantedState(
-                                  Superstructure.SuperstructureState.ONLY_AIMING);
-                            }
+                            updateZoneAwareFeeding(
+                                Superstructure.SuperstructureState.ONLY_SHOOTING,
+                                Superstructure.SuperstructureState.ONLY_AIMING,
+                                Superstructure.SuperstructureState.IDLE);
                           }
                           Logger.recordOutput(
                               "DashboardAuto/ClimbTransit/Feeding", zoneAwareFeeding);
@@ -1114,16 +1077,17 @@ public class AutoCommandBuilder {
   }
 
   /**
-   * Standalone climb (fallback when no DriveTo precedes the Climb action). Enters climb mode and
-   * executes extend → retract at the current position.
+   * Standalone climb (fallback when no DriveTo precedes the Climb action). Idles the superstructure
+   * and executes extend → retract at the current position. Climb is independent — same system as
+   * teleop.
    */
   private Command buildClimb(AutoAction.Climb action) {
     return Commands.sequence(
             Commands.print("[DashboardAuto] Climbing TOWER " + action.getClimbLevel().name()),
-            // Stop intake — climb mode requires all mechanisms stowed
+            // Idle superstructure so intake stows (clearance for arms)
             superstructure.idle(),
-            superstructure.enterClimbMode(),
-            // Extend arms then retract — uses ClimbSubsystem directly
+            Commands.waitUntil(() -> superstructure.isIntakeStowed()),
+            // Extend arms then retract — same ClimbSubsystem API as teleop
             climb.setStateCommand(ClimbState.EXTEND_L1_AUTO),
             Commands.print("[DashboardAuto] Retracting"),
             climb.setStateCommand(ClimbState.RETRACT_L1_AUTO))
@@ -1329,37 +1293,75 @@ public class AutoCommandBuilder {
   }
 
   /**
-   * Check if the robot is currently outside the alliance zone (beyond the ROBOT STARTING LINE).
-   * Uses a simple X-coordinate threshold — no complex zone enum needed.
+   * Check if the robot is currently outside the aiming zone (in the neutral zone or beyond). Uses a
+   * simple X-coordinate threshold — no complex zone enum needed.
+   *
+   * <p>The aiming zone includes both the ALLIANCE_ZONE and the HUB_ZONE (up to NEUTRAL_ZONE.minX =
+   * 5.50m). The turret starts aiming as soon as the robot leaves the neutral zone.
    *
    * <p>The robot pose from odometry is alliance-relative (seeded via alliance-flipped StartPose).
    * We convert to blue-origin for the check.
    */
-  private boolean isOutsideAllianceZone() {
+  private boolean isOutsideAimingZone() {
     var translation = drive.getPose().getTranslation();
     // Convert alliance coords to blue-origin for the X check
     double blueX =
         FieldConstants.isRedAlliance()
             ? FieldConstants.FIELD_LENGTH - translation.getX()
             : translation.getX();
-    return blueX > ALLIANCE_SIDE_MAX_X;
+    return blueX > AIMING_ZONE_MAX_X;
+  }
+
+  /**
+   * Shared zone-aware feeding logic used by {@link #zoneAwareIntake()}, {@link
+   * #buildShootWhileDrivingCore}, and {@link #buildDriveAndClimb}. Updates the {@link
+   * #zoneAwareFeeding} hysteresis latch and applies the appropriate superstructure state.
+   *
+   * <p>When outside the aiming zone, applies {@code outsideState} and resets the latch. Inside the
+   * aiming zone, uses acceleration + hood readiness with hysteresis to decide between {@code
+   * feedingState} and {@code aimingState}.
+   *
+   * @param feedingState State to apply when feeding (low accel + hood ready)
+   * @param aimingState State to apply when aiming but not feeding
+   * @param outsideState State to apply when outside the aiming zone
+   */
+  private void updateZoneAwareFeeding(
+      Superstructure.SuperstructureState feedingState,
+      Superstructure.SuperstructureState aimingState,
+      Superstructure.SuperstructureState outsideState) {
+    if (isOutsideAimingZone()) {
+      zoneAwareFeeding = false;
+      superstructure.forceWantedState(outsideState);
+    } else {
+      boolean hoodReady = superstructure.isHoodAtSetpoint();
+      double accel = drive.getFilteredAcceleration();
+      if (zoneAwareFeeding) {
+        if (accel > MAX_FEED_ACCELERATION + FEED_ACCEL_HYSTERESIS || !hoodReady) {
+          zoneAwareFeeding = false;
+        }
+      } else {
+        if (accel <= MAX_FEED_ACCELERATION && hoodReady) {
+          zoneAwareFeeding = true;
+        }
+      }
+      superstructure.forceWantedState(zoneAwareFeeding ? feedingState : aimingState);
+    }
   }
 
   /**
    * Return an <b>instant</b> command that sets the superstructure to the correct default state
-   * based on the robot's current field zone. In the alliance/HUB zone, the default is
+   * based on the robot's current field zone. In the aiming zone (alliance + HUB), the default is
    * AIMING_WHILE_INTAKING so the turret always tracks the HUB. In the neutral/opponent zone, the
    * default is ONLY_INTAKE (turret stowed).
    *
    * <p>Use this instead of {@code superstructure.onlyIntake()} whenever the auto command needs a
    * "reset to default" after a scoring or intake action. This ensures the robot is always aiming
-   * when it is in the alliance zone — the user's requirement is that aiming stops when the robot
-   * leaves the alliance zone.
+   * when it is in the aiming zone.
    */
   private Command zoneAwareDefaultState() {
     return Commands.runOnce(
             () -> {
-              if (isOutsideAllianceZone()) {
+              if (isOutsideAimingZone()) {
                 superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_INTAKE);
               } else {
                 superstructure.forceWantedState(
@@ -1371,19 +1373,23 @@ public class AutoCommandBuilder {
 
   /**
    * Build a zone-aware intake command that continuously manages the superstructure state based on
-   * the robot's field zone and acceleration:
+   * the robot's field zone, acceleration, and hood readiness:
    *
    * <ul>
-   *   <li><b>Outside alliance zone:</b> ONLY_INTAKE — turret stowed, just collect FUEL.
-   *   <li><b>Alliance zone, high acceleration:</b> AIMING_WHILE_INTAKING — turret tracks HUB, but
-   *       don't feed yet (shots inaccurate while accelerating).
-   *   <li><b>Alliance zone, low acceleration:</b> SHOOTING_WHILE_INTAKING — turret tracks HUB AND
-   *       conveyor/indexer feed FUEL. Opportunistic scoring whenever the robot is cruising near the
-   *       HUB.
+   *   <li><b>Outside aiming zone (neutral/opponent):</b> ONLY_INTAKE — turret stowed, just collect
+   *       FUEL.
+   *   <li><b>In aiming zone, hood not at setpoint:</b> AIMING_WHILE_INTAKING — turret tracks HUB
+   *       and hood deploys, but don't feed yet (hood still moving after leaving trench).
+   *   <li><b>In aiming zone, hood at setpoint, high acceleration:</b> AIMING_WHILE_INTAKING —
+   *       turret tracks HUB, but don't feed (shots inaccurate while accelerating).
+   *   <li><b>In aiming zone, hood at setpoint, low acceleration:</b> SHOOTING_WHILE_INTAKING —
+   *       turret tracks HUB AND conveyor/indexer feed FUEL. Opportunistic scoring whenever the
+   *       robot is cruising near the HUB with hood settled.
    * </ul>
    *
    * <p>This turns the robot into a continuous opportunistic shooter during auto — any time it's in
-   * the alliance zone and not accelerating hard, it dumps FUEL into the HUB.
+   * the aiming zone, the hood is settled, and it's not accelerating hard, it dumps FUEL into the
+   * HUB.
    *
    * <p>This is auto-specific behavior — in teleop the driver controls when to shoot.
    *
@@ -1392,40 +1398,13 @@ public class AutoCommandBuilder {
   private Command zoneAwareIntake() {
     return Commands.run(
             () -> {
-              boolean outsideAlliance = isOutsideAllianceZone();
+              updateZoneAwareFeeding(
+                  Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
+                  Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
+                  Superstructure.SuperstructureState.ONLY_INTAKE);
 
-              if (outsideAlliance) {
-                // Outside alliance zone — just intake, turret stowed
-                zoneAwareFeeding = false;
-                superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_INTAKE);
-              } else {
-                // In alliance zone — decide between aiming and shooting
-                double accel = drive.getFilteredAcceleration();
-
-                // Hysteresis: once feeding starts, keep feeding until accel exceeds the
-                // upper threshold. Once stopped, don't restart until accel drops below
-                // the lower threshold. Prevents stutter at the boundary.
-                if (zoneAwareFeeding) {
-                  if (accel > MAX_FEED_ACCELERATION + FEED_ACCEL_HYSTERESIS) {
-                    zoneAwareFeeding = false;
-                  }
-                } else {
-                  if (accel <= MAX_FEED_ACCELERATION) {
-                    zoneAwareFeeding = true;
-                  }
-                }
-
-                if (zoneAwareFeeding) {
-                  superstructure.forceWantedState(
-                      Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
-                } else {
-                  superstructure.forceWantedState(
-                      Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
-                }
-              }
-
-              // Logging
-              Logger.recordOutput("DashboardAuto/ZoneAware/OutsideAlliance", outsideAlliance);
+              Logger.recordOutput(
+                  "DashboardAuto/ZoneAware/OutsideAimingZone", isOutsideAimingZone());
               Logger.recordOutput("DashboardAuto/ZoneAware/Feeding", zoneAwareFeeding);
             },
             superstructure) // Require superstructure — prevents other commands from overwriting

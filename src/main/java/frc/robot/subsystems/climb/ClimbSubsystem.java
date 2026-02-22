@@ -41,10 +41,14 @@ public class ClimbSubsystem extends SubsystemBase {
 
   // ─── Mechanism2d visualization ───
   // Canvas origin is the back winch (0,0). Canvas sized to contain workspace.
-  private static final double CANVAS_OFFSET_X = 0.3; // padding left of origin
-  private static final double CANVAS_OFFSET_Y = 0.1; // padding below origin
+  // In AdvantageScope 3D, the robot origin maps to canvas (CANVAS_W/2, 0).
+  // To place climb (0,0) at drivetrain-relative (x=-0.1, z=0.05):
+  //   CANVAS_OFFSET_X = CANVAS_W/2 + (-0.1) = 0.6
+  //   CANVAS_OFFSET_Y = 0.05
   private static final double CANVAS_W = 1.4;
   private static final double CANVAS_H = 1.4;
+  private static final double CANVAS_OFFSET_X = CANVAS_W / 2.0 + (-0.1); // climb (0,0) at x=-0.1m
+  private static final double CANVAS_OFFSET_Y = 0.05; // climb (0,0) at z=0.05m
 
   private final Mechanism2d mechanism;
   // Target: shoulder→link1→link2 (blue)
@@ -362,6 +366,89 @@ public class ClimbSubsystem extends SubsystemBase {
         .withName("AutoClimbL1");
   }
 
+  /**
+   * Release from auto L1 climb by reversing RETRACT_L1_AUTO. After auto ends with the robot latched
+   * at RETRACT_L1_AUTO, this reverses the retract path back to the EXTEND_L1_AUTO position (arm
+   * extended, released from bar). Use {@link #stowFromCurrentState()} (POV Down) afterward to stow
+   * the arm back to STOWED.
+   *
+   * <p>Only takes effect when the current state is RETRACT_L1_AUTO. If the robot is in a different
+   * state, this is a no-op.
+   */
+  public Command releaseFromAutoL1() {
+    return runPath(
+            () -> {
+              if (currentState != ClimbState.RETRACT_L1_AUTO) return null;
+              List<Translation2d> reversed = ClimbState.RETRACT_L1_AUTO.getReversedWaypoints();
+              double duration = ClimbState.RETRACT_L1_AUTO.getDefaultDuration();
+              // Reversing a pull = not pulling (going back up)
+              boolean isPulling = !ClimbState.RETRACT_L1_AUTO.isPulling();
+              currentState = ClimbState.EXTEND_L1_AUTO;
+              Logger.recordOutput("Climb/CurrentState", currentState.getName());
+              return new PathParams(reversed, duration, isPulling);
+            },
+            "ReleaseAutoL1_ReverseRetract")
+        .withName("ReleaseFromAutoL1");
+  }
+
+  /**
+   * Stow the climb by following reverse paths back to STOWED from the current state. Instead of
+   * teleporting, this chains reverse path segments through each intermediate state until STOWED is
+   * reached. Uses the same reversed-waypoint logic as {@link #previousState()}.
+   *
+   * <p>Handles both teleop states (EXTEND_L1, RETRACT_L1, etc.) and auto states (EXTEND_L1_AUTO,
+   * RETRACT_L1_AUTO). If already at STOWED, this is a no-op.
+   */
+  public Command stowFromCurrentState() {
+    // Build a command that repeatedly reverses through states until STOWED.
+    // Each step is a runPath that checks the current state, reverses its path,
+    // and moves to the previous state. Runs up to 6 steps (max depth from RETRACT_L3).
+    Command stowSequence = Commands.none();
+    for (int i = 0; i < 7; i++) {
+      stowSequence =
+          stowSequence.andThen(
+              runPath(
+                  () -> {
+                    if (currentState == ClimbState.STOWED) return null; // already home
+
+                    // For auto states, map them to the correct reverse path
+                    if (currentState == ClimbState.RETRACT_L1_AUTO) {
+                      List<Translation2d> reversed =
+                          ClimbState.RETRACT_L1_AUTO.getReversedWaypoints();
+                      double duration = ClimbState.RETRACT_L1_AUTO.getDefaultDuration();
+                      boolean isPulling = !ClimbState.RETRACT_L1_AUTO.isPulling();
+                      currentState = ClimbState.EXTEND_L1_AUTO;
+                      Logger.recordOutput("Climb/CurrentState", currentState.getName());
+                      return new PathParams(reversed, duration, isPulling);
+                    }
+                    if (currentState == ClimbState.EXTEND_L1_AUTO) {
+                      List<Translation2d> reversed =
+                          ClimbState.EXTEND_L1_AUTO.getReversedWaypoints();
+                      double duration = ClimbState.EXTEND_L1_AUTO.getDefaultDuration();
+                      boolean isPulling = !ClimbState.EXTEND_L1_AUTO.isPulling();
+                      currentState = ClimbState.STOWED;
+                      Logger.recordOutput("Climb/CurrentState", currentState.getName());
+                      return new PathParams(reversed, duration, isPulling);
+                    }
+
+                    // For teleop states, use the standard previousState logic
+                    ClimbState prev = currentState.getPreviousState();
+                    if (prev == null || !currentState.hasPrePlannedPath()) {
+                      if (prev != null) setState(prev);
+                      return null;
+                    }
+                    List<Translation2d> reversed = currentState.getReversedWaypoints();
+                    double duration = currentState.getDefaultDuration();
+                    boolean isPulling = !currentState.isPulling();
+                    currentState = prev;
+                    Logger.recordOutput("Climb/CurrentState", prev.getName());
+                    return new PathParams(reversed, duration, isPulling);
+                  },
+                  "StowStep_" + i));
+    }
+    return stowSequence.withName("StowFromCurrentState");
+  }
+
   // -- Helper: reusable path-following command --
 
   private record PathParams(List<Translation2d> waypoints, double duration, boolean isPulling) {}
@@ -626,58 +713,6 @@ public class ClimbSubsystem extends SubsystemBase {
   public Command stowHooksCommand() {
     Command cmd = runOnce(this::stowHooks);
     cmd.setName("ClimbStowHooks");
-    return cmd;
-  }
-
-  // ===========================================================================
-  // SERVO TEST (PWM 0)
-  // ===========================================================================
-
-  /** Command to set the right hook servo to 0° (position 0.0). */
-  public Command servoTo0Deg() {
-    Command cmd =
-        runOnce(
-            () -> {
-              io.setRightHookPosition(0.0);
-              Logger.recordOutput("Climb/ServoTestPosition", 0.0);
-            });
-    cmd.setName("ClimbServoTo0Deg");
-    return cmd;
-  }
-
-  /** Command to set the right hook servo to 90° (position 90/270 ≈ 0.333). */
-  public Command servoTo90Deg() {
-    Command cmd =
-        runOnce(
-            () -> {
-              io.setRightHookPosition(90.0 / 270.0);
-              Logger.recordOutput("Climb/ServoTestPosition", 90.0 / 270.0);
-            });
-    cmd.setName("ClimbServoTo90Deg");
-    return cmd;
-  }
-
-  /** Command to set the right hook servo to 180° (position 180/270 ≈ 0.667). */
-  public Command servoTo180Deg() {
-    Command cmd =
-        runOnce(
-            () -> {
-              io.setRightHookPosition(180.0 / 270.0);
-              Logger.recordOutput("Climb/ServoTestPosition", 180.0 / 270.0);
-            });
-    cmd.setName("ClimbServoTo180Deg");
-    return cmd;
-  }
-
-  /** Command to set the right hook servo to 270° (position 1.0). */
-  public Command servoTo270Deg() {
-    Command cmd =
-        runOnce(
-            () -> {
-              io.setRightHookPosition(1.0);
-              Logger.recordOutput("Climb/ServoTestPosition", 1.0);
-            });
-    cmd.setName("ClimbServoTo270Deg");
     return cmd;
   }
 

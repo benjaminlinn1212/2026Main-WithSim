@@ -255,6 +255,7 @@ public final class Constants {
 
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0; // Stowed/up position
+    public static final double HALF_DEPLOYED_POSITION = 14.0; // Halfway between stowed and deployed
     public static final double DEPLOYED_POSITION = 27.8; // Extended/down position for intaking
 
     // Position Tolerance

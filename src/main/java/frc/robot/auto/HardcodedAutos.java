@@ -121,7 +121,7 @@ public class HardcodedAutos {
 
     Command auto =
         Commands.sequence(
-            // Reset superstructure state (in case previous auto ended in CLIMB_MODE)
+            // Reset superstructure state (in case previous auto ended in EMERGENCY)
             Commands.runOnce(() -> superstructure.forceIdleState()),
 
             // Log start

@@ -153,8 +153,9 @@ public final class FieldConstants {
   // Boundaries are axis-aligned rectangles: (minX, minY) to (maxX, maxY) in meters.
   // The planner uses these for constraint-checking and spatial queries.
   //
-  // NOTE: AutoCommandBuilder.ALLIANCE_SIDE_MAX_X uses ALLIANCE_ZONE.maxX (3.60m) as the aiming
-  // threshold. The turret stops aiming when the robot leaves the alliance zone.
+  // NOTE: AutoTuning.AIMING_ZONE_MAX_X uses NEUTRAL_ZONE.minX (5.50m) as the aiming
+  // threshold. The turret starts aiming when the robot leaves the neutral zone (enters HUB zone).
+  // The hood stays stowed independently via trench detection until the robot clears the trench.
   //
   // Field layout (blue origin, X right, Y up):
   //   x=0.00        x=2.00    x=3.60    x=5.2  x=5.50       x=8.27         x=11.04       x=16.54

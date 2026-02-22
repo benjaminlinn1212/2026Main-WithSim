@@ -141,12 +141,17 @@ public final class AutoTuning {
   // ===== Zone-Aware Aiming Threshold =====
 
   /**
-   * X-coordinate threshold (blue-origin meters) separating the alliance zone from everything else.
-   * Everything with blue-origin X ≤ this value is inside the ALLIANCE_ZONE (behind the ROBOT
-   * STARTING LINE). Above this — HUB zone, neutral zone, opponent side — the robot stows the turret
-   * and uses ONLY_INTAKE.
+   * X-coordinate threshold (blue-origin meters) separating the aiming zone from the no-aim zone.
+   * Everything with blue-origin X ≤ this value is inside the aiming zone (ALLIANCE_ZONE +
+   * HUB_ZONE). Above this — neutral zone, opponent side — the robot stows the turret and uses
+   * ONLY_INTAKE.
    *
-   * <p>Derived from {@link FieldConstants.Zone#ALLIANCE_ZONE} maxX.
+   * <p>Derived from {@link FieldConstants.Zone#NEUTRAL_ZONE} minX. The turret starts aiming as soon
+   * as the robot leaves the neutral zone (enters the HUB zone), giving extra time for the
+   * turret/shooter to settle before reaching optimal scoring range.
+   *
+   * <p>Note: the hood is still stowed independently by the Superstructure's trench detection — even
+   * though the turret can aim in the HUB zone, the hood stays stowed until clear of the trench.
    */
-  public static final double ALLIANCE_SIDE_MAX_X = FieldConstants.Zone.ALLIANCE_ZONE.maxX; // 3.60m
+  public static final double AIMING_ZONE_MAX_X = FieldConstants.Zone.NEUTRAL_ZONE.minX; // 5.50m
 }

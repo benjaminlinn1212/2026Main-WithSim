@@ -221,16 +221,22 @@ public class ShooterSetpoint {
   // ===== Calculation Methods (6328-style physics with current project's turret logic) =====
 
   /**
-   * Determines if robot is in neutral zone (between the two hub targets). Returns true if robot
-   * should shoot back towards alliance wall instead of at hub.
+   * Determines if robot is outside the aiming zone (past the HUB zone boundary). Returns true if
+   * the robot should shoot back towards the alliance wall instead of at the hub.
+   *
+   * <p>Uses the same X=5.5m threshold (NEUTRAL_ZONE.minX) as AutoTuning's AIMING_ZONE_MAX_X. The
+   * robot's blue-origin X is compared against this boundary — if beyond it, the robot is in the
+   * neutral zone and should do a feedback shot towards the alliance wall.
    */
-  private static boolean isInNeutralZone(Pose2d robotPose, Translation3d target) {
-    double robotX = robotPose.getX();
-    double blueTargetX = FieldConstants.BLUE_HUB_TRANSLATION3D.getX();
-    double redTargetX = FieldConstants.RED_HUB_POSE_TRANSLATION3D.getX();
+  private static boolean isInNeutralZone(Pose2d robotPose) {
+    // Convert to blue-origin X for consistent zone checking
+    Optional<Alliance> alliance = DriverStation.getAlliance();
+    boolean isBlueAlliance = alliance.isEmpty() || alliance.get() == Alliance.Blue;
+    double blueX =
+        isBlueAlliance ? robotPose.getX() : FieldConstants.FIELD_LENGTH - robotPose.getX();
 
-    // Robot is in neutral zone if it's between the two hub targets
-    return robotX > blueTargetX && robotX < redTargetX;
+    // Robot is in neutral zone if past X=5.50m (NEUTRAL_ZONE.minX)
+    return blueX > FieldConstants.Zone.NEUTRAL_ZONE.minX;
   }
 
   /**
@@ -249,7 +255,7 @@ public class ShooterSetpoint {
             : FieldConstants.RED_HUB_POSE_TRANSLATION3D;
 
     // Check if in neutral zone
-    if (isInNeutralZone(robotPose, hubTarget)) {
+    if (isInNeutralZone(robotPose)) {
       // Shoot back towards alliance wall
       if (isBlueAlliance) {
         // Blue: shoot towards X=0 (blue wall)
@@ -298,7 +304,7 @@ public class ShooterSetpoint {
 
     // Select target (hub or alliance wall if in neutral zone)
     Translation3d target = getSmartTarget(robotPose);
-    boolean isNeutralZoneShot = isInNeutralZone(robotPose, target);
+    boolean isNeutralZoneShot = isInNeutralZone(robotPose);
 
     if (isNeutralZoneShot) {
       return calculateNeutralZoneShot(turretPosition, target, robotHeading);

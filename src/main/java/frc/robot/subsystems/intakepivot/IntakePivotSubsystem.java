@@ -82,6 +82,19 @@ public class IntakePivotSubsystem extends SubsystemBase {
   }
 
   /**
+   * Directly apply the half-deployed position. Used for intake shake — oscillates between half and
+   * full deployed to dislodge stuck fuel. This is a plain void method for Superstructure use.
+   */
+  public void applyHalfDeploy() {
+    io.setPosition(IntakePivotConstants.HALF_DEPLOYED_POSITION);
+  }
+
+  /** Check if intake is at the half-deployed position */
+  public boolean isHalfDeployed() {
+    return atPosition(IntakePivotConstants.HALF_DEPLOYED_POSITION);
+  }
+
+  /**
    * Directly apply the stowed position. Called by Superstructure.periodic() for states that need
    * intake stowed. Unlike the stow() command, this is a plain void method.
    */

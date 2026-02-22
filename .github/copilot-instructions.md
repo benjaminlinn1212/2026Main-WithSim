@@ -29,7 +29,7 @@ When adding a new subsystem, replicate this exact pattern. The `@AutoLog` annota
 ### Superstructure (254-style "Wanted State")
 `Superstructure.java` coordinates all scoring subsystems via a state machine. `periodic()` runs every 20ms and continuously applies the `wantedState` to all subsystems using direct void methods (e.g. `turret.applyAiming()`, `intake.applyIntake()`). State transitions are instant `runOnce` commands — no long-running `run()` commands needed. Both auto and teleop use the same `setWantedState()` API.
 
-States: `IDLE`, `ONLY_INTAKE`, `ONLY_AIMING`, `ONLY_SHOOTING`, `AIMING_WHILE_INTAKING`, `SHOOTING_WHILE_INTAKING`, `EJECT`, `CLIMB_MODE`, `EMERGENCY`.
+States: `IDLE`, `ONLY_INTAKE`, `ONLY_AIMING`, `ONLY_SHOOTING`, `AIMING_WHILE_INTAKING`, `SHOOTING_WHILE_INTAKING`, `EJECT`, `EMERGENCY`.
 
 ### Vision System
 `VisionSubsystem` processes 3 Limelight cameras (front, back, turret-mounted). Supports both MegaTag1 (multi-tag) and MegaTag2 (gyro-fused). Vision estimates are consumed via a `Consumer<VisionFieldPoseEstimate>` that feeds into CTRE's pose estimator. **Vision is only active in REAL mode** — SIM and REPLAY use no-op IO.
@@ -62,7 +62,7 @@ A dashboard-driven planning system inspired by 254/6328:
 **Key pattern:** The planner generates an optimistic plan; the command builder makes runtime time decisions using FPGA countdown. Shoot-while-driving (SWD) is zone-based: D/O intakes → SWD, U/L intakes → stop-and-shoot.
 
 ## Climb System
-4-motor cable-driven 2-link arm with inverse kinematics (`ClimbIK.java`) and Cartesian path planning (`ClimbPathPlanner.java`). Uses `ClimbState` enum for state machine transitions. REV Smart Robot Servos release passive hooks.
+4-motor cable-driven 2-link arm with inverse kinematics (`ClimbIK.java`) and Cartesian path planning (`ClimbPathPlanner.java`). Uses `ClimbState` enum for state machine transitions. REV Smart Robot Servos release passive hooks. **Climb is independent from superstructure** — both auto and teleop use the same direct `ClimbSubsystem` API (`nextState()`, `previousState()`, `setStateCommand()`). Superstructure continues running in parallel.
 
 ## Build & Tooling
 - **Java 17**, GradleRIO 2026.1.1

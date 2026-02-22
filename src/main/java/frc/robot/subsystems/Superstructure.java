@@ -6,7 +6,6 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.auto.dashboard.FieldConstants;
-import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorSubsystem;
 import frc.robot.subsystems.hood.HoodSubsystem;
@@ -45,7 +44,6 @@ public class Superstructure extends SubsystemBase {
     AIMING_WHILE_INTAKING,
     SHOOTING_WHILE_INTAKING,
     EJECT,
-    CLIMB_MODE,
     EMERGENCY
   }
 
@@ -60,6 +58,12 @@ public class Superstructure extends SubsystemBase {
 
   private SuperstructureState currentState = SuperstructureState.IDLE;
   private SuperstructureState wantedState = SuperstructureState.IDLE;
+
+  /**
+   * Whether the intake pivot is in "half deployed" (shake) mode. When true and in an intaking
+   * state, periodic() applies half-deploy instead of full deploy. Toggled by operator Y/A buttons.
+   */
+  private boolean intakeHalfDeployed = false;
 
   /**
    * Robot pose supplier — used to detect when the robot is near a TRENCH so we can override the
@@ -149,17 +153,18 @@ public class Superstructure extends SubsystemBase {
     }
     Logger.recordOutput("Superstructure/InTrenchZone", inTrenchZone);
 
-    // When in the trench zone, aiming states force turret/hood to stow instead of aiming.
-    // The trench is only 22.25in (56.5cm) tall — hood MUST be stowed to fit through.
-    boolean trenchStow =
+    // When in the trench zone, the hood MUST be stowed (trench is only 22.25in / 56.5cm tall).
+    // The turret can still aim in the trench since it's lower-profile.
+    // Feeding is blocked until the hood reaches its aiming setpoint (checked by auto commands).
+    boolean trenchStowHood =
         inTrenchZone
             && wantedState != SuperstructureState.IDLE
-            && wantedState != SuperstructureState.CLIMB_MODE
             && wantedState != SuperstructureState.EMERGENCY;
 
     // Apply the wanted state to all subsystems every cycle.
-    // CLIMB_MODE and EMERGENCY are handled specially — they don't continuously apply
-    // because climb has its own state machine.
+    // EMERGENCY is handled specially — it doesn't continuously re-apply.
+    // Climb is independent and not managed by this switch.
+    Logger.recordOutput("Superstructure/IntakeHalfDeployed", intakeHalfDeployed);
     switch (wantedState) {
       case IDLE:
         turret.applyStow();
@@ -175,18 +180,17 @@ public class Superstructure extends SubsystemBase {
         turret.applyStow();
         hood.applyStow();
         shooter.stop();
-        intakePivot.applyDeploy();
+        applyIntakePivotDeploy();
         intake.applyIntake();
         conveyor.stopMotor();
         indexer.stopMotor();
         break;
 
       case ONLY_AIMING:
-        if (trenchStow) {
-          turret.applyStow();
+        turret.applyAiming();
+        if (trenchStowHood) {
           hood.applyStow();
         } else {
-          turret.applyAiming();
           hood.applyAiming();
         }
         shooter.applySpinUp();
@@ -197,11 +201,10 @@ public class Superstructure extends SubsystemBase {
         break;
 
       case ONLY_SHOOTING:
-        if (trenchStow) {
-          turret.applyStow();
+        turret.applyAiming();
+        if (trenchStowHood) {
           hood.applyStow();
         } else {
-          turret.applyAiming();
           hood.applyAiming();
         }
         shooter.applySpinUp();
@@ -212,30 +215,28 @@ public class Superstructure extends SubsystemBase {
         break;
 
       case AIMING_WHILE_INTAKING:
-        if (trenchStow) {
-          turret.applyStow();
+        turret.applyAiming();
+        if (trenchStowHood) {
           hood.applyStow();
         } else {
-          turret.applyAiming();
           hood.applyAiming();
         }
         shooter.applySpinUp();
-        intakePivot.applyDeploy();
+        applyIntakePivotDeploy();
         intake.applyIntake();
         conveyor.stopMotor();
         indexer.stopMotor();
         break;
 
       case SHOOTING_WHILE_INTAKING:
-        if (trenchStow) {
-          turret.applyStow();
+        turret.applyAiming();
+        if (trenchStowHood) {
           hood.applyStow();
         } else {
-          turret.applyAiming();
           hood.applyAiming();
         }
         shooter.applySpinUp();
-        intakePivot.applyDeploy();
+        applyIntakePivotDeploy();
         intake.applyIntake();
         conveyor.applyFeedToShooter();
         indexer.applyFeedToShooter();
@@ -245,16 +246,14 @@ public class Superstructure extends SubsystemBase {
         turret.applyStow();
         hood.applyStow();
         shooter.stop();
-        intakePivot.applyDeploy();
+        applyIntakePivotDeploy();
         intake.applyOuttake();
         conveyor.applyFeedToBucket();
         indexer.stopMotor();
         break;
 
-      case CLIMB_MODE:
       case EMERGENCY:
-        // These states are entered via specific commands and don't continuously
-        // re-apply — the climb subsystem manages its own state machine.
+        // Emergency is entered via emergencyStop() and doesn't continuously re-apply.
         break;
     }
   }
@@ -268,9 +267,99 @@ public class Superstructure extends SubsystemBase {
     return inTrenchZone;
   }
 
+  /**
+   * Whether the hood is at its current setpoint (within tolerance). Used by auto commands to gate
+   * feeding — the robot should only feed FUEL when the hood has reached its aiming position, not
+   * while it's still deploying after leaving the trench.
+   */
+  public boolean isHoodAtSetpoint() {
+    return hood.atSetpoint();
+  }
+
   /** Wire the robot pose supplier so Superstructure can detect trench proximity. */
   public void setRobotPoseSupplier(Supplier<Pose2d> supplier) {
     this.robotPoseSupplier = supplier;
+  }
+
+  // ==================== Intake Pivot Deploy Helper ====================
+
+  /**
+   * Apply the correct intake pivot position based on the {@link #intakeHalfDeployed} flag. When the
+   * operator toggles intake shake, this switches between full deploy and half deploy, causing the
+   * intake to oscillate and dislodge stuck fuel.
+   */
+  private void applyIntakePivotDeploy() {
+    if (intakeHalfDeployed) {
+      intakePivot.applyHalfDeploy();
+    } else {
+      intakePivot.applyDeploy();
+    }
+  }
+
+  /**
+   * Set intake pivot to full deployed (released) position. Operator presses A to go full deploy.
+   * Only takes effect when in a deployed/intaking state.
+   */
+  public Command setIntakeFullDeploy() {
+    return Commands.runOnce(
+            () -> {
+              intakeHalfDeployed = false;
+              Logger.recordOutput("Superstructure/IntakeShake", "FULL_DEPLOY");
+            })
+        .withName("Superstructure_IntakeFullDeploy");
+  }
+
+  /**
+   * Set intake pivot to half deployed (shake) position. Operator presses Y to go half deploy. Only
+   * takes effect when in a deployed/intaking state.
+   */
+  public Command setIntakeHalfDeploy() {
+    return Commands.runOnce(
+            () -> {
+              intakeHalfDeployed = true;
+              Logger.recordOutput("Superstructure/IntakeShake", "HALF_DEPLOY");
+            })
+        .withName("Superstructure_IntakeHalfDeploy");
+  }
+
+  /** Whether the intake is in an intaking/deployed state (for gating shake controls). */
+  public boolean isIntakeDeployed() {
+    return currentState == SuperstructureState.ONLY_INTAKE
+        || currentState == SuperstructureState.AIMING_WHILE_INTAKING
+        || currentState == SuperstructureState.SHOOTING_WHILE_INTAKING
+        || currentState == SuperstructureState.EJECT;
+  }
+
+  /** Get whether the intake pivot is currently in half-deployed (shake) mode. */
+  public boolean isIntakeHalfDeployed() {
+    return intakeHalfDeployed;
+  }
+
+  // ==================== Release from Auto Climb ====================
+
+  /**
+   * Release from auto climb L1. After auto ends with the robot latched on L1 (RETRACT_L1_AUTO),
+   * this reverses the retract path back to the extended position (EXTEND_L1_AUTO). Use POV Down
+   * (stowClimb) afterward to stow the arm back to STOWED.
+   */
+  public Command releaseFromAutoClimbL1() {
+    return Commands.sequence(
+            climb.releaseFromAutoL1(),
+            Commands.runOnce(
+                () ->
+                    Logger.recordOutput(
+                        "Climb/OperatorAction", "Released from auto climb L1 → EXTEND_L1_AUTO")))
+        .withName("ReleaseFromAutoClimbL1");
+  }
+
+  /**
+   * Stow the climb arms back to STOWED by following reverse paths from the current state. Handles
+   * both teleop states (EXTEND_L1 → STOWED, RETRACT_L1 → EXTEND_L1 → STOWED, etc.) and auto states
+   * (RETRACT_L1_AUTO → EXTEND_L1_AUTO → STOWED). No teleporting — the arm follows smooth paths the
+   * entire way.
+   */
+  public Command stowClimb() {
+    return climb.stowFromCurrentState().withName("StowClimb");
   }
 
   // ==================== Instant State Commands (254-style) ====================
@@ -289,9 +378,9 @@ public class Superstructure extends SubsystemBase {
    * @return An instant command that sets the wanted state
    */
   public Command setWantedState(SuperstructureState state) {
-    // Guard against transitioning out of CLIMB_MODE / EMERGENCY
-    // (those must be exited through their specific commands)
-    if (state != SuperstructureState.CLIMB_MODE && state != SuperstructureState.EMERGENCY) {
+    // Guard against transitioning out of EMERGENCY
+    // (must be exited through its specific command)
+    if (state != SuperstructureState.EMERGENCY) {
       return Commands.either(
           Commands.runOnce(() -> wantedState = state).withName("SetState_" + state),
           Commands.print(
@@ -300,9 +389,7 @@ public class Superstructure extends SubsystemBase {
                   + " while in "
                   + currentState
                   + " mode."),
-          () ->
-              currentState != SuperstructureState.CLIMB_MODE
-                  && currentState != SuperstructureState.EMERGENCY);
+          () -> currentState != SuperstructureState.EMERGENCY);
     }
     return Commands.runOnce(() -> wantedState = state).withName("SetState_" + state);
   }
@@ -344,58 +431,15 @@ public class Superstructure extends SubsystemBase {
     return setWantedState(SuperstructureState.EJECT);
   }
 
-  // ==================== Climb Mode Management ====================
+  // ==================== Climb (Independent Subsystem) ====================
+  // Climb operates independently from superstructure — both auto and teleop use the same
+  // direct API: climb.nextState(), climb.previousState(), climb.setStateCommand().
+  // Superstructure continues running (intaking, aiming, etc.) in parallel.
 
   /**
-   * Enter climb mode - stow all superstructure components and prepare for climb. Sets wanted state
-   * to IDLE first (so periodic stows everything), waits for subsystems to reach stow, then
-   * transitions to CLIMB_MODE.
-   *
-   * @return Command to enter climb mode
-   */
-  public Command enterClimbMode() {
-    return Commands.sequence(
-            // First idle to stow everything
-            Commands.runOnce(() -> wantedState = SuperstructureState.IDLE),
-            // Wait a beat for stow to take effect
-            Commands.waitSeconds(0.5),
-            // Now enter climb mode (periodic won't re-apply — CLIMB_MODE is a no-op)
-            Commands.runOnce(
-                () -> {
-                  wantedState = SuperstructureState.CLIMB_MODE;
-                  currentState = SuperstructureState.CLIMB_MODE;
-                }),
-            climb.releaseHooksCommand(),
-            Commands.runOnce(
-                () ->
-                    Logger.recordOutput(
-                        "Superstructure/ClimbMode", "CLIMB MODE ACTIVE - Hooks Released")))
-        .withName("Superstructure_EnterClimbMode");
-  }
-
-  /**
-   * Exit climb mode and return to idle.
-   *
-   * @return Command to exit climb mode
-   */
-  public Command exitClimbMode() {
-    return Commands.sequence(
-            climb.setStateCommand(ClimbState.STOWED),
-            // Force back to IDLE (bypasses guard since we're setting wantedState directly)
-            Commands.runOnce(
-                () -> {
-                  wantedState = SuperstructureState.IDLE;
-                  currentState = SuperstructureState.IDLE;
-                }),
-            Commands.runOnce(
-                () -> Logger.recordOutput("Superstructure/ClimbMode", "Climb mode deactivated")))
-        .withName("Superstructure_ExitClimbMode");
-  }
-
-  /**
-   * Force the superstructure to IDLE, bypassing the climb/emergency guard. Call this at the start
-   * of autonomous to ensure a clean slate regardless of what state a previous auto run left the
-   * robot in.
+   * Force the superstructure to IDLE, bypassing the emergency guard. Call this at the start of
+   * autonomous to ensure a clean slate regardless of what state a previous auto run left the robot
+   * in.
    */
   public void forceIdleState() {
     Logger.recordOutput("Superstructure/StateTransition", currentState + " -> IDLE (forced)");
@@ -407,9 +451,9 @@ public class Superstructure extends SubsystemBase {
    * Directly set the wanted state from a non-command context (e.g. inside a {@code Commands.run()}
    * lambda that needs to switch states every cycle based on sensor data).
    *
-   * <p>This bypasses the climb/emergency guard — callers must not use this while in CLIMB_MODE or
-   * EMERGENCY. Prefer the Command-returning {@link #setWantedState(SuperstructureState)} API for
-   * one-shot state changes in sequences. Use this only for continuous polling loops.
+   * <p>This bypasses the emergency guard — callers must not use this while in EMERGENCY. Prefer the
+   * Command-returning {@link #setWantedState(SuperstructureState)} API for one-shot state changes
+   * in sequences. Use this only for continuous polling loops.
    *
    * @param state The desired superstructure state
    */
@@ -428,59 +472,23 @@ public class Superstructure extends SubsystemBase {
   }
 
   /**
-   * Check if superstructure is in climb mode.
-   *
-   * @return true if in climb mode
-   */
-  public boolean isInClimbMode() {
-    return currentState == SuperstructureState.CLIMB_MODE;
-  }
-
-  /**
-   * Check if all subsystems are stowed and ready for climb operations.
-   *
-   * @return true if all subsystems are at stow positions
-   */
-  public boolean isReadyForClimb() {
-    return isInClimbMode()
-        && turret.atSetpoint()
-        && hood.atSetpoint()
-        && shooter.atSetpoint()
-        && intakePivot.isStowed()
-        && intake.atSetpoint()
-        && conveyor.atSetpoint()
-        && indexer.atSetpoint()
-        && climb.getState() == ClimbState.STOWED;
-  }
-
-  /**
-   * Advance to next climb state. Only works if already in climb mode.
+   * Advance to next climb state. Climb is an independent subsystem — no superstructure state
+   * gating. The operator can advance the climb at any time.
    *
    * @return Command to advance climb state
    */
   public Command nextClimbState() {
-    Command cmd =
-        Commands.either(
-            climb.nextState(),
-            Commands.print("ERROR: Not in climb mode! Press button to enter climb mode first."),
-            this::isInClimbMode);
-    cmd.setName("Superstructure_NextClimbState");
-    return cmd;
+    return climb.nextState().withName("Superstructure_NextClimbState");
   }
 
   /**
-   * Go back to previous climb state. Only works if already in climb mode.
+   * Go back to previous climb state. Climb is an independent subsystem — no superstructure state
+   * gating.
    *
    * @return Command to go to previous climb state
    */
   public Command previousClimbState() {
-    Command cmd =
-        Commands.either(
-            climb.previousState(),
-            Commands.print("ERROR: Not in climb mode!"),
-            this::isInClimbMode);
-    cmd.setName("Superstructure_PreviousClimbState");
-    return cmd;
+    return climb.previousState().withName("Superstructure_PreviousClimbState");
   }
 
   /** Emergency stop - immediately stow everything and stop all motors including climb. */
@@ -513,8 +521,7 @@ public class Superstructure extends SubsystemBase {
 
   /** Check if the superstructure is in a state that allows intaking. */
   public boolean canIntake() {
-    return currentState != SuperstructureState.CLIMB_MODE
-        && currentState != SuperstructureState.EMERGENCY;
+    return currentState != SuperstructureState.EMERGENCY;
   }
 
   /** Get a 0-1 readiness value for the shooter (for dashboard/LED use). */

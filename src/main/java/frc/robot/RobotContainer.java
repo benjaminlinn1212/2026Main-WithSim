@@ -96,6 +96,7 @@ public class RobotContainer {
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
+  private final CommandXboxController operator = new CommandXboxController(1);
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -330,6 +331,7 @@ public class RobotContainer {
    */
   private void configureButtonBindings() {
     configureTeleopBindings();
+    configureOperatorBindings();
   }
 
   /** Configure button bindings for teleop mode. This is the normal driving configuration. */
@@ -396,84 +398,9 @@ public class RobotContainer {
                     swerveIO)
                 .ignoringDisable(true));
 
-    // // ===== SUPERSTRUCTURE CONTROLS =====
-
-    // // X button: Aiming while intaking
-    // controller.x().onTrue(superstructure.onlyAiming());
-
-    // controller.a().onTrue(superstructure.onlyIntake());
-
-    // // Y button: Stow (idle)
-    // controller.y().onTrue(superstructure.idle());
-
-    // // A button (hold): Shoot while held, return to aiming on release.
-    // // If in AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING, else → ONLY_SHOOTING
-    // // On release: return to corresponding aiming state
-    // controller
-    //     .rightTrigger()
-    //     .whileTrue(
-    //         Commands.either(
-    //             superstructure.shootingWhileIntaking(),
-    //             superstructure.onlyShooting(),
-    //             () ->
-    //                 superstructure.getState()
-    //                     == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING))
-    //     .onFalse(
-    //         Commands.either(
-    //             superstructure.aimingWhileIntaking(),
-    //             superstructure.onlyAiming(),
-    //             () ->
-    //                 superstructure.getState()
-    //                         == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING
-    //                     || superstructure.getState()
-    //                         == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING));
-
-    // ===== CLIMB STATE CONTROLS =====
-
-    // POV Up: Enter climb mode
-    // controller.povUp().onTrue(superstructure.enterClimbMode());
-
-    // POV Down: Exit climb mode
-    // controller.povDown().onTrue(superstructure.exitClimbMode());
-
-    // POV Right: Next climb state (path-following)
-    // controller.povRight().onTrue(superstructure.nextClimbState());
-
-    // POV Left: Previous climb state (path-following)
-    // controller.povLeft().onTrue(superstructure.previousClimbState());
-
     // ===== CLIMB TEST CONTROLS =====
+    // Direct voltage control for right-side motors (temporary — for hardware bring-up)
 
-    // --- Left side motors (POV / D-Pad) ---
-    // POV Up: Left Front Motor +3V
-    /*
-    controller
-        .povUp()
-        .whileTrue(
-            Commands.run(() -> climb.setLeftFrontVoltage(3.0), climb)
-                .finallyDo(() -> climb.setLeftFrontVoltage(0.0)));
-
-    // POV Down: Left Front Motor -3V
-    controller
-        .povDown()
-        .whileTrue(
-            Commands.run(() -> climb.setLeftFrontVoltage(-3.0), climb)
-                .finallyDo(() -> climb.setLeftFrontVoltage(0.0)));
-
-    // POV Right: Left Back Motor +3V
-    controller
-        .povRight()
-        .whileTrue(
-            Commands.run(() -> climb.setLeftBackVoltage(3.0), climb)
-                .finallyDo(() -> climb.setLeftBackVoltage(0.0)));
-
-    // POV Left: Left Back Motor -3V
-    controller
-        .povLeft()
-        .whileTrue(
-            Commands.run(() -> climb.setLeftBackVoltage(-3.0), climb)
-                .finallyDo(() -> climb.setLeftBackVoltage(0.0)));
-    */
     // --- Right side motors (face buttons) ---
     // Y button: Right Front Motor +3V
     controller
@@ -502,6 +429,57 @@ public class RobotContainer {
         .whileTrue(
             Commands.run(() -> climb.setRightBackVoltage(-3.0), climb)
                 .finallyDo(() -> climb.setRightBackVoltage(0.0)));
+  }
+
+  /**
+   * Configure button bindings for the operator controller (port 1). Controls climb state machine
+   * and intake shake (dislodge stuck fuel).
+   *
+   * <p>Climb is an independent subsystem — operator can control it at any time without entering a
+   * special mode. Superstructure continues running (intake, aiming, etc.) in parallel.
+   */
+  private void configureOperatorBindings() {
+    System.out.println("[RobotContainer] Configuring operator bindings...");
+
+    // ===== CLIMB CONTROLS =====
+    // Climb is independent from superstructure — no "climb mode" needed for teleop.
+    // The operator directly advances/reverses the climb state machine.
+
+    // POV Up: Release from auto climb L1 — after auto ends latched on L1, stow arms back to
+    // STOWED so the operator can begin the normal teleop climb sequence.
+    operator.povUp().onTrue(superstructure.releaseFromAutoClimbL1());
+
+    // POV Down: Stow climb — retract arms back to STOWED position at any time
+    operator.povDown().onTrue(superstructure.stowClimb());
+
+    // POV Right: Next climb state — advance through the teleop climb sequence
+    // (STOWED → EXTEND_L1 → RETRACT_L1 → EXTEND_L2 → ... → RETRACT_L3)
+    operator.povRight().onTrue(superstructure.nextClimbState());
+
+    // POV Left: Previous climb state — go back one step in the climb sequence
+    operator.povLeft().onTrue(superstructure.previousClimbState());
+
+    // ===== INTAKE SHAKE CONTROLS =====
+    // When the intake is deployed (released), the operator can toggle between full deploy and
+    // half deploy to shake stuck fuel into the conveyor.
+    // Y button: Move intake pivot to half-deployed (shake) position
+    // A button: Move intake pivot back to full-deployed position
+
+    operator
+        .y()
+        .onTrue(
+            Commands.either(
+                superstructure.setIntakeHalfDeploy(),
+                Commands.none(),
+                superstructure::isIntakeDeployed));
+
+    operator
+        .a()
+        .onTrue(
+            Commands.either(
+                superstructure.setIntakeFullDeploy(),
+                Commands.none(),
+                superstructure::isIntakeDeployed));
   }
 
   /**

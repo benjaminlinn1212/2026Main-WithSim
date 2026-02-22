@@ -316,7 +316,10 @@ public final class Constants {
     public static final double KS = 0.0;
     public static final double KV = 0.0;
     public static final double KA = 0.0;
-    public static final double KG = 0.0;
+    // Note: KG is no longer used — gravity FF is computed by IntakePivotFF via linkage kinematics
+
+    /** When true, use the IntakePivotFF linkage-based gravity feedforward. When false, no FF. */
+    public static final boolean USE_CALCULATED_FF = false;
 
     // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 100.0; // rotations per second
@@ -335,6 +338,56 @@ public final class Constants {
 
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
+
+    // ─── Gravity Feedforward Linkage Geometry (IntakePivotFF) ───
+    // All values in meters / radians / kg — MEASURE FROM CAD AND FILL IN.
+    // See IntakePivotFF.java Javadoc for coordinate frame definitions.
+
+    /** Pinion pitch radius (meters). Measure from CAD or datasheet. */
+    public static final double FF_PINION_RADIUS_M = 0.012; // TODO: measure from CAD
+
+    /** Motor-to-pinion gear ratio (motor rotations per pinion rotation). */
+    public static final double FF_RACK_GEAR_RATIO = GEAR_RATIO;
+
+    /**
+     * Rack axis angle θ from +x (radians). 0 = horizontal rightward, π/2 = vertical upward. Measure
+     * the rack's travel direction in the mechanism coordinate frame.
+     */
+    public static final double FF_RACK_THETA_RAD = 0.0; // TODO: measure from CAD
+
+    /** Rack attachment point A₀ (meters) when rack displacement s = 0. */
+    public static final double FF_A0X_M = 0.0; // TODO: measure from CAD
+
+    public static final double FF_A0Y_M = 0.0; // TODO: measure from CAD
+
+    /** V-link fixed pivot O (meters). */
+    public static final double FF_OX_M = 0.0; // TODO: measure from CAD
+
+    public static final double FF_OY_M = 0.0; // TODO: measure from CAD
+
+    /** Distance from pivot O to elbow point E (meters). */
+    public static final double FF_ELBOW_RADIUS_M = 0.0; // TODO: measure from CAD
+
+    /** Coupler link length — between rack attachment A and elbow E (meters). */
+    public static final double FF_COUPLER_LENGTH_M = 0.0; // TODO: measure from CAD
+
+    /** Total moving mass hanging from the V-link (kg). */
+    public static final double FF_MASS_KG = 0.0; // TODO: weigh or estimate from CAD
+
+    /** Distance from pivot O to lumped center-of-mass (meters). */
+    public static final double FF_COM_RADIUS_M = 0.0; // TODO: estimate from CAD
+
+    /** COM angle offset δ relative to the elbow ray (radians). 0 if COM is on same ray as E. */
+    public static final double FF_COM_ANGLE_OFFSET_RAD = 0.0; // TODO: estimate from CAD
+
+    /** Motor torque constant Kt (N·m/A). Kraken X60 ≈ 0.0194, NEO ≈ 0.025. */
+    public static final double FF_MOTOR_KT = 0.025; // TODO: set for your motor
+
+    /** Motor winding resistance (Ω). NEO ≈ 0.114, Kraken X60 ≈ 0.025. */
+    public static final double FF_MOTOR_R_OHM = 0.114; // TODO: set for your motor
+
+    /** Efficiency fudge factor (0..1). Start at 0.85, tune on the real mechanism. */
+    public static final double FF_EFFICIENCY = 0.85;
   }
 
   public static class ConveyorConstants {

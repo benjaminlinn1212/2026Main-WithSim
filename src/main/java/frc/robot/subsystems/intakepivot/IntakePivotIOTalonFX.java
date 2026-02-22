@@ -1,14 +1,16 @@
 package frc.robot.subsystems.intakepivot;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicDutyCycle;
+import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import frc.robot.Constants.IntakePivotConstants;
+import frc.robot.util.IntakePivotFF;
 
 public class IntakePivotIOTalonFX implements IntakePivotIO {
 
   private final TalonFX motor;
-  private final MotionMagicDutyCycle positionControl = new MotionMagicDutyCycle(0);
+  private final MotionMagicVoltage positionControl = new MotionMagicVoltage(0);
+  private final IntakePivotFF gravityFF;
 
   public IntakePivotIOTalonFX() {
     motor = new TalonFX(IntakePivotConstants.MOTOR_CAN_ID, IntakePivotConstants.CAN_BUS);
@@ -31,14 +33,15 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_REVERSE;
 
-    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
+    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA)
+    // Note: kG is NOT set here — gravity FF is computed by IntakePivotFF via linkage kinematics
+    // and injected as FeedForward voltage on the MotionMagicVoltage control request.
     config.Slot0.kP = IntakePivotConstants.KP;
     config.Slot0.kI = IntakePivotConstants.KI;
     config.Slot0.kD = IntakePivotConstants.KD;
     config.Slot0.kS = IntakePivotConstants.KS;
     config.Slot0.kV = IntakePivotConstants.KV;
     config.Slot0.kA = IntakePivotConstants.KA;
-    config.Slot0.kG = IntakePivotConstants.KG;
 
     // Motion Magic
     config.MotionMagic.MotionMagicCruiseVelocity = IntakePivotConstants.CRUISE_VELOCITY;
@@ -54,6 +57,25 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     motor.getConfigurator().apply(config);
 
     motor.optimizeBusUtilization();
+
+    // Build IntakePivotFF parameters from Constants
+    IntakePivotFF.Params ffParams = new IntakePivotFF.Params();
+    ffParams.pinionRadius_m = IntakePivotConstants.FF_PINION_RADIUS_M;
+    ffParams.rackGearRatio = IntakePivotConstants.FF_RACK_GEAR_RATIO;
+    ffParams.rackTheta_rad = IntakePivotConstants.FF_RACK_THETA_RAD;
+    ffParams.A0x_m = IntakePivotConstants.FF_A0X_M;
+    ffParams.A0y_m = IntakePivotConstants.FF_A0Y_M;
+    ffParams.Ox_m = IntakePivotConstants.FF_OX_M;
+    ffParams.Oy_m = IntakePivotConstants.FF_OY_M;
+    ffParams.elbowRadius_m = IntakePivotConstants.FF_ELBOW_RADIUS_M;
+    ffParams.couplerLength_m = IntakePivotConstants.FF_COUPLER_LENGTH_M;
+    ffParams.mass_kg = IntakePivotConstants.FF_MASS_KG;
+    ffParams.comRadius_m = IntakePivotConstants.FF_COM_RADIUS_M;
+    ffParams.comAngleOffset_rad = IntakePivotConstants.FF_COM_ANGLE_OFFSET_RAD;
+    ffParams.motorKt_NmPerA = IntakePivotConstants.FF_MOTOR_KT;
+    ffParams.motorR_ohm = IntakePivotConstants.FF_MOTOR_R_OHM;
+    ffParams.efficiency = IntakePivotConstants.FF_EFFICIENCY;
+    gravityFF = new IntakePivotFF(ffParams);
   }
 
   @Override
@@ -68,8 +90,15 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
 
   @Override
   public void setPosition(double positionRotations) {
-    // Note: GEAR_RATIO = 1.0 (direct drive), so no conversion needed
-    motor.setControl(positionControl.withPosition(positionRotations));
+    double ffVolts = 0.0;
+    if (IntakePivotConstants.USE_CALCULATED_FF) {
+      // Compute gravity FF voltage from linkage kinematics at the CURRENT position
+      double currentPos = motor.getPosition().getValueAsDouble();
+      ffVolts = gravityFF.calculateVoltageFF(currentPos);
+    }
+
+    // MotionMagicVoltage: PID + Motion Profile output is in Volts; FeedForward is additive Volts
+    motor.setControl(positionControl.withPosition(positionRotations).withFeedForward(ffVolts));
   }
 
   @Override

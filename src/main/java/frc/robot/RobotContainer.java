@@ -462,37 +462,50 @@ public class RobotContainer {
                     swerveIO)
                 .ignoringDisable(true));
 
-    // ===== CLIMB TEST CONTROLS =====
-    // Direct voltage control for right-side motors (temporary — for hardware bring-up)
+    // ===== SUPERSTRUCTURE STATE CONTROLS =====
 
-    // --- Right side motors (face buttons) ---
-    // Y button: Right Front Motor +3V
-    controller
-        .y()
-        .whileTrue(
-            Commands.run(() -> climb.setRightFrontVoltage(3.0), climb)
-                .finallyDo(() -> climb.setRightFrontVoltage(0.0)));
+    // Right bumper: IDLE — stow everything, stop all scoring mechanisms
+    controller.rightBumper().onTrue(superstructure.idle());
 
-    // A button: Right Front Motor -3V
-    controller
-        .a()
-        .whileTrue(
-            Commands.run(() -> climb.setRightFrontVoltage(-3.0), climb)
-                .finallyDo(() -> climb.setRightFrontVoltage(0.0)));
+    // A button: ONLY_INTAKE — deploy intake, everything else stowed
+    controller.a().onTrue(superstructure.onlyIntake());
 
-    // X button: Right Back Motor +3V
-    controller
-        .x()
-        .whileTrue(
-            Commands.run(() -> climb.setRightBackVoltage(3.0), climb)
-                .finallyDo(() -> climb.setRightBackVoltage(0.0)));
+    // Y button: ONLY_AIMING — turret/hood/shooter aim at target, intake stowed
+    controller.y().onTrue(superstructure.onlyAiming());
 
-    // B button: Right Back Motor -3V
+    // X button: AIMING_WHILE_INTAKING — intake + aim simultaneously
+    controller.x().onTrue(superstructure.aimingWhileIntaking());
+
+    // Right trigger: While held, feed to shooter (convey + index) when in aiming modes.
+    // ONLY_AIMING → ONLY_SHOOTING, AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING.
+    // On release, reverts to the aiming-only state.
     controller
-        .b()
+        .rightTrigger(0.5)
         .whileTrue(
-            Commands.run(() -> climb.setRightBackVoltage(-3.0), climb)
-                .finallyDo(() -> climb.setRightBackVoltage(0.0)));
+            Commands.run(
+                () -> {
+                  var state = superstructure.getState();
+                  if (state == Superstructure.SuperstructureState.ONLY_AIMING
+                      || state == Superstructure.SuperstructureState.ONLY_SHOOTING) {
+                    superstructure.forceWantedState(
+                        Superstructure.SuperstructureState.ONLY_SHOOTING);
+                  } else if (state == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING
+                      || state == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING) {
+                    superstructure.forceWantedState(
+                        Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
+                  }
+                }))
+        .onFalse(
+            Commands.runOnce(
+                () -> {
+                  var state = superstructure.getState();
+                  if (state == Superstructure.SuperstructureState.ONLY_SHOOTING) {
+                    superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_AIMING);
+                  } else if (state == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING) {
+                    superstructure.forceWantedState(
+                        Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
+                  }
+                }));
   }
 
   /**

@@ -34,9 +34,13 @@ public interface ClimbIO {
     public double leftBackCurrentAmps = 0.0;
     public double leftBackTemperatureCelsius = 0.0;
 
-    // Passive Hook Release Servos
-    public double leftHookServoPosition = 0.0;
-    public double rightHookServoPosition = 0.0;
+    // Secondary Hook Angle Servos
+    public double leftSecondaryHookAngleServoPosition = 0.0;
+    public double rightSecondaryHookAngleServoPosition = 0.0;
+
+    // Secondary Hook Hardstop Servos
+    public double leftSecondaryHookHardstopServoPosition = 0.0;
+    public double rightSecondaryHookHardstopServoPosition = 0.0;
   }
 
   /** Updates the set of loggable inputs. */
@@ -78,11 +82,17 @@ public interface ClimbIO {
   /** Run the left back motor at a specific voltage. */
   public default void setLeftBackVoltage(double volts) {}
 
-  /** Set passive hook servo positions (0.0 = stowed, 1.0 = released). */
-  public default void setLeftHookPosition(double position) {}
+  /** Set left secondary hook angle servo position. */
+  public default void setLeftSecondaryHookAnglePosition(double position) {}
 
-  /** Set passive hook servo positions (0.0 = stowed, 1.0 = released). */
-  public default void setRightHookPosition(double position) {}
+  /** Set right secondary hook angle servo position. */
+  public default void setRightSecondaryHookAnglePosition(double position) {}
+
+  /** Set left secondary hook hardstop servo position. */
+  public default void setLeftSecondaryHookHardstopPosition(double position) {}
+
+  /** Set right secondary hook hardstop servo position. */
+  public default void setRightSecondaryHookHardstopPosition(double position) {}
 
   /** Stop all climb motors. */
   public default void stop() {}

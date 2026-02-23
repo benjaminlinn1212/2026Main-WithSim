@@ -16,8 +16,10 @@ public class ClimbIOTalonFX implements ClimbIO {
   private final TalonFX leftFrontMotor;
   private final TalonFX leftBackMotor;
 
-  private final Servo leftHookServo;
-  private final Servo rightHookServo;
+  private final Servo leftSecondaryHookAngleServo;
+  private final Servo rightSecondaryHookAngleServo;
+  private final Servo leftSecondaryHookHardstopServo;
+  private final Servo rightSecondaryHookHardstopServo;
 
   private final MotionMagicVoltage rightFrontPositionControl = new MotionMagicVoltage(0);
   private final MotionMagicVoltage rightBackPositionControl = new MotionMagicVoltage(0);
@@ -35,19 +37,25 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftFrontMotor = new TalonFX(ClimbConstants.LEFT_FRONT_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
     leftBackMotor = new TalonFX(ClimbConstants.LEFT_BACK_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
 
-    // Initialize passive hook release servos (REV Smart Robot Servo, REV-41-1097)
-    // Without an SRS Programmer, the SRS acts as a 270° standard servo.
-    // Its input pulse range is 500µs–2500µs, but WPILib's Servo class defaults
-    // to 600µs–2400µs (for the Hitec HS-322HD).  Override the bounds so that
-    // set(0.0) → 500µs → 0° and set(1.0) → 2500µs → 270°.
-    leftHookServo = new Servo(ClimbConstants.LEFT_HOOK_SERVO_PWM);
-    leftHookServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
-    rightHookServo = new Servo(ClimbConstants.RIGHT_HOOK_SERVO_PWM);
-    rightHookServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
+    // Initialize secondary hook angle servos — 180° servo with 500µs–2500µs pulse range.
+    leftSecondaryHookAngleServo = new Servo(ClimbConstants.LEFT_SECONDARY_HOOK_ANGLE_SERVO_PWM);
+    leftSecondaryHookAngleServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
+    rightSecondaryHookAngleServo = new Servo(ClimbConstants.RIGHT_SECONDARY_HOOK_ANGLE_SERVO_PWM);
+    rightSecondaryHookAngleServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
 
-    // Start with hooks in stowed (locked) position
-    leftHookServo.set(ClimbConstants.HOOK_STOWED_POSITION);
-    rightHookServo.set(ClimbConstants.HOOK_STOWED_POSITION);
+    leftSecondaryHookAngleServo.set(ClimbConstants.SECONDARY_HOOK_ANGLE_STOWED_POSITION);
+    rightSecondaryHookAngleServo.set(ClimbConstants.SECONDARY_HOOK_ANGLE_STOWED_POSITION);
+
+    // Initialize secondary hook hardstop servos — 180° servo with 500µs–2500µs pulse range.
+    leftSecondaryHookHardstopServo =
+        new Servo(ClimbConstants.LEFT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM);
+    leftSecondaryHookHardstopServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
+    rightSecondaryHookHardstopServo =
+        new Servo(ClimbConstants.RIGHT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM);
+    rightSecondaryHookHardstopServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
+
+    leftSecondaryHookHardstopServo.set(ClimbConstants.SECONDARY_HOOK_HARDSTOP_STOWED_POSITION);
+    rightSecondaryHookHardstopServo.set(ClimbConstants.SECONDARY_HOOK_HARDSTOP_STOWED_POSITION);
 
     // Base configuration (shared by all motors)
     TalonFXConfiguration baseConfig = new TalonFXConfiguration();
@@ -203,9 +211,13 @@ public class ClimbIOTalonFX implements ClimbIO {
     inputs.leftBackCurrentAmps = leftBackMotor.getStatorCurrent().getValueAsDouble();
     inputs.leftBackTemperatureCelsius = leftBackMotor.getDeviceTemp().getValueAsDouble();
 
-    // Passive Hook Servos
-    inputs.leftHookServoPosition = leftHookServo.get();
-    inputs.rightHookServoPosition = rightHookServo.get();
+    // Secondary Hook Angle Servos
+    inputs.leftSecondaryHookAngleServoPosition = leftSecondaryHookAngleServo.get();
+    inputs.rightSecondaryHookAngleServoPosition = rightSecondaryHookAngleServo.get();
+
+    // Secondary Hook Hardstop Servos
+    inputs.leftSecondaryHookHardstopServoPosition = leftSecondaryHookHardstopServo.get();
+    inputs.rightSecondaryHookHardstopServoPosition = rightSecondaryHookHardstopServo.get();
   }
 
   @Override
@@ -289,13 +301,23 @@ public class ClimbIOTalonFX implements ClimbIO {
   }
 
   @Override
-  public void setLeftHookPosition(double position) {
-    leftHookServo.set(position);
+  public void setLeftSecondaryHookAnglePosition(double position) {
+    leftSecondaryHookAngleServo.set(position);
   }
 
   @Override
-  public void setRightHookPosition(double position) {
-    rightHookServo.set(position);
+  public void setRightSecondaryHookAnglePosition(double position) {
+    rightSecondaryHookAngleServo.set(position);
+  }
+
+  @Override
+  public void setLeftSecondaryHookHardstopPosition(double position) {
+    leftSecondaryHookHardstopServo.set(position);
+  }
+
+  @Override
+  public void setRightSecondaryHookHardstopPosition(double position) {
+    rightSecondaryHookHardstopServo.set(position);
   }
 
   @Override

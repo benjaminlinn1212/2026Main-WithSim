@@ -141,6 +141,10 @@ public class ClimbSubsystem extends SubsystemBase {
 
     // Publish once — SmartDashboard auto-updates from mutated ligaments each cycle
     SmartDashboard.putData("Climb/Mechanism2d", mechanism);
+
+    // Initialize calibration mode state so triggers work from first cycle
+    Logger.recordOutput("Climb/CalibrationMode", false);
+    Logger.recordOutput("Climb/CurrentState", ClimbState.STOWED.getName());
   }
 
   /**
@@ -193,6 +197,7 @@ public class ClimbSubsystem extends SubsystemBase {
     io.updateInputs(inputs);
     Logger.processInputs("Climb", inputs);
     // State is logged by commands (setState, runPath)
+    Logger.recordOutput("Climb/CalibrationMode", calibrationMode);
     Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
     Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
 
@@ -688,35 +693,27 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   // ===========================================================================
-  // PASSIVE HOOKS
+  // SECONDARY HOOK SERVOS
   // ===========================================================================
 
-  /** Release passive hooks (called when entering climb mode). */
-  public void releaseHooks() {
-    io.setLeftHookPosition(frc.robot.Constants.ClimbConstants.HOOK_RELEASED_POSITION);
-    io.setRightHookPosition(frc.robot.Constants.ClimbConstants.HOOK_RELEASED_POSITION);
-    Logger.recordOutput("Climb/HooksReleased", true);
+  /** Set the right secondary hook angle servo position (0.0–1.0). */
+  public void setRightSecondaryHookAngle(double position) {
+    io.setRightSecondaryHookAnglePosition(position);
   }
 
-  /** Stow passive hooks (lock them). */
-  public void stowHooks() {
-    io.setLeftHookPosition(frc.robot.Constants.ClimbConstants.HOOK_STOWED_POSITION);
-    io.setRightHookPosition(frc.robot.Constants.ClimbConstants.HOOK_STOWED_POSITION);
-    Logger.recordOutput("Climb/HooksReleased", false);
+  /** Set the right secondary hook hardstop servo position (0.0–1.0). */
+  public void setRightSecondaryHookHardstop(double position) {
+    io.setRightSecondaryHookHardstopPosition(position);
   }
 
-  /** Command to release passive hooks. */
-  public Command releaseHooksCommand() {
-    Command cmd = runOnce(this::releaseHooks);
-    cmd.setName("ClimbReleaseHooks");
-    return cmd;
+  /** Set the left secondary hook angle servo position (0.0–1.0). */
+  public void setLeftSecondaryHookAngle(double position) {
+    io.setLeftSecondaryHookAnglePosition(position);
   }
 
-  /** Command to stow passive hooks. */
-  public Command stowHooksCommand() {
-    Command cmd = runOnce(this::stowHooks);
-    cmd.setName("ClimbStowHooks");
-    return cmd;
+  /** Set the left secondary hook hardstop servo position (0.0–1.0). */
+  public void setLeftSecondaryHookHardstop(double position) {
+    io.setLeftSecondaryHookHardstopPosition(position);
   }
 
   // ===========================================================================

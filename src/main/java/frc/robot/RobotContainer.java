@@ -30,7 +30,6 @@ import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
 import frc.robot.subsystems.climb.ClimbIOSim;
 import frc.robot.subsystems.climb.ClimbIOTalonFX;
-import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorIO;
 import frc.robot.subsystems.conveyor.ConveyorIOSim;
@@ -606,26 +605,28 @@ public class RobotContainer {
                 climb::isInCalibrationMode));
 
     // X/B: Right back motor ±3V (whileTrue) in calibration mode;
-    //       extendL1 / stowClimb (onTrue) in normal mode
+    //       right secondary hook hardstop servo 0°/90° (onTrue) in normal mode
     operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
     operator
         .x()
         .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.setStateCommand(ClimbState.EXTEND_L1_AUTO));
+        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookHardstop(0.5)));
 
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
-    operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowFromCurrentState());
+    operator
+        .b()
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookHardstop(0.0)));
 
-    // LT/RT: Retract L1 / Release L1 (normal mode only)
-    // Full manual L1 flow: X (extend) → LT (retract) → RT (release) → B (stow)
+    // LT/RT: Right secondary hook angle servo 0°/90° (normal mode only)
     operator
         .leftTrigger(0.5)
         .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.setStateCommand(ClimbState.RETRACT_L1_AUTO));
+        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookAngle(0.0)));
     operator
         .rightTrigger(0.5)
         .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.releaseFromAutoL1());
+        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookAngle(0.5)));
   }
 
   /**

@@ -27,9 +27,13 @@ public class ClimbIOSim implements ClimbIO {
   private double leftBackVelocityRotPerSec = 0.0;
   private double leftBackAppliedVolts = 0.0;
 
-  // Passive Hook Servos
-  private double leftHookServoPosition = 0.0;
-  private double rightHookServoPosition = 0.0;
+  // Secondary Hook Angle Servos
+  private double leftSecondaryHookAngleServoPosition = 0.0;
+  private double rightSecondaryHookAngleServoPosition = 0.0;
+
+  // Secondary Hook Hardstop Servos
+  private double leftSecondaryHookHardstopServoPosition = 0.0;
+  private double rightSecondaryHookHardstopServoPosition = 0.0;
 
   // Mechanism2d visualization
   private final Mechanism2d mechanism;
@@ -106,9 +110,13 @@ public class ClimbIOSim implements ClimbIO {
     inputs.leftBackAppliedVolts = leftBackAppliedVolts;
     inputs.leftBackCurrentAmps = Math.abs(leftBackVelocityRotPerSec) * 0.5;
 
-    // Passive Hook Servos
-    inputs.leftHookServoPosition = leftHookServoPosition;
-    inputs.rightHookServoPosition = rightHookServoPosition;
+    // Secondary Hook Angle Servos
+    inputs.leftSecondaryHookAngleServoPosition = leftSecondaryHookAngleServoPosition;
+    inputs.rightSecondaryHookAngleServoPosition = rightSecondaryHookAngleServoPosition;
+
+    // Secondary Hook Hardstop Servos
+    inputs.leftSecondaryHookHardstopServoPosition = leftSecondaryHookHardstopServoPosition;
+    inputs.rightSecondaryHookHardstopServoPosition = rightSecondaryHookHardstopServoPosition;
 
     // Update Mechanism2d visualization
     // Note: Mechanism2d visualization would need to be sent to SmartDashboard separately
@@ -197,13 +205,23 @@ public class ClimbIOSim implements ClimbIO {
   }
 
   @Override
-  public void setLeftHookPosition(double position) {
-    this.leftHookServoPosition = position;
+  public void setLeftSecondaryHookAnglePosition(double position) {
+    this.leftSecondaryHookAngleServoPosition = position;
   }
 
   @Override
-  public void setRightHookPosition(double position) {
-    this.rightHookServoPosition = position;
+  public void setRightSecondaryHookAnglePosition(double position) {
+    this.rightSecondaryHookAngleServoPosition = position;
+  }
+
+  @Override
+  public void setLeftSecondaryHookHardstopPosition(double position) {
+    this.leftSecondaryHookHardstopServoPosition = position;
+  }
+
+  @Override
+  public void setRightSecondaryHookHardstopPosition(double position) {
+    this.rightSecondaryHookHardstopServoPosition = position;
   }
 
   @Override

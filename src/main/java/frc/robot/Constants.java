@@ -598,17 +598,19 @@ public final class Constants {
     public static final int LEFT_BACK_MOTOR_CAN_ID = 54;
     public static final CANBus CAN_BUS = new CANBus("Superstructure");
 
-    // Passive Hook Release Servos (REV Smart Robot Servo, REV-41-1097)
-    // Without an SRS Programmer the servo acts as a 270° standard servo
-    // with a 500µs–2500µs pulse range.  PWM bounds are overridden in the IO
-    // layer so set(0.0) = 0° and set(1.0) = 270°.
-    public static final int RIGHT_HOOK_SERVO_PWM = 9;
-    public static final int LEFT_HOOK_SERVO_PWM = 1;
-    public static final double SRS_FULL_RANGE_DEG = 270.0; // degrees of travel
-    // Servo positions as fraction of full range (0.0 = 0°, 1.0 = 270°)
-    // Tune these to the actual stowed / released angles of your mechanism.
-    public static final double HOOK_STOWED_POSITION = 0.0; // 0° — hooks locked
-    public static final double HOOK_RELEASED_POSITION = 1.0; // 270° — hooks released
+    // All climb servos are 180° with 500µs–2500µs pulse range.
+    // PWM bounds are overridden in the IO layer so set(0.0) = 0° and set(1.0) = 180°.
+    public static final double SERVO_FULL_RANGE_DEG = 180.0; // degrees of travel
+
+    // Secondary Hook Angle Servos
+    public static final int LEFT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 2;
+    public static final int RIGHT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 6;
+    public static final double SECONDARY_HOOK_ANGLE_STOWED_POSITION = 0.0;
+
+    // Secondary Hook Hardstop Servos
+    public static final int LEFT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 4;
+    public static final int RIGHT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 7;
+    public static final double SECONDARY_HOOK_HARDSTOP_STOWED_POSITION = 0.0;
 
     // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
     // Front motors: 100:1 reduction → 1 motor rotation = 1/100 drum rotation

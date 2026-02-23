@@ -92,4 +92,12 @@ public interface ClimbIO {
    * re-initialize the climb when restarting auto without restarting the whole program.
    */
   public default void resetToStowed() {}
+
+  /**
+   * Re-seed encoder positions to match the initial STOWED end-effector pose IK solution. Used after
+   * calibration mode to realign the encoder frame of reference so FK/IK produces correct positions.
+   * On real hardware this calls setPosition() on each motor; in SIM it resets the simulated
+   * positions.
+   */
+  public default void recalibrateEncoders() {}
 }

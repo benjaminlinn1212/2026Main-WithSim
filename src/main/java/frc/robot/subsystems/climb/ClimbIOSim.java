@@ -231,4 +231,18 @@ public class ClimbIOSim implements ClimbIO {
     // Zero all velocities and voltages
     stop();
   }
+
+  @Override
+  public void recalibrateEncoders() {
+    // Re-seed simulated positions to match STOWED cable-length rotations (same as resetToStowed
+    // but without zeroing velocities/voltages — just re-align the encoder frame).
+    Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+    ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
+    if (stowedIK.isValid) {
+      leftFrontPositionRotations = stowedIK.frontMotorRotations;
+      leftBackPositionRotations = stowedIK.backMotorRotations;
+      rightFrontPositionRotations = stowedIK.frontMotorRotations;
+      rightBackPositionRotations = stowedIK.backMotorRotations;
+    }
+  }
 }

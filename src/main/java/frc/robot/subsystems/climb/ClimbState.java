@@ -92,14 +92,18 @@ public enum ClimbState {
       List.of(
           new Translation2d(
               ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
-          new Translation2d(0.6, 0.6)),
+          new Translation2d(0.6, 0.63)),
       2.0,
       false),
 
   /** Retract cables on L1 bar for auto climb only */
   RETRACT_L1_AUTO(
       "Auto Retracting on L1",
-      List.of(new Translation2d(0.6, 0.6), new Translation2d(0.6, 0.46)),
+      List.of(
+          new Translation2d(0.6, 0.63),
+          new Translation2d(0.63, 0.60),
+          new Translation2d(0.65, 0.46),
+          new Translation2d(0.56, 0.42)),
       2.5,
       true),
 

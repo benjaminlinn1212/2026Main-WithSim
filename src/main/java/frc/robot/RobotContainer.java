@@ -30,6 +30,7 @@ import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
 import frc.robot.subsystems.climb.ClimbIOSim;
 import frc.robot.subsystems.climb.ClimbIOTalonFX;
+import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorIO;
 import frc.robot.subsystems.conveyor.ConveyorIOSim;
@@ -480,7 +481,7 @@ public class RobotContainer {
     // ONLY_AIMING → ONLY_SHOOTING, AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING.
     // On release, reverts to the aiming-only state.
     controller
-        .rightTrigger(0.5)
+        .rightTrigger(0.2)
         .whileTrue(
             Commands.run(
                 () -> {
@@ -509,54 +510,122 @@ public class RobotContainer {
   }
 
   /**
-   * Configure button bindings for the operator controller (port 1). Controls climb state machine
-   * and intake shake (dislodge stuck fuel).
+   * Configure button bindings for the operator controller (port 1). Controls climb state machine,
+   * intake shake (dislodge stuck fuel), and climb calibration mode.
    *
    * <p>Climb is an independent subsystem — operator can control it at any time without entering a
    * special mode. Superstructure continues running (intake, aiming, etc.) in parallel.
+   *
+   * <p>CALIBRATION MODE (left bumper enter, right bumper exit): Allows individual motor voltage
+   * control for cable tension adjustment. On exit, encoder positions are re-seeded to match the
+   * initial STOWED end-effector pose.
+   *
+   * <p>Calibration controls (while in calibration mode):
+   *
+   * <ul>
+   *   <li>POV Up/Down: Left front motor ±3V
+   *   <li>POV Left/Right: Left back motor ±3V
+   *   <li>Y/A: Right front motor ±3V
+   *   <li>X/B: Right back motor ±3V
+   * </ul>
    */
   private void configureOperatorBindings() {
     System.out.println("[RobotContainer] Configuring operator bindings...");
 
-    // ===== CLIMB CONTROLS =====
-    // Climb is independent from superstructure — no "climb mode" needed for teleop.
-    // The operator directly advances/reverses the climb state machine.
-
-    // POV Up: Release from auto climb L1 — after auto ends latched on L1, stow arms back to
-    // STOWED so the operator can begin the normal teleop climb sequence.
-    operator.povUp().onTrue(superstructure.releaseFromAutoClimbL1());
-
-    // POV Down: Stow climb — retract arms back to STOWED position at any time
-    operator.povDown().onTrue(superstructure.stowClimb());
-
-    // POV Right: Next climb state — advance through the teleop climb sequence
-    // (STOWED → EXTEND_L1 → RETRACT_L1 → EXTEND_L2 → ... → RETRACT_L3)
-    operator.povRight().onTrue(superstructure.nextClimbState());
-
-    // POV Left: Previous climb state — go back one step in the climb sequence
-    operator.povLeft().onTrue(superstructure.previousClimbState());
-
-    // ===== INTAKE SHAKE CONTROLS =====
-    // When the intake is deployed (released), the operator can toggle between full deploy and
-    // half deploy to shake stuck fuel into the conveyor.
-    // Y button: Move intake pivot to half-deployed (shake) position
-    // A button: Move intake pivot back to full-deployed position
-
+    // ===== CLIMB CALIBRATION MODE =====
+    // Left bumper: Enter calibration mode — stops motors, enables individual voltage control
     operator
-        .y()
+        .leftBumper()
         .onTrue(
             Commands.either(
-                superstructure.setIntakeHalfDeploy(),
-                Commands.none(),
-                superstructure::isIntakeDeployed));
+                Commands.none(), climb.enterCalibrationMode(), climb::isInCalibrationMode));
+
+    // Right bumper: Exit calibration mode — stops motors, recalibrates encoders, returns to STOWED
+    operator
+        .rightBumper()
+        .onTrue(
+            Commands.either(
+                climb.exitCalibrationMode(), Commands.none(), climb::isInCalibrationMode));
+
+    // ===== CALIBRATION MOTOR CONTROLS (only active in calibration mode) =====
+    // POV Up/Down: Left front motor ±3V
+    operator
+        .povUp()
+        .whileTrue(
+            Commands.either(
+                climb.calibrationLeftFrontForward(),
+                climb.releaseFromAutoL1(),
+                climb::isInCalibrationMode));
+
+    operator
+        .povDown()
+        .whileTrue(
+            Commands.either(
+                climb.calibrationLeftFrontReverse(),
+                climb.stowFromCurrentState(),
+                climb::isInCalibrationMode));
+
+    // POV Left/Right: Left back motor ±3V
+    operator
+        .povLeft()
+        .whileTrue(
+            Commands.either(
+                climb.calibrationLeftBackReverse(),
+                superstructure.previousClimbState(),
+                climb::isInCalibrationMode));
+
+    operator
+        .povRight()
+        .whileTrue(
+            Commands.either(
+                climb.calibrationLeftBackForward(),
+                superstructure.nextClimbState(),
+                climb::isInCalibrationMode));
+
+    // Y/A: Right front motor ±3V
+    operator
+        .y()
+        .whileTrue(
+            Commands.either(
+                climb.calibrationRightFrontForward(),
+                Commands.either(
+                    superstructure.setIntakeHalfDeploy(),
+                    Commands.none(),
+                    superstructure::isIntakeDeployed),
+                climb::isInCalibrationMode));
 
     operator
         .a()
-        .onTrue(
+        .whileTrue(
             Commands.either(
-                superstructure.setIntakeFullDeploy(),
-                Commands.none(),
-                superstructure::isIntakeDeployed));
+                climb.calibrationRightFrontReverse(),
+                Commands.either(
+                    superstructure.setIntakeFullDeploy(),
+                    Commands.none(),
+                    superstructure::isIntakeDeployed),
+                climb::isInCalibrationMode));
+
+    // X/B: Right back motor ±3V (whileTrue) in calibration mode;
+    //       extendL1 / stowClimb (onTrue) in normal mode
+    operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
+    operator
+        .x()
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(climb.setStateCommand(ClimbState.EXTEND_L1_AUTO));
+
+    operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
+    operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowFromCurrentState());
+
+    // LT/RT: Retract L1 / Release L1 (normal mode only)
+    // Full manual L1 flow: X (extend) → LT (retract) → RT (release) → B (stow)
+    operator
+        .leftTrigger(0.5)
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(climb.setStateCommand(ClimbState.RETRACT_L1_AUTO));
+    operator
+        .rightTrigger(0.5)
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(climb.releaseFromAutoL1());
   }
 
   /**

@@ -636,14 +636,14 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.0;
 
-    // Motion Magic Constants (in MOTOR rotations per second)
-    // Note: These are in motor units since SensorToMechanismRatio = 1.0 per CTRE recommendation
-    // Front motors (100:1): 3.0 drum rot/s = 300 motor rot/s
-    // Back motors (80:1): 3.0 drum rot/s = 240 motor rot/s
-    // We'll use average for shared base config, specific conversions handled in IO layer
-    public static final double CRUISE_VELOCITY = 3.0; // mechanism (drum) rotations per second
-    public static final double ACCELERATION = 10.0; // mechanism (drum) rotations per second^2
-    public static final double JERK = 40.0; // mechanism (drum) rotations per second^3
+    // Motion Magic Constants (in mechanism/drum rotations per second)
+    // IO layer converts to motor units: motorVel = drumVel / GEAR_RATIO
+    // Kraken/Falcon free speed ≈ 100 motor rot/s
+    // Front motors (100:1): 0.8 drum rot/s = 80 motor rot/s (80% of free speed)
+    // Back motors (80:1): 0.8 drum rot/s = 64 motor rot/s (64% of free speed)
+    public static final double CRUISE_VELOCITY = 0.8; // mechanism (drum) rotations per second
+    public static final double ACCELERATION = 3.0; // mechanism (drum) rotations per second^2
+    public static final double JERK = 12.0; // mechanism (drum) rotations per second^3
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
@@ -661,25 +661,37 @@ public final class Constants {
     // Fixed Points (all relative to back winch at origin)
     // Back winch (W_back) = (0, 0) — origin, drives the back cable
     // Front winch (W_front) — drives the front cable
-    public static final double FRONT_WINCH_X_METERS = 0.345;
-    public static final double FRONT_WINCH_Y_METERS = 0.145;
+    public static final double FRONT_WINCH_X_METERS = 0.341;
+    public static final double FRONT_WINCH_Y_METERS = 0.13208;
     // Shoulder joint (S) — fixed pivot where link 1 attaches to the frame
-    public static final double SHOULDER_X_METERS = 0.305;
+    public static final double SHOULDER_X_METERS = 0.3048;
     public static final double SHOULDER_Y_METERS = 0.0;
 
     // Link Lengths
     public static final double LINK_1_LENGTH_METERS = 0.32; // Shoulder to elbow
-    public static final double LINK_2_LENGTH_METERS = 0.45; // Elbow to end effector
+    public static final double LINK_2_LENGTH_METERS = 0.42547; // Elbow to end effector
 
     // Cable Attachment Offsets (distance along the link from the moving end)
     // Back cable attaches to link 1, BACK_CABLE_OFFSET meters from elbow toward shoulder
-    public static final double BACK_CABLE_ATTACH_ON_LINK1_METERS = 0.03;
+    public static final double BACK_CABLE_ATTACH_ON_LINK1_METERS = 0.02684;
     // Front cable attaches to link 2, FRONT_CABLE_OFFSET meters from end effector toward elbow
-    public static final double FRONT_CABLE_ATTACH_ON_LINK2_METERS = 0.18;
+    public static final double FRONT_CABLE_ATTACH_ON_LINK2_METERS = 0.15267;
 
     // Cable Drum (on motor shaft that winds up cable)
     public static final double CABLE_DRUM_CIRCUMFERENCE_METERS =
-        0.043992; // Circumference of cable drum (meters per rotation)
+        0.0439941; // Base circumference of bare cable drum (meters per rotation, layer 0)
+
+    // Cable Layer Buildup — as cable stacks on the drum, effective circumference grows.
+    // One full layer = ROTATIONS_PER_LAYER rotations. When a new layer starts, the
+    // circumference increases by CIRCUMFERENCE_PER_LAYER_METERS (step function, not linear).
+    public static final double ROTATIONS_PER_LAYER = 4.0; // rotations to fill one layer
+    public static final double CIRCUMFERENCE_PER_LAYER_METERS =
+        0.012; // +1.2 cm circumference per layer
+
+    // At the STOW pose, the drum already has cable wound on it.
+    // Layer 0 (4 rot) + Layer 1 (4 rot) + 2 rot into Layer 2 = 10 total absolute rotations.
+    // Effective circumference at stow = C0 + 2 * 0.012 = C0 + 2.4 cm (layer 2).
+    public static final double STOW_ABSOLUTE_ROTATIONS = 10.0;
 
     // Mechanism Position Limits (safety limits in drum/mechanism rotations, not motor rotations)
     // Note: With SensorToMechanismRatio configured, position control uses mechanism rotations
@@ -695,17 +707,18 @@ public final class Constants {
     public static final boolean ENABLE_JOINT_LIMITS = false;
 
     // Workspace Limits (for end effector reachability checks)
-    public static final double WORKSPACE_MIN_X_METERS = -0.2; // Minimum X position
-    public static final double WORKSPACE_MAX_X_METERS = 1.0; // Maximum X position
-    public static final double WORKSPACE_MIN_Y_METERS = 0.0; // Minimum Y position (ground)
-    public static final double WORKSPACE_MAX_Y_METERS = 1.2; // Maximum Y position
+    // NOTE: Opened wide for testing — tighten these after validating real mechanism range
+    public static final double WORKSPACE_MIN_X_METERS = -5.0; // Minimum X position
+    public static final double WORKSPACE_MAX_X_METERS = 5.0; // Maximum X position
+    public static final double WORKSPACE_MIN_Y_METERS = -5.0; // Minimum Y position
+    public static final double WORKSPACE_MAX_Y_METERS = 5.0; // Maximum Y position
 
     // Starting Position (cable has some initial extension, not fully retracted)
     // This represents where the end effector is when the robot powers on
     // Measure this position with the climb mechanism in its physical starting state
     // Initial cable lengths are computed automatically from this position by ClimbIK.
-    public static final double START_POSITION_X_METERS = 0.37; // Forward offset from winch base
-    public static final double START_POSITION_Y_METERS = 0.46; // Height above winch base
+    public static final double START_POSITION_X_METERS = 0.356; // Forward offset from winch base
+    public static final double START_POSITION_Y_METERS = 0.43; // Height above winch base
 
     // IK Solver Tolerance
     public static final double IK_POSITION_TOLERANCE_METERS = 0.005; // 5mm tolerance
@@ -714,9 +727,9 @@ public final class Constants {
     // ==================== Path Planning Constraints ====================
 
     // Cartesian path generation constraints (for ClimbPathPlanner)
-    public static final double PATH_MAX_VELOCITY_MPS = 1.0; // Maximum end effector velocity (m/s)
+    public static final double PATH_MAX_VELOCITY_MPS = 10.0; // Maximum end effector velocity (m/s)
     public static final double PATH_MAX_ACCELERATION_MPS2 =
-        2.0; // Maximum end effector acceleration (m/s^2)
+        10.0; // Maximum end effector acceleration (m/s^2)
 
     // Velocity control feedforward (for pulling paths under load)
     public static final double VELOCITY_KG_PULLING =

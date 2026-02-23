@@ -39,6 +39,9 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d leftTargetPosition = ClimbState.STOWED.getTargetPosition();
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
 
+  // ─── Calibration mode ───
+  private boolean calibrationMode = false;
+
   // ─── Mechanism2d visualization ───
   // Canvas origin is the back winch (0,0). Canvas sized to contain workspace.
   // In AdvantageScope 3D, the robot origin maps to canvas (CANVAS_W/2, 0).
@@ -781,5 +784,111 @@ public class ClimbSubsystem extends SubsystemBase {
   /** Set the right back motor voltage directly. */
   public void setRightBackVoltage(double volts) {
     io.setRightBackVoltage(volts);
+  }
+
+  // ===========================================================================
+  // CALIBRATION MODE
+  // ===========================================================================
+
+  /** Whether the climb is currently in calibration mode. */
+  public boolean isInCalibrationMode() {
+    return calibrationMode;
+  }
+
+  /**
+   * Enter calibration mode. Stops all motors and allows individual motor voltage control. Normal
+   * climb state commands are blocked while in calibration mode.
+   */
+  public Command enterCalibrationMode() {
+    return runOnce(
+            () -> {
+              calibrationMode = true;
+              io.stop();
+              Logger.recordOutput("Climb/CalibrationMode", true);
+              System.out.println("[Climb] Entered calibration mode");
+            })
+        .withName("ClimbEnterCalibration");
+  }
+
+  /**
+   * Exit calibration mode. Stops all motors, recalibrates encoder positions to match the initial
+   * STOWED end-effector pose, then returns to STOWED state with position hold.
+   */
+  public Command exitCalibrationMode() {
+    return runOnce(
+            () -> {
+              io.stop();
+              io.recalibrateEncoders();
+              calibrationMode = false;
+              setState(ClimbState.STOWED);
+              Logger.recordOutput("Climb/CalibrationMode", false);
+              System.out.println("[Climb] Exited calibration mode — encoders recalibrated");
+            })
+        .withName("ClimbExitCalibration");
+  }
+
+  /**
+   * Command that runs a specific motor at a voltage while held, and stops it when released. Only
+   * active during calibration mode.
+   *
+   * @param motorName Display name for logging
+   * @param voltageSetter Consumer to set the motor voltage
+   * @param voltage The voltage to apply (positive or negative)
+   */
+  private Command calibrationMotorCommand(
+      String motorName, java.util.function.DoubleConsumer voltageSetter, double voltage) {
+    return Commands.startEnd(
+            () -> {
+              if (calibrationMode) {
+                voltageSetter.accept(voltage);
+                Logger.recordOutput("Climb/Calibration/" + motorName, voltage);
+              }
+            },
+            () -> {
+              voltageSetter.accept(0.0);
+              Logger.recordOutput("Climb/Calibration/" + motorName, 0.0);
+            },
+            this)
+        .withName("ClimbCal_" + motorName);
+  }
+
+  /** Left front motor forward (+3V). Only active in calibration mode. */
+  public Command calibrationLeftFrontForward() {
+    return calibrationMotorCommand("LeftFront", io::setLeftFrontVoltage, 3.0);
+  }
+
+  /** Left front motor reverse (-3V). Only active in calibration mode. */
+  public Command calibrationLeftFrontReverse() {
+    return calibrationMotorCommand("LeftFront", io::setLeftFrontVoltage, -3.0);
+  }
+
+  /** Left back motor forward (+3V). Only active in calibration mode. */
+  public Command calibrationLeftBackForward() {
+    return calibrationMotorCommand("LeftBack", io::setLeftBackVoltage, 3.0);
+  }
+
+  /** Left back motor reverse (-3V). Only active in calibration mode. */
+  public Command calibrationLeftBackReverse() {
+    return calibrationMotorCommand("LeftBack", io::setLeftBackVoltage, -3.0);
+  }
+
+  /** Right front motor forward (+3V). Only active in calibration mode. */
+  public Command calibrationRightFrontForward() {
+    return calibrationMotorCommand("RightFront", io::setRightFrontVoltage, 3.0);
+  }
+
+  /** Right front motor reverse (-3V). Only active in calibration mode. */
+  public Command calibrationRightFrontReverse() {
+    return calibrationMotorCommand("RightFront", io::setRightFrontVoltage, -3.0);
+  }
+
+  /** Right back motor forward (+3V). Only active in calibration mode. */
+  public Command calibrationRightBackForward() {
+    return calibrationMotorCommand("RightBack", io::setRightBackVoltage, 3.0);
+  }
+
+  /** Right back motor reverse (-3V). Only active in calibration mode. */
+  public Command calibrationRightBackReverse() {
+    return calibrationMotorCommand("RightBack", io::setRightBackVoltage, -3.0);
   }
 }

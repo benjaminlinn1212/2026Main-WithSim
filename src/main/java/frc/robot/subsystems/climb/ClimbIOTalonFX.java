@@ -305,4 +305,18 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftFrontMotor.stopMotor();
     leftBackMotor.stopMotor();
   }
+
+  @Override
+  public void recalibrateEncoders() {
+    // Re-seed encoder positions to match STOWED cable-length rotations (same as constructor).
+    // This realigns the encoder frame of reference after manual calibration adjustments.
+    Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+    ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
+    if (stowedIK.isValid) {
+      rightFrontMotor.setPosition(stowedIK.frontMotorRotations / ClimbConstants.FRONT_GEAR_RATIO);
+      rightBackMotor.setPosition(stowedIK.backMotorRotations / ClimbConstants.BACK_GEAR_RATIO);
+      leftFrontMotor.setPosition(stowedIK.frontMotorRotations / ClimbConstants.FRONT_GEAR_RATIO);
+      leftBackMotor.setPosition(stowedIK.backMotorRotations / ClimbConstants.BACK_GEAR_RATIO);
+    }
+  }
 }

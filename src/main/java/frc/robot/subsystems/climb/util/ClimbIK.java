@@ -197,11 +197,12 @@ public class ClimbIK {
     final double frontCableLen = Math.hypot(qx - wfx, qy - wfy); // Q to W_front
 
     // ─── Convert to Drum Rotations (relative to initial lengths) ───
+    // Uses CableDrumModel to account for cable layer buildup on the drum
     final double frontDelta = frontCableLen - INITIAL_CABLE_LENGTHS.frontLengthMeters;
     final double backDelta = backCableLen - INITIAL_CABLE_LENGTHS.backLengthMeters;
 
-    final double frontDrumRot = frontDelta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
-    final double backDrumRot = backDelta / ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS;
+    final double frontDrumRot = CableDrumModel.cableDeltaToRotations(frontDelta);
+    final double backDrumRot = CableDrumModel.cableDeltaToRotations(backDelta);
 
     return new ClimbSideIKResult(
         frontDrumRot, // frontMotorRotations → front cable
@@ -324,10 +325,10 @@ public class ClimbIK {
   /** Convert mechanism rotations to absolute cable lengths (meters). */
   public static CableLengths lengthsFromRotations(double frontRotations, double backRotations) {
     double l1 =
-        frontRotations * ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS
+        CableDrumModel.rotationsToCableDelta(frontRotations)
             + INITIAL_CABLE_LENGTHS.frontLengthMeters;
     double l2 =
-        backRotations * ClimbConstants.CABLE_DRUM_CIRCUMFERENCE_METERS
+        CableDrumModel.rotationsToCableDelta(backRotations)
             + INITIAL_CABLE_LENGTHS.backLengthMeters;
     return new CableLengths(l1, l2, 0.0, 0.0);
   }

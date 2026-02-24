@@ -35,15 +35,28 @@ public final class AutoTuning {
    */
   public static final double FEED_ACCEL_HYSTERESIS = 1.0;
 
-  // ===== Intake Current-Based FUEL Pickup Detection =====
+  // ===== Intake Current-Based FUEL Presence Detection =====
+  // New logic: monitor the LOWER intake roller current. Because there's motor accel time,
+  // the rollers always draw some current when spinning. If the lower roller current drops
+  // below the threshold for a sustained period, it means no FUEL is in the intake path.
+  // Conversely, while FUEL is present the lower roller is loaded and stays above threshold.
 
   /**
-   * TUNE THIS: Stator current threshold (amps) for the upper intake roller that indicates FUEL has
-   * contacted the rollers. When the roller current exceeds this value at any point during the drive
-   * to the intake pose, the pickup latch is set. Typical free-spinning current is ~2-5A; with FUEL
-   * contact expect ~15-30A. Start high and lower until it reliably triggers.
+   * TUNE THIS: Stator current threshold (amps) for the lower intake roller below which we consider
+   * "no FUEL present". When the rollers are spinning with FUEL, the lower roller current stays
+   * above this. When the rollers are spinning without FUEL (free-spinning), current drops below.
+   * The detection triggers after the current stays below this for {@link
+   * #INTAKE_NO_FUEL_TIME_SECONDS}.
    */
-  public static final double INTAKE_CURRENT_THRESHOLD_AMPS = 15.0;
+  public static final double INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS = 9.0;
+
+  /**
+   * TUNE THIS: How long (seconds) the lower intake roller current must stay below {@link
+   * #INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS} before we declare "no FUEL in intake". Because the
+   * motor has accel time, we need a sustained low-current window to avoid false triggers during
+   * transients. 0.5s accounts for motor spin-up and brief current dips between fuel contacts.
+   */
+  public static final double INTAKE_NO_FUEL_TIME_SECONDS = 0.5;
 
   /**
    * How far (meters) to nudge the robot toward the field center Y-axis when no FUEL pickup was
@@ -59,22 +72,27 @@ public final class AutoTuning {
   public static final double INTAKE_NUDGE_TIMEOUT_SECONDS = 0.5;
 
   // ===== Shooter Current-Based Shot Completion Detection =====
+  // New logic: monitor the CONVEYOR motor current instead of the shooter motor. Because there's
+  // motor accel time, the conveyor always draws current when feeding. If conveyor current drops
+  // below the threshold for a sustained period, it means no FUEL is being pushed through —
+  // all FUEL has been fired.
 
   /**
-   * TUNE THIS: Stator current threshold (amps) for the shooter motor that indicates FUEL is
-   * currently being launched. The shooter current rises when FUEL contacts the flywheel, then drops
-   * when the FUEL exits. We detect "all balls done" when current stays BELOW this for {@link
-   * #SHOOTER_NO_BALL_TIME_LIMIT} seconds.
+   * TUNE THIS: Stator current threshold (amps) for the conveyor motor below which we consider "no
+   * FUEL being fed". When FUEL is being pushed into the shooter, the conveyor is loaded and current
+   * stays above this. When all FUEL has exited and the conveyor is spinning freely, current drops
+   * below. The detection triggers after the current stays below this for {@link
+   * #SHOOTER_DONE_TIME_SECONDS}.
    */
-  public static final double SHOOTER_CURRENT_THRESHOLD_AMPS = 20.0;
+  public static final double CONVEYOR_NO_FUEL_CURRENT_THRESHOLD_AMPS = 4.0;
 
   /**
-   * TUNE THIS: How long (seconds) the shooter current must stay below {@link
-   * #SHOOTER_CURRENT_THRESHOLD_AMPS} before we declare "all FUEL has been fired". A single ball
-   * takes ~0.05-0.1s to pass through; set this to ~0.15-0.25s to confirm no more are queued. Too
-   * short → false positive (pause between balls). Too long → wasted time.
+   * TUNE THIS: How long (seconds) the conveyor current must stay below {@link
+   * #CONVEYOR_NO_FUEL_CURRENT_THRESHOLD_AMPS} before we declare "all FUEL has been fired". Because
+   * the motor has accel time, we need a sustained low-current window to confirm there are no more
+   * FUEL queued. 0.5s accounts for gaps between consecutive FUEL and motor transients.
    */
-  public static final double SHOOTER_NO_BALL_TIME_LIMIT = 0.20;
+  public static final double SHOOTER_DONE_TIME_SECONDS = 0.5;
 
   /**
    * Maximum time (seconds) to wait for the shooter to finish firing all FUEL. Safety fallback in

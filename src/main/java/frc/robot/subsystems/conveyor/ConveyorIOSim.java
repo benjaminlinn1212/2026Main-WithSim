@@ -8,6 +8,7 @@ public class ConveyorIOSim implements ConveyorIO {
   @Override
   public void updateInputs(ConveyorIOInputs inputs) {
     inputs.appliedVolts = appliedPercent * 12.0; // Simulate voltage from percent
+    inputs.currentAmps = Math.abs(appliedPercent) * 8.0; // Rough sim: ~8A at full output
     inputs.directionInverted = directionInverted;
     // Simplified simulation - just track applied voltage
     inputs.velocityRotPerSec = appliedPercent * 10; // Rough simulation

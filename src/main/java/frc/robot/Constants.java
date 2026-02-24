@@ -324,8 +324,8 @@ public final class Constants {
 
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0; // Stowed/up position
-    public static final double HALF_DEPLOYED_POSITION = 14.0; // Halfway between stowed and deployed
-    public static final double DEPLOYED_POSITION = 27.8; // Extended/down position for intaking
+    public static final double HALF_DEPLOYED_POSITION = 22.0; // Halfway between stowed and deployed
+    public static final double DEPLOYED_POSITION = 27.4; // Extended/down position for intaking
 
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
@@ -622,13 +622,13 @@ public final class Constants {
     public static final double SERVO_FULL_RANGE_DEG = 180.0; // degrees of travel
 
     // Secondary Hook Angle Servos
-    public static final int LEFT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 2;
-    public static final int RIGHT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 6;
+    public static final int LEFT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 6;
+    public static final int RIGHT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 8;
     public static final double SECONDARY_HOOK_ANGLE_STOWED_POSITION = 0.0;
 
     // Secondary Hook Hardstop Servos
-    public static final int LEFT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 4;
-    public static final int RIGHT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 7;
+    public static final int LEFT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 7;
+    public static final int RIGHT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 9;
     public static final double SECONDARY_HOOK_HARDSTOP_STOWED_POSITION = 0.0;
 
     // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)

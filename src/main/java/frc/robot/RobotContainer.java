@@ -603,28 +603,14 @@ public class RobotContainer {
                 climb::isInCalibrationMode));
 
     // X/B: Right back motor ±3V (whileTrue) in calibration mode;
-    //       right secondary hook hardstop servo 0°/90° (onTrue) in normal mode
+    //       X: all servos to 0 (onTrue) in normal mode
     operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
     operator
         .x()
         .and(() -> !climb.isInCalibrationMode())
-        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookHardstop(0.5)));
+        .onTrue(Commands.runOnce(() -> climb.setAllServosToZero()));
 
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
-    operator
-        .b()
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookHardstop(0.0)));
-
-    // LT/RT: Right secondary hook angle servo 0°/90° (normal mode only)
-    operator
-        .leftTrigger(0.5)
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookAngle(0.0)));
-    operator
-        .rightTrigger(0.5)
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(Commands.runOnce(() -> climb.setRightSecondaryHookAngle(0.5)));
   }
 
   /**

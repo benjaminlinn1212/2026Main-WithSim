@@ -716,6 +716,14 @@ public class ClimbSubsystem extends SubsystemBase {
     io.setLeftSecondaryHookHardstopPosition(position);
   }
 
+  /** Set all 4 secondary hook servos (both angle and hardstop, both sides) to 0. */
+  public void setAllServosToZero() {
+    io.setLeftSecondaryHookAnglePosition(0.0);
+    io.setRightSecondaryHookAnglePosition(0.0);
+    io.setLeftSecondaryHookHardstopPosition(0.0);
+    io.setRightSecondaryHookHardstopPosition(0.0);
+  }
+
   // ===========================================================================
   // EMERGENCY
   // ===========================================================================

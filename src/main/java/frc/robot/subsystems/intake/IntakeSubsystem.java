@@ -97,4 +97,15 @@ public class IntakeSubsystem extends SubsystemBase {
   public double getUpperCurrentAmps() {
     return inputs.upperCurrentAmps;
   }
+
+  /**
+   * Get the stator current of the lower intake roller (amps). Used for current-based FUEL presence
+   * detection — when the lower roller current drops below a threshold for a sustained period, no
+   * FUEL is in the intake path.
+   *
+   * @return Lower roller stator current in amps
+   */
+  public double getLowerCurrentAmps() {
+    return inputs.lowerCurrentAmps;
+  }
 }

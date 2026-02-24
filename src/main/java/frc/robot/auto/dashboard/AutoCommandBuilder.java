@@ -72,17 +72,6 @@ public class AutoCommandBuilder {
   private boolean zoneAwareFeeding = false;
 
   /**
-   * Runtime latch for intake FUEL pickup detection. Set to true the moment the upper intake roller
-   * current exceeds {@link #INTAKE_CURRENT_THRESHOLD_AMPS} at any point during the drive to an
-   * intake pose. Checked upon arrival — if true, FUEL was picked up in transit and no waiting is
-   * needed. Reset to false at the start of each intake command via {@code Commands.runOnce()}.
-   *
-   * <p>In simulation, this is always set to true after a fixed dwell (since sim IO doesn't model
-   * FUEL load).
-   */
-  private boolean intakePickedUp = false;
-
-  /**
    * Runtime flag set when a cycle's SWD score is merged with the post-cycle DriveTo+Climb at
    * runtime. When true, the post-cycle loop skips the DriveTo+Climb pair since it was already
    * handled by the merged command. Reset at the start of each {@link #buildAutoCommand} call.
@@ -568,48 +557,46 @@ public class AutoCommandBuilder {
     return remaining > needed;
   }
 
-  // ===== Current-Based Detection Commands =====
+  // ===== FUEL Detection Commands =====
+  // Detection logic lives in Superstructure (runs every periodic cycle).
+  // These commands just reset the detection state and wait on the boolean getters.
 
   /**
-   * Build a command that checks the {@link #intakePickedUp} latch upon arrival at the intake pose.
-   * The latch is set during the drive whenever the upper intake roller current exceeds {@link
-   * #INTAKE_CURRENT_THRESHOLD_AMPS} (monitored by {@link #intakeCurrentMonitor()}).
+   * Build a command that waits until the Superstructure detects FUEL in the intake path (lower
+   * roller current above threshold), or handles the case where no FUEL was picked up.
    *
-   * <p><b>Logic:</b> The intake rollers run the entire time the robot drives to the intake pose. If
-   * FUEL contacts the rollers at any point during transit, the current spikes and the latch is set.
-   * By the time the robot arrives:
+   * <p><b>Logic:</b> The Superstructure continuously monitors the lower intake roller current.
+   * While FUEL is present, the roller is loaded and current stays high. If the current drops below
+   * the threshold for 0.5s, "no fuel" is declared. The detection is reset before each intake drive.
+   *
+   * <p>Upon arrival at the intake pose:
    *
    * <ul>
-   *   <li><b>Latch set (picked up in transit):</b> Continue immediately — no waiting.
-   *   <li><b>Latch NOT set (never touched FUEL):</b> Immediately nudge 1m toward field center Y
-   *       (deeper into the FUEL scatter zone), then wait briefly for a pickup with timeout.
+   *   <li><b>FUEL detected (intakeHasFuel):</b> Continue immediately — no waiting.
+   *   <li><b>No FUEL detected:</b> Nudge 1m toward field center Y (deeper into the scatter zone),
+   *       then wait briefly for a pickup with timeout.
    * </ul>
    *
-   * <p><b>In simulation</b>, current doesn't model FUEL load, so the latch is set true immediately
-   * upon arrival (instant success — no waiting).
+   * <p><b>In simulation</b>, detection is bypassed — instant success.
    *
    * @param intakePose The nominal intake pose (used to compute nudge direction)
-   * @return Command that checks latch and nudges if no FUEL was picked up
+   * @return Command that checks FUEL presence and nudges if empty
    */
   private Command waitForIntakePickup(Pose2d intakePose) {
     if (Constants.currentMode == Constants.Mode.SIM) {
-      // Sim fallback: set latch true immediately — sim IO doesn't model FUEL load
       return Commands.runOnce(
-              () -> {
-                intakePickedUp = true;
-                Logger.recordOutput("DashboardAuto/IntakeDetect", "SIM: latch set at pose");
-              })
+              () -> Logger.recordOutput("DashboardAuto/IntakeDetect", "SIM: instant success"))
           .withName("IntakeDetect_Sim");
     }
 
-    // Real robot: check latch immediately upon arrival
+    // Real robot: check Superstructure detection upon arrival
     return Commands.either(
-            // Latch set — FUEL was picked up during the drive. Continue immediately.
+            // FUEL detected during the drive — continue immediately
             Commands.runOnce(
                 () ->
                     Logger.recordOutput(
-                        "DashboardAuto/IntakeDetect", "FUEL picked up during drive — continuing")),
-            // Latch NOT set — no FUEL detected during entire drive. Nudge + retry.
+                        "DashboardAuto/IntakeDetect", "FUEL detected during drive — continuing")),
+            // No FUEL detected — nudge + retry
             Commands.sequence(
                 Commands.runOnce(
                     () ->
@@ -617,61 +604,30 @@ public class AutoCommandBuilder {
                             "DashboardAuto/IntakeDetect",
                             "No FUEL during drive — nudging 1m toward center Y")),
                 // Drive 1m toward field center Y with intake still running
-                Commands.deadline(pathfindTo(computeNudgePose(intakePose)), intakeCurrentMonitor()),
-                // After nudge drive: check latch again
+                pathfindTo(computeNudgePose(intakePose)),
+                // After nudge: check again
                 Commands.either(
-                    // Picked up during nudge — done
                     Commands.runOnce(
                         () ->
                             Logger.recordOutput(
                                 "DashboardAuto/IntakeDetect",
                                 "FUEL detected during nudge — continuing")),
-                    // Still nothing — wait briefly at nudge pose with timeout, then give up
+                    // Still nothing — wait briefly with timeout, then give up
                     Commands.sequence(
                         Commands.race(
-                            Commands.waitUntil(() -> intakePickedUp),
+                            Commands.waitUntil(() -> superstructure.intakeHasFuel()),
                             Commands.waitSeconds(INTAKE_NUDGE_TIMEOUT_SECONDS)),
                         Commands.runOnce(
                             () ->
                                 Logger.recordOutput(
                                     "DashboardAuto/IntakeDetect",
-                                    intakePickedUp
+                                    superstructure.intakeHasFuel()
                                         ? "FUEL detected after nudge wait"
                                         : "No FUEL after nudge — giving up"))),
-                    () -> intakePickedUp)),
-            // Condition: was FUEL picked up during the drive?
-            () -> intakePickedUp)
+                    () -> superstructure.intakeHasFuel())),
+            // Condition: does the Superstructure detect FUEL?
+            () -> superstructure.intakeHasFuel())
         .withName("IntakeDetect");
-  }
-
-  /**
-   * Build a command that continuously monitors the upper intake roller current and latches {@link
-   * #intakePickedUp} to true the moment current exceeds {@link #INTAKE_CURRENT_THRESHOLD_AMPS}.
-   *
-   * <p>This command runs forever (use as a parallel alongside a path command via deadline). It does
-   * NOT require any subsystem — it only reads sensor values and sets the latch.
-   *
-   * <p>The latch must be reset to false before the drive starts (see {@link #buildIntakeAt}).
-   *
-   * @return A never-ending command that monitors intake current and sets the latch
-   */
-  private Command intakeCurrentMonitor() {
-    return Commands.run(
-            () -> {
-              if (!intakePickedUp
-                  && superstructure.getIntakeUpperCurrentAmps() >= INTAKE_CURRENT_THRESHOLD_AMPS) {
-                intakePickedUp = true;
-                Logger.recordOutput(
-                    "DashboardAuto/IntakeDetect/Latch",
-                    String.format(
-                        "FUEL DETECTED (%.1fA >= %.1fA)",
-                        superstructure.getIntakeUpperCurrentAmps(), INTAKE_CURRENT_THRESHOLD_AMPS));
-              }
-              Logger.recordOutput("DashboardAuto/IntakeDetect/PickedUp", intakePickedUp);
-              Logger.recordOutput(
-                  "DashboardAuto/IntakeDetect/Current", superstructure.getIntakeUpperCurrentAmps());
-            })
-        .withName("IntakeCurrentMonitor");
   }
 
   /**
@@ -696,16 +652,20 @@ public class AutoCommandBuilder {
   }
 
   /**
-   * Build a command that waits until the shooter has finished firing all FUEL, detected by the
-   * shooter motor current dropping below {@link #SHOOTER_CURRENT_THRESHOLD_AMPS} for at least
-   * {@link #SHOOTER_NO_BALL_TIME_LIMIT} seconds continuously.
+   * Build a command that waits until the Superstructure detects all FUEL has been fired, based on
+   * conveyor motor current dropping below threshold for a sustained period.
+   *
+   * <p><b>Logic:</b> The Superstructure continuously monitors the conveyor current. While FUEL is
+   * being pushed into the shooter, the conveyor is loaded and current stays high. When all FUEL has
+   * exited and the conveyor is spinning freely, current drops. After the current stays below the
+   * threshold for 0.5s, "shooter finished" is declared.
    *
    * <p><b>In simulation</b>, uses a fixed time delay since sim IO doesn't model FUEL load.
    *
    * <p>The command finishes when either:
    *
    * <ol>
-   *   <li>Current stays low for the no-ball time limit (all FUEL fired).
+   *   <li>Superstructure reports all FUEL fired ({@link Superstructure#isShooterFinishedFiring()}).
    *   <li>Timeout reached (safety fallback — move on regardless).
    * </ol>
    *
@@ -720,47 +680,23 @@ public class AutoCommandBuilder {
           .withName("ShooterDetect_Sim");
     }
 
-    // Real robot: track how long current has been below threshold
-    // Use a double array as a mutable container for the lambda
-    final double[] lowCurrentStart = {0.0};
-    final boolean[] everSawHigh = {false};
-
-    return Commands.race(
-            Commands.sequence(
-                // First, wait until we see at least one current spike (FUEL entering shooter)
-                // This prevents false "done" when the conveyor hasn't started feeding yet.
-                Commands.waitUntil(
-                    () -> {
-                      if (superstructure.getShooterCurrentAmps()
-                          >= SHOOTER_CURRENT_THRESHOLD_AMPS) {
-                        everSawHigh[0] = true;
-                      }
-                      return everSawHigh[0];
-                    }),
-                // Now wait until current stays low for SHOOTER_NO_BALL_TIME_LIMIT
-                Commands.run(
-                        () -> {
-                          double current = superstructure.getShooterCurrentAmps();
-                          if (current >= SHOOTER_CURRENT_THRESHOLD_AMPS) {
-                            // Ball in contact — reset the low-current timer
-                            lowCurrentStart[0] = Timer.getFPGATimestamp();
-                          }
-                          Logger.recordOutput("DashboardAuto/ShooterDetect/Current", current);
-                          Logger.recordOutput(
-                              "DashboardAuto/ShooterDetect/LowDuration",
-                              Timer.getFPGATimestamp() - lowCurrentStart[0]);
-                        })
-                    .until(
-                        () ->
-                            Timer.getFPGATimestamp() - lowCurrentStart[0]
-                                >= SHOOTER_NO_BALL_TIME_LIMIT)),
-            // Safety timeout — never wait forever
-            Commands.waitSeconds(SHOOTER_DETECT_TIMEOUT_SECONDS))
+    // Real robot: reset detection, then wait for Superstructure to declare "done"
+    return Commands.sequence(
+            Commands.runOnce(
+                () -> {
+                  superstructure.resetShooterDetection();
+                  Logger.recordOutput("DashboardAuto/ShooterDetect", "Waiting for FUEL to exit");
+                }),
+            Commands.race(
+                Commands.waitUntil(() -> superstructure.isShooterFinishedFiring()),
+                Commands.waitSeconds(SHOOTER_DETECT_TIMEOUT_SECONDS)))
         .finallyDo(
             () ->
                 Logger.recordOutput(
                     "DashboardAuto/ShooterDetect",
-                    everSawHigh[0] ? "All FUEL fired" : "Timeout (no spike seen)"))
+                    superstructure.isShooterFinishedFiring()
+                        ? "All FUEL fired"
+                        : "Timeout — moving on"))
         .withName("ShooterDetect");
   }
 
@@ -975,27 +911,26 @@ public class AutoCommandBuilder {
    * getting killed by the deadline on short alliance-zone paths before it could complete. {@code
    * zoneAwareIntake()} is continuous (polled every cycle) so it works regardless of path length.
    *
-   * <p><b>Current-based pickup detection (latch pattern):</b> The {@link #intakePickedUp} latch is
-   * reset to false before the drive starts, and the {@link #intakeCurrentMonitor()} runs as a
-   * parallel alongside {@link #zoneAwareIntake()} during the entire drive. If FUEL contacts the
-   * rollers at any point, the latch is set. Upon arrival at the intake pose, the latch is checked
-   * immediately — if set, continue; if not, nudge 1m toward center Y and retry briefly.
+   * <p><b>Current-based pickup detection:</b> The Superstructure continuously monitors the lower
+   * intake roller current. The detection is reset before the drive starts. If the lower roller
+   * current stays above the threshold during the drive (FUEL present), {@code intakeHasFuel()}
+   * returns true. Upon arrival, the detection is checked — if FUEL detected, continue; if not,
+   * nudge 1m toward center Y and retry briefly.
    */
   private Command buildIntakeAt(AutoAction.IntakeAt action) {
     FieldConstants.IntakeLocation loc = action.getLocation();
     Pose2d intakePose = loc.getPose();
 
-    // All intakes use the same logic: zone-aware intake + current monitor during drive,
-    // then check pickup latch on arrival. The zone-aware command automatically handles
-    // the correct superstructure state based on field position (aiming in alliance/HUB
-    // zone, intake-only in neutral zone).
+    // All intakes use the same logic: zone-aware intake during drive, then check
+    // Superstructure's intake detection on arrival. Detection runs in Superstructure's
+    // periodic() — no separate monitor command needed.
     return Commands.sequence(
             Commands.print("[DashboardAuto] Intaking at " + loc.name()),
-            // Reset the pickup latch before starting the drive
-            Commands.runOnce(() -> intakePickedUp = false),
-            // Drive with zone-aware intake AND current monitoring in parallel
-            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake(), intakeCurrentMonitor()),
-            // Upon arrival: check latch immediately — nudge if no FUEL detected during drive
+            // Reset the intake detection before starting the drive
+            Commands.runOnce(() -> superstructure.resetIntakeDetection()),
+            // Drive with zone-aware intake (detection runs automatically in Superstructure)
+            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake()),
+            // Upon arrival: check detection — nudge if no FUEL detected during drive
             waitForIntakePickup(intakePose))
         .withName("IntakeAt_" + loc.name());
   }
@@ -1106,9 +1041,9 @@ public class AutoCommandBuilder {
    * visible when the robot was already feeding via zoneAwareIntake before the pathfind ended.
    *
    * <p><b>Current-based shot detection:</b> Instead of a fixed 0.15s wait, we now use {@link
-   * #waitForShooterEmpty()} which monitors the shooter motor current. When the current drops below
-   * {@link #SHOOTER_CURRENT_THRESHOLD_AMPS} for {@link #SHOOTER_NO_BALL_TIME_LIMIT} seconds, all
-   * FUEL has been fired. A timeout fallback prevents getting stuck.
+   * #waitForShooterEmpty()} which delegates to the Superstructure's conveyor current monitoring.
+   * When the conveyor current drops below the threshold for a sustained period, all FUEL has been
+   * fired. A timeout fallback prevents getting stuck.
    *
    * @return Command sequence to fire FUEL at the HUB while stationary
    */

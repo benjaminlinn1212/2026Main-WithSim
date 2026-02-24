@@ -86,4 +86,15 @@ public class ConveyorSubsystem extends SubsystemBase {
   public void toggleDirection() {
     io.toggleDirection();
   }
+
+  /**
+   * Get the stator current of the conveyor motor (amps). Used for current-based shot completion
+   * detection — when the conveyor current drops below a threshold for a sustained period, no FUEL
+   * is being fed to the shooter.
+   *
+   * @return Conveyor stator current in amps
+   */
+  public double getCurrentAmps() {
+    return inputs.currentAmps;
+  }
 }

@@ -5,6 +5,7 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.auto.dashboard.AutoTuning;
 import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorSubsystem;
@@ -84,6 +85,49 @@ public class Superstructure extends SubsystemBase {
 
   private static final double TRENCH_EXIT_HOLDOFF_SECONDS = 0.15;
 
+  // ==================== FUEL Detection State ====================
+  // Centralized current-based detection for auto and teleop. Runs every periodic() cycle
+  // so both auto commands and teleop logic can simply read boolean getters.
+
+  /**
+   * Whether FUEL is currently detected in the intake path. True when the lower intake roller
+   * current is above {@link AutoTuning#INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS}. Becomes false only
+   * after the current stays below the threshold for {@link AutoTuning#INTAKE_NO_FUEL_TIME_SECONDS}.
+   * Reset via {@link #resetIntakeDetection()}.
+   */
+  private boolean intakeHasFuel = false;
+
+  /**
+   * Timestamp when the lower intake roller current last dropped below the no-fuel threshold. Used
+   * to enforce the sustained low-current duration before declaring no fuel.
+   */
+  private double intakeLowCurrentStart = 0.0;
+
+  /**
+   * Whether the lower intake roller has ever seen high current since the last reset. This prevents
+   * falsely detecting "no fuel" before the intake has even started running (motor accel time).
+   */
+  private boolean intakeEverSawFuel = false;
+
+  /**
+   * Whether the shooter has finished firing all FUEL. True when the conveyor current stays below
+   * {@link AutoTuning#CONVEYOR_NO_FUEL_CURRENT_THRESHOLD_AMPS} for {@link
+   * AutoTuning#SHOOTER_DONE_TIME_SECONDS}. Reset via {@link #resetShooterDetection()}.
+   */
+  private boolean shooterFinishedFiring = false;
+
+  /**
+   * Timestamp when the conveyor current last dropped below the no-fuel threshold. Used to enforce
+   * the sustained low-current duration before declaring shooter done.
+   */
+  private double conveyorLowCurrentStart = 0.0;
+
+  /**
+   * Whether the conveyor has ever seen high current since the last reset. This prevents falsely
+   * detecting "shooter done" before the conveyor has even started feeding (motor accel time).
+   */
+  private boolean conveyorEverSawFuel = false;
+
   public Superstructure(
       ShooterSubsystem shooter,
       TurretSubsystem turret,
@@ -160,6 +204,18 @@ public class Superstructure extends SubsystemBase {
         inTrenchZone
             && wantedState != SuperstructureState.IDLE
             && wantedState != SuperstructureState.EMERGENCY;
+
+    // ===== FUEL Detection (current-based, gated by state) =====
+    // Intake detection: only runs when intake rollers are active (deploying states).
+    // Shooter detection: only runs when conveyor is feeding (shooting states).
+    // This avoids noisy logs and false triggers from idle motor current.
+    if (isIntakeDeployingState(wantedState)) {
+      updateIntakeDetection(now);
+    }
+    if (wantedState == SuperstructureState.ONLY_SHOOTING
+        || wantedState == SuperstructureState.SHOOTING_WHILE_INTAKING) {
+      updateShooterDetection(now);
+    }
 
     // Apply the wanted state to all subsystems every cycle.
     // EMERGENCY is handled specially — it doesn't continuously re-apply.
@@ -324,10 +380,15 @@ public class Superstructure extends SubsystemBase {
 
   /** Whether the intake is in an intaking/deployed state (for gating shake controls). */
   public boolean isIntakeDeployed() {
-    return currentState == SuperstructureState.ONLY_INTAKE
-        || currentState == SuperstructureState.AIMING_WHILE_INTAKING
-        || currentState == SuperstructureState.SHOOTING_WHILE_INTAKING
-        || currentState == SuperstructureState.EJECT;
+    return isIntakeDeployingState(currentState);
+  }
+
+  /** Check if a given state deploys the intake pivot. */
+  private static boolean isIntakeDeployingState(SuperstructureState state) {
+    return state == SuperstructureState.ONLY_INTAKE
+        || state == SuperstructureState.AIMING_WHILE_INTAKING
+        || state == SuperstructureState.SHOOTING_WHILE_INTAKING
+        || state == SuperstructureState.EJECT;
   }
 
   /** Get whether the intake pivot is currently in half-deployed (shake) mode. */
@@ -382,7 +443,18 @@ public class Superstructure extends SubsystemBase {
     // (must be exited through its specific command)
     if (state != SuperstructureState.EMERGENCY) {
       return Commands.either(
-          Commands.runOnce(() -> wantedState = state).withName("SetState_" + state),
+          Commands.runOnce(
+                  () -> {
+                    // When entering an intake-deploying state from a non-intake state,
+                    // always start at full deploy. The operator can toggle to half deploy
+                    // afterward. This prevents stale half-deploy from a previous cycle
+                    // carrying over unexpectedly.
+                    if (isIntakeDeployingState(state) && !isIntakeDeployingState(currentState)) {
+                      intakeHalfDeployed = false;
+                    }
+                    wantedState = state;
+                  })
+              .withName("SetState_" + state),
           Commands.print(
               "[Superstructure] BLOCKED: Cannot set "
                   + state
@@ -458,6 +530,11 @@ public class Superstructure extends SubsystemBase {
    * @param state The desired superstructure state
    */
   public void forceWantedState(SuperstructureState state) {
+    // Reset half-deploy when entering an intake state from a non-intake state,
+    // same logic as setWantedState() — ensures full deploy on fresh intake transitions.
+    if (isIntakeDeployingState(state) && !isIntakeDeployingState(currentState)) {
+      intakeHalfDeployed = false;
+    }
     this.wantedState = state;
   }
 
@@ -529,19 +606,112 @@ public class Superstructure extends SubsystemBase {
     return shooter.isReady() ? 1.0 : 0.5;
   }
 
+  // ==================== FUEL Detection Logic ====================
+  // Centralized current-based detection that runs every periodic() cycle.
+  // Auto commands and teleop logic just read the boolean getters.
+
   /**
-   * Get the stator current of the upper intake roller (amps). Pass-through to {@link
-   * IntakeSubsystem#getUpperCurrentAmps()} for current-based FUEL pickup detection in auto.
+   * Update the intake FUEL presence detection. Logic: the lower intake roller draws more current
+   * when FUEL is in contact. If the current drops below the threshold and stays low for the
+   * configured duration, we declare "no fuel". Motor accel time is accounted for by requiring the
+   * current to have been high at least once before we start the low-current timer.
    */
-  public double getIntakeUpperCurrentAmps() {
-    return intake.getUpperCurrentAmps();
+  private void updateIntakeDetection(double now) {
+    double lowerCurrent = intake.getLowerCurrentAmps();
+
+    // Track whether we've ever seen fuel (current above threshold) since last reset
+    if (lowerCurrent >= AutoTuning.INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS) {
+      intakeEverSawFuel = true;
+      intakeLowCurrentStart = now; // Reset the low-current timer
+      intakeHasFuel = true;
+    }
+
+    // Only check for "no fuel" after we've seen fuel at least once (motor accel time)
+    if (intakeEverSawFuel && lowerCurrent < AutoTuning.INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS) {
+      if (now - intakeLowCurrentStart >= AutoTuning.INTAKE_NO_FUEL_TIME_SECONDS) {
+        intakeHasFuel = false;
+      }
+    }
+
+    Logger.recordOutput("Superstructure/IntakeDetect/LowerCurrentAmps", lowerCurrent);
+    Logger.recordOutput("Superstructure/IntakeDetect/HasFuel", intakeHasFuel);
+    Logger.recordOutput("Superstructure/IntakeDetect/EverSawFuel", intakeEverSawFuel);
+    Logger.recordOutput("Superstructure/IntakeDetect/LowDuration", now - intakeLowCurrentStart);
   }
 
   /**
-   * Get the stator current of the shooter motor (amps). Pass-through to {@link
-   * ShooterSubsystem#getCurrentAmps()} for current-based shot completion detection in auto.
+   * Update the shooter completion detection. Logic: the conveyor motor draws more current when FUEL
+   * is being pushed into the shooter. If the conveyor current drops below the threshold and stays
+   * low for the configured duration, all FUEL has been fired. Motor accel time is accounted for by
+   * requiring the current to have been high at least once before starting the low-current timer.
    */
-  public double getShooterCurrentAmps() {
-    return shooter.getCurrentAmps();
+  private void updateShooterDetection(double now) {
+    double conveyorCurrent = conveyor.getCurrentAmps();
+
+    // Track whether we've ever seen fuel (current above threshold) since last reset
+    if (conveyorCurrent >= AutoTuning.CONVEYOR_NO_FUEL_CURRENT_THRESHOLD_AMPS) {
+      conveyorEverSawFuel = true;
+      conveyorLowCurrentStart = now; // Reset the low-current timer
+      shooterFinishedFiring = false;
+    }
+
+    // Only check for "done" after we've seen fuel at least once (motor accel time)
+    if (conveyorEverSawFuel
+        && conveyorCurrent < AutoTuning.CONVEYOR_NO_FUEL_CURRENT_THRESHOLD_AMPS) {
+      if (now - conveyorLowCurrentStart >= AutoTuning.SHOOTER_DONE_TIME_SECONDS) {
+        shooterFinishedFiring = true;
+      }
+    }
+
+    Logger.recordOutput("Superstructure/ShooterDetect/ConveyorCurrentAmps", conveyorCurrent);
+    Logger.recordOutput("Superstructure/ShooterDetect/Finished", shooterFinishedFiring);
+    Logger.recordOutput("Superstructure/ShooterDetect/EverSawFuel", conveyorEverSawFuel);
+    Logger.recordOutput("Superstructure/ShooterDetect/LowDuration", now - conveyorLowCurrentStart);
+  }
+
+  /**
+   * Whether FUEL is currently detected in the intake path. Updated every periodic() cycle by
+   * monitoring the lower intake roller current. Becomes true when the roller is loaded (current
+   * above threshold), becomes false after the current stays below threshold for 0.5s.
+   *
+   * <p>Auto commands use this to detect FUEL pickup during drives. Call {@link
+   * #resetIntakeDetection()} before starting a new intake approach.
+   */
+  public boolean intakeHasFuel() {
+    return intakeHasFuel;
+  }
+
+  /**
+   * Whether the shooter has finished firing all FUEL. Updated every periodic() cycle by monitoring
+   * the conveyor motor current. Becomes true when conveyor current stays below threshold for 0.5s
+   * after having been above (all FUEL has exited).
+   *
+   * <p>Auto commands use this to detect shot completion. Call {@link #resetShooterDetection()}
+   * before starting a new shooting sequence.
+   */
+  public boolean isShooterFinishedFiring() {
+    return shooterFinishedFiring;
+  }
+
+  /**
+   * Reset the intake FUEL detection state. Call this before starting a new intake approach so the
+   * detection starts fresh (no stale state from a previous cycle).
+   */
+  public void resetIntakeDetection() {
+    intakeHasFuel = false;
+    intakeEverSawFuel = false;
+    intakeLowCurrentStart = Timer.getFPGATimestamp();
+    Logger.recordOutput("Superstructure/IntakeDetect/Reset", true);
+  }
+
+  /**
+   * Reset the shooter completion detection state. Call this before starting a new shooting sequence
+   * so the detection starts fresh.
+   */
+  public void resetShooterDetection() {
+    shooterFinishedFiring = false;
+    conveyorEverSawFuel = false;
+    conveyorLowCurrentStart = Timer.getFPGATimestamp();
+    Logger.recordOutput("Superstructure/ShooterDetect/Reset", true);
   }
 }

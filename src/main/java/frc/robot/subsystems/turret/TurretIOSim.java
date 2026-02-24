@@ -30,7 +30,7 @@ public class TurretIOSim implements TurretIO {
             Constants.TurretConstants.MIN_POSITION_RAD,
             Constants.TurretConstants.MAX_POSITION_RAD,
             false,
-            0.0);
+            Constants.TurretConstants.BOOT_POSITION_RAD);
   }
 
   @Override

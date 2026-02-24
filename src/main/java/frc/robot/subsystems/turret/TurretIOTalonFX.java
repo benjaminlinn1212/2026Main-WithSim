@@ -28,7 +28,9 @@ public class TurretIOTalonFX implements TurretIO {
     // Feedback Configuration
     // Per CTRE recommendation, set SensorToMechanismRatio to 1.0 and handle conversions in code
     motorConfig.Feedback.SensorToMechanismRatio = 1.0;
-    motorConfig.Feedback.FeedbackRotorOffset = Constants.TurretConstants.ROTOR_OFFSET;
+    // FeedbackRotorOffset is limited to [0,1) motor rotations — insufficient for
+    // our 26.8:1 ratio.  We seed the encoder with setPosition() after applying config.
+    motorConfig.Feedback.FeedbackRotorOffset = 0.0;
 
     // Software Limits (motor rotations - need to convert from mechanism limits)
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
@@ -63,6 +65,15 @@ public class TurretIOTalonFX implements TurretIO {
 
     // Apply configuration
     motor.getConfigurator().apply(motorConfig);
+
+    // Seed the encoder to the known boot position.
+    // The turret physically starts at BOOT_POSITION_RAD (-90°).
+    // setPosition() takes mechanism rotations, so convert from radians.
+    // The motor internally divides by SensorToMechanismRatio (1.0) to get rotor position.
+    double bootMechRot =
+        Units.radiansToRotations(Constants.TurretConstants.BOOT_POSITION_RAD)
+            / Constants.TurretConstants.GEAR_RATIO;
+    motor.setPosition(bootMechRot);
 
     motor.optimizeBusUtilization();
   }

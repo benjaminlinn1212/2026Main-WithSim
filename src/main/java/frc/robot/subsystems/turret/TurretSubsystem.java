@@ -24,7 +24,7 @@ public class TurretSubsystem extends SubsystemBase {
   private final TurretIOInputsAutoLogged inputs = new TurretIOInputsAutoLogged();
   private final RobotState robotState;
 
-  private double positionSetpointRad = 0.0;
+  private double positionSetpointRad = Constants.TurretConstants.BOOT_POSITION_RAD;
   private double lastModeChange = 0.0;
   private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
 

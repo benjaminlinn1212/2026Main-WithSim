@@ -51,7 +51,6 @@ public class VisionSubsystem extends SubsystemBase {
   private final VisionIO.VisionIOInputs inputs = new VisionIO.VisionIOInputs();
 
   private double lastProcessedFrontTimestamp = 0.0;
-  private double lastProcessedBackTimestamp = 0.0;
   private double lastProcessedTurretTimestamp = 0.0;
 
   private final Consumer<VisionFieldPoseEstimate> poseEstimateConsumer;
@@ -68,7 +67,6 @@ public class VisionSubsystem extends SubsystemBase {
     io.readInputs(inputs);
     // Manual logging of important vision data
     Logger.recordOutput("Vision/Front/SeesTarget", inputs.frontCameraSeesTarget);
-    Logger.recordOutput("Vision/Back/SeesTarget", inputs.backCameraSeesTarget);
     Logger.recordOutput("Vision/Turret/SeesTarget", inputs.turretCameraSeesTarget);
 
     // Process each camera
@@ -78,14 +76,6 @@ public class VisionSubsystem extends SubsystemBase {
           inputs.frontCameraMegatag2PoseEstimate,
           false,
           "Vision/Front/");
-    }
-
-    if (inputs.backCameraSeesTarget) {
-      updateVision(
-          inputs.backCameraMegatagPoseEstimate,
-          inputs.backCameraMegatag2PoseEstimate,
-          false,
-          "Vision/Back/");
     }
 
     if (inputs.turretCameraSeesTarget) {
@@ -120,12 +110,9 @@ public class VisionSubsystem extends SubsystemBase {
     if (isTurretCamera) {
       alreadyProcessed = lastProcessedTurretTimestamp == updateTimestamp;
       lastProcessedTurretTimestamp = updateTimestamp;
-    } else if (logPreface.contains("Front")) {
+    } else {
       alreadyProcessed = lastProcessedFrontTimestamp == updateTimestamp;
       lastProcessedFrontTimestamp = updateTimestamp;
-    } else {
-      alreadyProcessed = lastProcessedBackTimestamp == updateTimestamp;
-      lastProcessedBackTimestamp = updateTimestamp;
     }
 
     if (alreadyProcessed) {

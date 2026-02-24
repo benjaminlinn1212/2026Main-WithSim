@@ -8,11 +8,6 @@ public interface VisionIO {
     public MegatagPoseEstimate frontCameraMegatagPoseEstimate;
     public MegatagPoseEstimate frontCameraMegatag2PoseEstimate;
 
-    // Back camera (drivetrain)
-    public boolean backCameraSeesTarget;
-    public MegatagPoseEstimate backCameraMegatagPoseEstimate;
-    public MegatagPoseEstimate backCameraMegatag2PoseEstimate;
-
     // Turret camera
     public boolean turretCameraSeesTarget;
     public MegatagPoseEstimate turretCameraMegatagPoseEstimate;

@@ -46,7 +46,6 @@ public final class Constants {
   public static class Vision {
     // Limelight names
     public static final String FRONT_LIMELIGHT_NAME = "limelight-right";
-    public static final String BACK_LIMELIGHT_NAME = "limelight-left";
     public static final String TURRET_LIMELIGHT_NAME = "limelight-turret";
 
     // Camera positions relative to robot center (Translation3d: x forward, y left, z up)
@@ -56,20 +55,12 @@ public final class Constants {
             new Translation3d(0.318704, 0.183753, 0.292216),
             new Rotation3d(0, Units.degreesToRadians(20), 0));
 
-    // Back camera (on drivetrain, back of robot)
-    public static final Transform3d LEFT_CAMERA_TO_ROBOT =
-        new Transform3d(
-            new Translation3d(-0.25, 0.0, 0.25), // 25cm backward, 25cm up
-            new Rotation3d(
-                0,
-                Units.degreesToRadians(-20),
-                Units.degreesToRadians(180))); // Pitched down, facing back
-
     // Turret camera (on turret, offset from turret center)
     // This is the transform from TURRET CENTER to camera
     public static final Transform3d TURRET_TO_CAMERA =
         new Transform3d(
-            new Translation3d(0.177, 0.0, 0.53), // 17.7cm forward from turret axis, 53cm up
+            new Translation3d(
+                0.185643, 0.0, 0.52803), // 18.5643cm forward from turret axis, 53cm up
             new Rotation3d(0, Units.degreesToRadians(15), 0)); // Pitched up 15 degrees
 
     // Turret position relative to robot center
@@ -343,8 +334,30 @@ public final class Constants {
     // All values in meters / radians / kg — MEASURE FROM CAD AND FILL IN.
     // See IntakePivotFF.java Javadoc for coordinate frame definitions.
 
-    /** Pinion pitch radius (meters). Measure from CAD or datasheet. */
-    public static final double FF_PINION_RADIUS_M = 0.012; // TODO: measure from CAD
+    /** Number of teeth on the pinion gear. Read directly from the gear datasheet or CAD. */
+    public static final int FF_PINION_NUM_TEETH = 16;
+
+    /** Number of teeth on the rack. Determines total linear travel. Count from CAD or datasheet. */
+    public static final int FF_RACK_NUM_TEETH = 50; // TODO: count from rack
+
+    /**
+     * Rack tooth-to-tooth distance (meters). Measure the linear distance between adjacent tooth
+     * centers on the rack. This equals the circular pitch of the meshing gear pair.
+     */
+    public static final double FF_RACK_TOOTH_DISTANCE_M = 0.00643196; // TODO: measure from rack
+
+    /**
+     * Total rack travel (meters), derived from rack tooth count and tooth distance. Do not set
+     * directly — change RACK_NUM_TEETH and RACK_TOOTH_DISTANCE instead.
+     */
+    public static final double FF_RACK_TRAVEL_M = FF_RACK_NUM_TEETH * FF_RACK_TOOTH_DISTANCE_M;
+
+    /**
+     * Pinion pitch radius (meters), derived from tooth count and rack tooth distance. r = N * d /
+     * (2π). Do not set directly — change NUM_TEETH and RACK_TOOTH_DISTANCE instead.
+     */
+    public static final double FF_PINION_RADIUS_M =
+        FF_PINION_NUM_TEETH * FF_RACK_TOOTH_DISTANCE_M / (2.0 * Math.PI);
 
     /** Motor-to-pinion gear ratio (motor rotations per pinion rotation). */
     public static final double FF_RACK_GEAR_RATIO = GEAR_RATIO;
@@ -470,7 +483,6 @@ public final class Constants {
         1.0 / 26.812; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
-    public static final double ROTOR_OFFSET = -0.03; // Motor rotations
 
     // Turret Position Offset from Robot Center
     // Positive X = forward, Positive Y = left from robot center (meters)
@@ -504,8 +516,15 @@ public final class Constants {
     // Position Tolerance (radians)
     public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
 
+    // Boot Position (radians) — the mechanism angle when the robot powers on.
+    // The turret physically starts at -90° (facing right when viewed from above).
+    // TurretIOTalonFX seeds the encoder to this value via motor.setPosition() at boot
+    // because FeedbackRotorOffset is limited to [0,1) motor rotations and cannot
+    // represent the multi-rotation offset required by the 26.8:1 gear ratio.
+    public static final double BOOT_POSITION_RAD = Units.degreesToRadians(-90.0);
+
     // Position Setpoints (radians)
-    public static final double STOW_POSITION = 0.0; // Forward
+    public static final double STOW_POSITION = Units.degreesToRadians(-90.0); // Facing right
   }
 
   public static class ShooterConstants {

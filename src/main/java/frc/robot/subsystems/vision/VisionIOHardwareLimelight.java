@@ -18,14 +18,11 @@ import frc.robot.RobotState;
 public class VisionIOHardwareLimelight implements VisionIO {
   private final NetworkTable frontTable =
       NetworkTableInstance.getDefault().getTable(Constants.Vision.FRONT_LIMELIGHT_NAME);
-  private final NetworkTable backTable =
-      NetworkTableInstance.getDefault().getTable(Constants.Vision.BACK_LIMELIGHT_NAME);
   private final NetworkTable turretTable =
       NetworkTableInstance.getDefault().getTable(Constants.Vision.TURRET_LIMELIGHT_NAME);
 
   // Cache NT entry objects to avoid repeated table lookups every cycle
   private final NetworkTableEntry frontTvEntry = frontTable.getEntry("tv");
-  private final NetworkTableEntry backTvEntry = backTable.getEntry("tv");
   private final NetworkTableEntry turretTvEntry = turretTable.getEntry("tv");
 
   private final RobotState robotState;
@@ -35,11 +32,10 @@ public class VisionIOHardwareLimelight implements VisionIO {
     configureDrivetrainCameras();
     configureTurretCamera();
 
-    // Drivetrain cameras: Mode 0 — always use external heading from SetRobotOrientation().
-    // These cameras are rigidly mounted to the chassis, so the robot gyro heading is
+    // Drivetrain camera: Mode 0 — always use external heading from SetRobotOrientation().
+    // This camera is rigidly mounted to the chassis, so the robot gyro heading is
     // perfectly time-aligned (no moving joint).
     LimelightHelpers.SetIMUMode(Constants.Vision.FRONT_LIMELIGHT_NAME, 0);
-    LimelightHelpers.SetIMUMode(Constants.Vision.BACK_LIMELIGHT_NAME, 0);
 
     // Turret camera: Mode 0 — use external heading only (internal IMU disabled).
     // TODO: Switch to mode 1 (seed) while disabled → mode 4 (internal + external assist)
@@ -49,6 +45,8 @@ public class VisionIOHardwareLimelight implements VisionIO {
 
   /** Set camerapose_robotspace_set for drivetrain-mounted cameras (one-time at startup). */
   private void configureDrivetrainCameras() {
+    // camerapose_robotspace_set uses WPILib coordinates (x=forward, y=left, z=up) via NT API,
+    // NOT the web UI's "forward/right/up" convention. No axis negation needed.
     double[] frontCamerapose = {
       Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getX(),
       Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getY(),
@@ -58,16 +56,6 @@ public class VisionIOHardwareLimelight implements VisionIO {
       Units.radiansToDegrees(Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getRotation().getZ())
     };
     frontTable.getEntry("camerapose_robotspace_set").setDoubleArray(frontCamerapose);
-
-    double[] backCamerapose = {
-      Constants.Vision.LEFT_CAMERA_TO_ROBOT.getX(),
-      Constants.Vision.LEFT_CAMERA_TO_ROBOT.getY(),
-      Constants.Vision.LEFT_CAMERA_TO_ROBOT.getZ(),
-      Units.radiansToDegrees(Constants.Vision.LEFT_CAMERA_TO_ROBOT.getRotation().getX()),
-      Units.radiansToDegrees(Constants.Vision.LEFT_CAMERA_TO_ROBOT.getRotation().getY()),
-      Units.radiansToDegrees(Constants.Vision.LEFT_CAMERA_TO_ROBOT.getRotation().getZ())
-    };
-    backTable.getEntry("camerapose_robotspace_set").setDoubleArray(backCamerapose);
   }
 
   /**
@@ -82,6 +70,8 @@ public class VisionIOHardwareLimelight implements VisionIO {
    * full camera→turret→robot chain).
    */
   private void configureTurretCamera() {
+    // camerapose_robotspace_set uses WPILib coordinates (x=forward, y=left, z=up) via NT API,
+    // NOT the web UI's "forward/right/up" convention. No axis negation needed.
     double[] turretCamerapose = {
       Constants.Vision.TURRET_TO_CAMERA.getX(),
       Constants.Vision.TURRET_TO_CAMERA.getY(),
@@ -111,17 +101,9 @@ public class VisionIOHardwareLimelight implements VisionIO {
         Units.radiansToDegrees(
             robotState.getLatestRobotRelativeChassisSpeed().omegaRadiansPerSecond);
 
-    // Drivetrain cameras — send robot heading
+    // Drivetrain camera — send robot heading
     LimelightHelpers.SetRobotOrientation(
         Constants.Vision.FRONT_LIMELIGHT_NAME,
-        robotHeading.getDegrees(),
-        robotOmegaDegPerSec,
-        0,
-        0,
-        0,
-        0);
-    LimelightHelpers.SetRobotOrientation(
-        Constants.Vision.BACK_LIMELIGHT_NAME,
         robotHeading.getDegrees(),
         robotOmegaDegPerSec,
         0,
@@ -161,18 +143,6 @@ public class VisionIOHardwareLimelight implements VisionIO {
               Constants.Vision.FRONT_LIMELIGHT_NAME);
       inputs.frontCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.frontCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
-    }
-
-    // Back camera
-    inputs.backCameraSeesTarget = backTvEntry.getDouble(0) == 1.0;
-    if (inputs.backCameraSeesTarget) {
-      var megatag =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue(Constants.Vision.BACK_LIMELIGHT_NAME);
-      var megatag2 =
-          LimelightHelpers.getBotPoseEstimate_wpiBlue_MegaTag2(
-              Constants.Vision.BACK_LIMELIGHT_NAME);
-      inputs.backCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
-      inputs.backCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
     }
 
     // Turret camera

@@ -436,27 +436,25 @@ public class RobotContainer {
             },
             swerveIO));
 
-    // Left bumper: Reset pose (alliance-aware)
-    // In WPILib blue-origin coordinates:
-    //   Blue side: robot near (0.33, 0.33) facing 0° (toward red wall)
-    //   Red side:  robot near (FIELD_LENGTH - 0.33, FIELD_WIDTH - 0.33) facing 180° (toward blue
-    // wall)
+    // Left bumper: Reset orientation (REAL) or full pose (SIM)
+    // SIM: reset to DEFAULT_RESET_POSE for repeatable testing
+    // REAL/REPLAY: zero heading alliance-aware (0° blue, 180° red) but preserve XY
     controller
         .leftBumper()
         .onTrue(
             Commands.runOnce(
                     () -> {
-                      var alliance = DriverStation.getAlliance();
-                      boolean isRed =
-                          alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-                      if (isRed) {
+                      if (Constants.currentMode == Constants.Mode.SIM) {
+                        swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
+                      } else {
+                        var alliance = DriverStation.getAlliance();
+                        boolean isRed =
+                            alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
+                        Pose2d current = swerveIO.getPose();
                         swerveIO.setPose(
                             new Pose2d(
-                                FieldConstants.FIELD_LENGTH - 0.33,
-                                FieldConstants.FIELD_WIDTH - 0.33,
-                                Rotation2d.fromDegrees(180)));
-                      } else {
-                        swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
+                                current.getTranslation(),
+                                Rotation2d.fromDegrees(isRed ? 180.0 : 0.0)));
                       }
                     },
                     swerveIO)

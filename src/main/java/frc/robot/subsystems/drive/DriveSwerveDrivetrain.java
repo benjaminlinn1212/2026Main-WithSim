@@ -12,6 +12,8 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
 import frc.robot.RobotState;
@@ -24,6 +26,9 @@ import org.littletonrobotics.junction.Logger;
 public class DriveSwerveDrivetrain extends SubsystemBase {
   private final DriveIOHardware driveIO;
   private final RobotState robotState;
+
+  // Shuffleboard field visualization (works without AdvantageScope)
+  private final Field2d field2d = new Field2d();
 
   // SwerveRequest objects for different drive modes
   private final SwerveRequest.FieldCentric fieldCentricDrive = new SwerveRequest.FieldCentric();
@@ -46,6 +51,9 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   public DriveSwerveDrivetrain(DriveIOHardware driveIO, RobotState robotState) {
     this.driveIO = driveIO;
     this.robotState = robotState;
+
+    // Publish Field2d to SmartDashboard/Shuffleboard for field visualization at comp
+    SmartDashboard.putData("Field", field2d);
   }
 
   @Override
@@ -78,6 +86,9 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
 
     // Log robot state
     robotState.log();
+
+    // Update Shuffleboard field visualization
+    field2d.setRobotPose(getPose());
 
     // Log simulated pose if using DriveIOSim
     if (driveIO instanceof DriveIOSim) {

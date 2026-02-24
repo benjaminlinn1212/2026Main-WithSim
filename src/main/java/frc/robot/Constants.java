@@ -45,19 +45,19 @@ public final class Constants {
 
   public static class Vision {
     // Limelight names
-    public static final String FRONT_LIMELIGHT_NAME = "limelight-front";
-    public static final String BACK_LIMELIGHT_NAME = "limelight-back";
+    public static final String FRONT_LIMELIGHT_NAME = "limelight-right";
+    public static final String BACK_LIMELIGHT_NAME = "limelight-left";
     public static final String TURRET_LIMELIGHT_NAME = "limelight-turret";
 
     // Camera positions relative to robot center (Translation3d: x forward, y left, z up)
     // Front camera (on drivetrain, front of robot)
-    public static final Transform3d FRONT_CAMERA_TO_ROBOT =
+    public static final Transform3d RIGHT_CAMERA_TO_ROBOT =
         new Transform3d(
-            new Translation3d(0.25, 0.0, 0.25), // 25cm forward, 25cm up
-            new Rotation3d(0, Units.degreesToRadians(-20), 0)); // Pitched down 20 degrees
+            new Translation3d(0.318704, 0.183753, 0.292216),
+            new Rotation3d(0, Units.degreesToRadians(20), 0));
 
     // Back camera (on drivetrain, back of robot)
-    public static final Transform3d BACK_CAMERA_TO_ROBOT =
+    public static final Transform3d LEFT_CAMERA_TO_ROBOT =
         new Transform3d(
             new Translation3d(-0.25, 0.0, 0.25), // 25cm backward, 25cm up
             new Rotation3d(

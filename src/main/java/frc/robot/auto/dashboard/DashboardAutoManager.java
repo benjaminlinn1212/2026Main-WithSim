@@ -43,8 +43,11 @@ public class DashboardAutoManager {
   // Plan visualization
   private Pose2d[] planPosePreview = new Pose2d[0];
 
-  // Track whether settings changed on the last update() call (for 254-style pre-seeding)
-  private boolean lastUpdateHadChanges = false;
+  // Latched flag: set to true when any update() detects a change, cleared only when
+  // didSettingsChange() is called. This ensures the change is not lost if update() runs
+  // many times between checks (e.g. Robot.disabledPeriodic checks every ~1s but update()
+  // runs every 20ms).
+  private boolean settingsChangedLatch = false;
 
   /**
    * Create a new DashboardAutoManager.
@@ -69,7 +72,9 @@ public class DashboardAutoManager {
    */
   public void update() {
     boolean changed = settings.readFromDashboard();
-    lastUpdateHadChanges = changed;
+    if (changed) {
+      settingsChangedLatch = true;
+    }
 
     if (changed) {
       Logger.recordOutput("DashboardAuto/Status", "Settings changed — replanning...");
@@ -197,11 +202,14 @@ public class DashboardAutoManager {
   }
 
   /**
-   * Whether the most recent {@link #update()} call detected a settings change. Used by Robot.java
-   * to know when to pre-seed the starting pose (254-style).
+   * Whether any {@link #update()} call since the last {@link #didSettingsChange()} detected a
+   * settings change. The flag is latched (sticky) so it survives multiple update() calls between
+   * checks, and cleared after reading so the caller only acts once per change.
    */
   public boolean didSettingsChange() {
-    return lastUpdateHadChanges;
+    boolean changed = settingsChangedLatch;
+    settingsChangedLatch = false; // Clear after reading (consume the latch)
+    return changed;
   }
 
   /**

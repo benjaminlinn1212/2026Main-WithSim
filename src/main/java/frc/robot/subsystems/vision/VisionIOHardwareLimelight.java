@@ -50,22 +50,22 @@ public class VisionIOHardwareLimelight implements VisionIO {
   /** Set camerapose_robotspace_set for drivetrain-mounted cameras (one-time at startup). */
   private void configureDrivetrainCameras() {
     double[] frontCamerapose = {
-      Constants.Vision.FRONT_CAMERA_TO_ROBOT.getX(),
-      Constants.Vision.FRONT_CAMERA_TO_ROBOT.getY(),
-      Constants.Vision.FRONT_CAMERA_TO_ROBOT.getZ(),
-      Units.radiansToDegrees(Constants.Vision.FRONT_CAMERA_TO_ROBOT.getRotation().getX()),
-      Units.radiansToDegrees(Constants.Vision.FRONT_CAMERA_TO_ROBOT.getRotation().getY()),
-      Units.radiansToDegrees(Constants.Vision.FRONT_CAMERA_TO_ROBOT.getRotation().getZ())
+      Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getX(),
+      Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getY(),
+      Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getZ(),
+      Units.radiansToDegrees(Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getRotation().getX()),
+      Units.radiansToDegrees(Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getRotation().getY()),
+      Units.radiansToDegrees(Constants.Vision.RIGHT_CAMERA_TO_ROBOT.getRotation().getZ())
     };
     frontTable.getEntry("camerapose_robotspace_set").setDoubleArray(frontCamerapose);
 
     double[] backCamerapose = {
-      Constants.Vision.BACK_CAMERA_TO_ROBOT.getX(),
-      Constants.Vision.BACK_CAMERA_TO_ROBOT.getY(),
-      Constants.Vision.BACK_CAMERA_TO_ROBOT.getZ(),
-      Units.radiansToDegrees(Constants.Vision.BACK_CAMERA_TO_ROBOT.getRotation().getX()),
-      Units.radiansToDegrees(Constants.Vision.BACK_CAMERA_TO_ROBOT.getRotation().getY()),
-      Units.radiansToDegrees(Constants.Vision.BACK_CAMERA_TO_ROBOT.getRotation().getZ())
+      Constants.Vision.LEFT_CAMERA_TO_ROBOT.getX(),
+      Constants.Vision.LEFT_CAMERA_TO_ROBOT.getY(),
+      Constants.Vision.LEFT_CAMERA_TO_ROBOT.getZ(),
+      Units.radiansToDegrees(Constants.Vision.LEFT_CAMERA_TO_ROBOT.getRotation().getX()),
+      Units.radiansToDegrees(Constants.Vision.LEFT_CAMERA_TO_ROBOT.getRotation().getY()),
+      Units.radiansToDegrees(Constants.Vision.LEFT_CAMERA_TO_ROBOT.getRotation().getZ())
     };
     backTable.getEntry("camerapose_robotspace_set").setDoubleArray(backCamerapose);
   }

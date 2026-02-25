@@ -11,8 +11,9 @@ import java.util.List;
  *
  * <p>Naming convention: VERB_LEVEL (e.g., EXTEND_L1 = extending arm to L1 bar)
  *
- * <p>Teleop sequence: STOWED -> EXTEND_L1 -> RETRACT_L1 -> EXTEND_L2 -> RETRACT_L2 -> EXTEND_L3 ->
- * RETRACT_L3
+ * <p>Teleop sequence (one POV-Right press per step): STOWED -> EXTEND_L1 -> RETRACT_L1 ->
+ * RELEASE_ANGLE_L1 -> RELEASE_HARDSTOP_L1 -> EXTEND_L2 -> RETRACT_L2 -> STOW_SERVOS_L2 ->
+ * RELEASE_ANGLE_L2 -> RELEASE_HARDSTOP_L2 -> EXTEND_L3 -> RETRACT_L3
  *
  * <p>Edit waypoints below. Translation2d(x, y) in meters.
  */
@@ -23,7 +24,6 @@ public enum ClimbState {
       "Stowed",
       new Translation2d(
           ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
-      1.0,
       false),
 
   // ── L1 sequence ──
@@ -34,17 +34,25 @@ public enum ClimbState {
       List.of(
           new Translation2d(
               ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
-          new Translation2d(0.395, 0.49),
-          new Translation2d(0.40, 0.55)),
-      2.0,
+          new Translation2d(0.6, 0.63)),
       false),
 
   /** Retract cables to pull robot up on L1 bar (teleop) */
   RETRACT_L1(
       "Retracting on L1",
-      List.of(new Translation2d(0.40, 0.55), new Translation2d(0.38, 0.50)),
-      2.5,
+      List.of(
+          new Translation2d(0.6, 0.63),
+          new Translation2d(0.63, 0.60),
+          new Translation2d(0.65, 0.46),
+          new Translation2d(0.56, 0.42),
+          new Translation2d(0.491, 0.146)),
       true),
+
+  /** Release angle servos after L1 retract (servo-only, no path) */
+  RELEASE_ANGLE_L1("Release Angle L1", new Translation2d(0.491, 0.146), false),
+
+  /** Release hardstop servos after angle released (servo-only, no path) */
+  RELEASE_HARDSTOP_L1("Release Hardstop L1", new Translation2d(0.491, 0.146), false),
 
   // ── L2 sequence ──
 
@@ -55,15 +63,22 @@ public enum ClimbState {
           new Translation2d(0.38, 0.50),
           new Translation2d(0.40, 0.54),
           new Translation2d(0.42, 0.58)),
-      2.5,
       false),
 
   /** Retract cables to pull robot up on L2 bar */
   RETRACT_L2(
       "Retracting on L2",
       List.of(new Translation2d(0.42, 0.58), new Translation2d(0.39, 0.52)),
-      2.5,
       true),
+
+  /** Stow servos (hardstop then angle) after L2 retract (servo-only, no path) */
+  STOW_SERVOS_L2("Stow Servos L2", new Translation2d(0.39, 0.52), false),
+
+  /** Release angle servos after L2 stow (servo-only, no path) */
+  RELEASE_ANGLE_L2("Release Angle L2", new Translation2d(0.39, 0.52), false),
+
+  /** Release hardstop servos after L2 angle released (servo-only, no path) */
+  RELEASE_HARDSTOP_L2("Release Hardstop L2", new Translation2d(0.39, 0.52), false),
 
   // ── L3 sequence ──
 
@@ -74,14 +89,12 @@ public enum ClimbState {
           new Translation2d(0.39, 0.52),
           new Translation2d(0.41, 0.56),
           new Translation2d(0.43, 0.60)),
-      2.5,
       false),
 
   /** Retract cables to pull robot up on L3 bar (final climb position) */
   RETRACT_L3(
       "Retracting on L3",
       List.of(new Translation2d(0.43, 0.60), new Translation2d(0.40, 0.54)),
-      3.0,
       true),
 
   // ── Auto-only L1 sequence (NOT part of teleop state cycle) ──
@@ -93,7 +106,6 @@ public enum ClimbState {
           new Translation2d(
               ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
           new Translation2d(0.6, 0.63)),
-      2.0,
       false),
 
   /** Retract cables on L1 bar for auto climb only */
@@ -104,41 +116,34 @@ public enum ClimbState {
           new Translation2d(0.63, 0.60),
           new Translation2d(0.65, 0.46),
           new Translation2d(0.56, 0.42)),
-      2.5,
       true),
 
   // ── Special states ──
-  MANUAL("Manual", new Translation2d(0.0, 0.0), 0.0, false),
-  EMERGENCY_STOP("E-Stop", new Translation2d(0.0, 0.0), 0.0, false);
+  MANUAL("Manual", new Translation2d(0.0, 0.0), false),
+  EMERGENCY_STOP("E-Stop", new Translation2d(0.0, 0.0), false);
 
   // State data
   private final String name;
   private final Translation2d targetPosition;
   private final List<Translation2d> prePlannedWaypoints;
-  private final double defaultDuration;
   private final boolean isPulling;
 
   /** Constructor for states WITH a path — target is derived from the last waypoint. */
-  ClimbState(String name, List<Translation2d> waypoints, double duration, boolean isPulling) {
-    this(name, waypoints.get(waypoints.size() - 1), waypoints, duration, isPulling);
+  ClimbState(String name, List<Translation2d> waypoints, boolean isPulling) {
+    this(name, waypoints.get(waypoints.size() - 1), waypoints, isPulling);
   }
 
   /** Constructor for states WITHOUT a path (STOWED, MANUAL, EMERGENCY_STOP). */
-  ClimbState(String name, Translation2d target, double duration, boolean isPulling) {
-    this(name, target, null, duration, isPulling);
+  ClimbState(String name, Translation2d target, boolean isPulling) {
+    this(name, target, null, isPulling);
   }
 
   /** Private canonical constructor. */
   private ClimbState(
-      String name,
-      Translation2d target,
-      List<Translation2d> waypoints,
-      double duration,
-      boolean isPulling) {
+      String name, Translation2d target, List<Translation2d> waypoints, boolean isPulling) {
     this.name = name;
     this.targetPosition = target;
     this.prePlannedWaypoints = waypoints;
-    this.defaultDuration = duration;
     this.isPulling = isPulling;
   }
 
@@ -171,11 +176,6 @@ public enum ClimbState {
     return reversed;
   }
 
-  /** Get default duration for this state's path */
-  public double getDefaultDuration() {
-    return defaultDuration;
-  }
-
   /** Check if this is a pulling path (needs extra feedforward for load) */
   public boolean isPulling() {
     return isPulling;
@@ -189,10 +189,20 @@ public enum ClimbState {
       case EXTEND_L1:
         return RETRACT_L1;
       case RETRACT_L1:
+        return RELEASE_ANGLE_L1;
+      case RELEASE_ANGLE_L1:
+        return RELEASE_HARDSTOP_L1;
+      case RELEASE_HARDSTOP_L1:
         return EXTEND_L2;
       case EXTEND_L2:
         return RETRACT_L2;
       case RETRACT_L2:
+        return STOW_SERVOS_L2;
+      case STOW_SERVOS_L2:
+        return RELEASE_ANGLE_L2;
+      case RELEASE_ANGLE_L2:
+        return RELEASE_HARDSTOP_L2;
+      case RELEASE_HARDSTOP_L2:
         return EXTEND_L3;
       case EXTEND_L3:
         return RETRACT_L3;
@@ -208,12 +218,22 @@ public enum ClimbState {
         return STOWED;
       case RETRACT_L1:
         return EXTEND_L1;
-      case EXTEND_L2:
+      case RELEASE_ANGLE_L1:
         return RETRACT_L1;
+      case RELEASE_HARDSTOP_L1:
+        return RELEASE_ANGLE_L1;
+      case EXTEND_L2:
+        return RELEASE_HARDSTOP_L1;
       case RETRACT_L2:
         return EXTEND_L2;
-      case EXTEND_L3:
+      case STOW_SERVOS_L2:
         return RETRACT_L2;
+      case RELEASE_ANGLE_L2:
+        return STOW_SERVOS_L2;
+      case RELEASE_HARDSTOP_L2:
+        return RELEASE_ANGLE_L2;
+      case EXTEND_L3:
+        return RELEASE_HARDSTOP_L2;
       case RETRACT_L3:
         return EXTEND_L3;
       default:

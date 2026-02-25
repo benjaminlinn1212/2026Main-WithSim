@@ -78,16 +78,16 @@ public class ClimbPathPlanner {
   }
 
   /**
-   * Create a linear path between two positions.
+   * Create a linear path between two positions. Duration is calculated automatically from distance
+   * and the max velocity/acceleration constraints to ensure physically achievable motion.
    *
    * @param start Starting position
    * @param end Ending position
-   * @param duration Time to complete the path (seconds)
    * @param numWaypoints Number of intermediate waypoints to generate
    * @return Planned path
    */
   public static ClimbPath createLinearPath(
-      Translation2d start, Translation2d end, double duration, int numWaypoints) {
+      Translation2d start, Translation2d end, int numWaypoints) {
     List<Translation2d> waypoints = new ArrayList<>();
 
     for (int i = 0; i <= numWaypoints; i++) {
@@ -96,22 +96,40 @@ public class ClimbPathPlanner {
       waypoints.add(point);
     }
 
+    // Calculate natural duration: use a trapezoidal motion profile
+    // Time = distance / max_velocity, with extra time for acceleration/deceleration
+    double distance = end.minus(start).getNorm();
+    double maxVel = ClimbConstants.PATH_MAX_VELOCITY_MPS;
+    double maxAccel = ClimbConstants.PATH_MAX_ACCELERATION_MPS2;
+    double accelTime = maxVel / maxAccel; // time to reach max velocity
+    double accelDistance = 0.5 * maxAccel * accelTime * accelTime; // distance during accel
+
+    double duration;
+    if (distance < 2.0 * accelDistance) {
+      // Short path: never reaches max velocity (triangular profile)
+      duration = 2.0 * Math.sqrt(distance / maxAccel);
+    } else {
+      // Long enough for trapezoidal profile
+      double cruiseDistance = distance - 2.0 * accelDistance;
+      duration = 2.0 * accelTime + cruiseDistance / maxVel;
+    }
+
     return new ClimbPath(waypoints, duration, PathType.LINEAR);
   }
 
   /**
    * Create a smooth trajectory through multiple waypoints using WPILib's trajectory generation.
    * Automatically generates smooth quintic splines with proper velocity/acceleration constraints.
+   * Duration is determined naturally by the trajectory constraints — no time-scaling is applied.
    *
    * @param waypoints List of waypoints to pass through (in climb 2D space: x=forward, y=up)
    * @param tension Controls how tight the curves are - NOT USED, kept for API compatibility
-   * @param duration Total time to complete the path (seconds) - NOT USED, calculated automatically
    * @param maintainEndVelocity If true, maintain velocity at end (for pulling); if false,
    *     decelerate to 0
    * @return Planned trajectory with time-based sampling
    */
   public static ClimbPath createMultiBezierPath(
-      List<Translation2d> waypoints, double tension, double duration, boolean maintainEndVelocity) {
+      List<Translation2d> waypoints, double tension, boolean maintainEndVelocity) {
     if (waypoints.size() < 2) {
       throw new IllegalArgumentException("Need at least 2 waypoints for a path");
     }
@@ -120,7 +138,7 @@ public class ClimbPathPlanner {
     // WPILib's trajectory generator is designed for drivetrain motions and can produce
     // curved/degenerate paths for purely vertical or horizontal lines in climb cartesian space.
     if (waypoints.size() == 2) {
-      return createLinearPath(waypoints.get(0), waypoints.get(1), duration, 20);
+      return createLinearPath(waypoints.get(0), waypoints.get(1), 20);
     }
 
     // Configure trajectory constraints
@@ -170,12 +188,7 @@ public class ClimbPathPlanner {
     // at time=0, position=(0,0)) when quintic splines fail with MalformedSplineException.
     // This happens with close/collinear waypoints. Fall back to linear interpolation.
     if (trajectory.getStates().size() <= 1 || trajectory.getTotalTimeSeconds() <= 1e-6) {
-      return createLinearPath(waypoints.get(0), waypoints.get(waypoints.size() - 1), duration, 20);
-    }
-
-    // If a specific duration is requested, time-scale the trajectory
-    if (duration > 1e-6) {
-      trajectory = scaleTrajectoryDuration(trajectory, duration);
+      return createLinearPath(waypoints.get(0), waypoints.get(waypoints.size() - 1), 20);
     }
 
     // Extract waypoints from trajectory for visualization
@@ -188,28 +201,6 @@ public class ClimbPathPlanner {
     double actualDuration = trajectory.getTotalTimeSeconds();
 
     return new ClimbPath(trajectoryPoints, actualDuration, PathType.SMOOTH, trajectory);
-  }
-
-  /** Scale trajectory timing to match the desired duration (keeps path geometry). */
-  private static Trajectory scaleTrajectoryDuration(Trajectory trajectory, double desiredSeconds) {
-    double actualSeconds = trajectory.getTotalTimeSeconds();
-    if (actualSeconds <= 1e-6 || desiredSeconds <= 1e-6) {
-      return trajectory;
-    }
-
-    double timeScale = desiredSeconds / actualSeconds;
-    List<Trajectory.State> scaledStates = new ArrayList<>();
-    for (Trajectory.State state : trajectory.getStates()) {
-      Trajectory.State scaled = new Trajectory.State();
-      scaled.timeSeconds = state.timeSeconds * timeScale;
-      scaled.velocityMetersPerSecond = state.velocityMetersPerSecond / timeScale;
-      scaled.accelerationMetersPerSecondSq =
-          state.accelerationMetersPerSecondSq / (timeScale * timeScale);
-      scaled.poseMeters = state.poseMeters;
-      scaled.curvatureRadPerMeter = state.curvatureRadPerMeter;
-      scaledStates.add(scaled);
-    }
-    return new Trajectory(scaledStates);
   }
 
   /**

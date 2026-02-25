@@ -685,7 +685,7 @@ public final class Constants {
 
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // PID and Feedforward Constants
+    // PID and Feedforward Constants (Slot 0 — MotionMagicVoltage position control)
     public static final double KP = 10.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -693,6 +693,15 @@ public final class Constants {
     public static final double KV = 0.0;
     public static final double KA = 0.0;
     public static final double KG = 0.0;
+
+    // Velocity PID and Feedforward Constants (Slot 1 — VelocityVoltage path following)
+    // Matched to ShooterConstants velocity control gains
+    public static final double VELOCITY_KP = 0.5;
+    public static final double VELOCITY_KI = 0.0;
+    public static final double VELOCITY_KD = 0.0;
+    public static final double VELOCITY_KS = 0.25;
+    public static final double VELOCITY_KV = 0.12;
+    public static final double VELOCITY_KA = 0.01;
 
     // Motion Magic Constants (in mechanism/drum rotations per second)
     // IO layer converts to motor units: motorVel = drumVel / GEAR_RATIO
@@ -785,7 +794,7 @@ public final class Constants {
     // ==================== Path Planning Constraints ====================
 
     // Cartesian path generation constraints (for ClimbPathPlanner)
-    public static final double PATH_MAX_VELOCITY_MPS = 10.0; // Maximum end effector velocity (m/s)
+    public static final double PATH_MAX_VELOCITY_MPS = 1.0; // Maximum end effector velocity (m/s)
     public static final double PATH_MAX_ACCELERATION_MPS2 =
         10.0; // Maximum end effector acceleration (m/s^2)
 

@@ -554,39 +554,28 @@ public class RobotContainer {
                 climb.exitCalibrationMode(), Commands.none(), climb::isInCalibrationMode));
 
     // ===== CALIBRATION MOTOR CONTROLS (only active in calibration mode) =====
-    // POV Up/Down: Left front motor ±3V
-    operator
-        .povUp()
-        .whileTrue(
-            Commands.either(
-                climb.calibrationLeftFrontForward(),
-                climb.releaseFromAutoL1(),
-                climb::isInCalibrationMode));
+    // POV Up/Down: Left front motor ±3V (whileTrue in cal mode, onTrue in normal mode)
+    operator.povUp().and(climb::isInCalibrationMode).whileTrue(climb.calibrationLeftFrontForward());
+    operator.povUp().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseFromAutoL1());
 
     operator
         .povDown()
-        .whileTrue(
-            Commands.either(
-                climb.calibrationLeftFrontReverse(),
-                climb.stowFromCurrentState(),
-                climb::isInCalibrationMode));
+        .and(climb::isInCalibrationMode)
+        .whileTrue(climb.calibrationLeftFrontReverse());
+    operator.povDown().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowFromCurrentState());
 
-    // POV Left/Right: Left back motor ±3V
+    // POV Left/Right: Left back motor ±3V (whileTrue in cal mode, onTrue in normal mode)
     operator
         .povLeft()
-        .whileTrue(
-            Commands.either(
-                climb.calibrationLeftBackReverse(),
-                climb.previousState(),
-                climb::isInCalibrationMode));
+        .and(climb::isInCalibrationMode)
+        .whileTrue(climb.calibrationLeftBackReverse());
+    operator.povLeft().and(() -> !climb.isInCalibrationMode()).onTrue(climb.previousClimbStep());
 
     operator
         .povRight()
-        .whileTrue(
-            Commands.either(
-                climb.calibrationLeftBackForward(),
-                climb.nextClimbStep(),
-                climb::isInCalibrationMode));
+        .and(climb::isInCalibrationMode)
+        .whileTrue(climb.calibrationLeftBackForward());
+    operator.povRight().and(() -> !climb.isInCalibrationMode()).onTrue(climb.nextClimbStep());
 
     // Y/A: Right front motor ±3V
     operator

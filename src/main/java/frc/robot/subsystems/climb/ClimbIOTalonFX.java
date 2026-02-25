@@ -26,10 +26,10 @@ public class ClimbIOTalonFX implements ClimbIO {
   private final MotionMagicVoltage leftFrontPositionControl = new MotionMagicVoltage(0);
   private final MotionMagicVoltage leftBackPositionControl = new MotionMagicVoltage(0);
 
-  private final VelocityVoltage rightFrontVelocityControl = new VelocityVoltage(0);
-  private final VelocityVoltage rightBackVelocityControl = new VelocityVoltage(0);
-  private final VelocityVoltage leftFrontVelocityControl = new VelocityVoltage(0);
-  private final VelocityVoltage leftBackVelocityControl = new VelocityVoltage(0);
+  private final VelocityVoltage rightFrontVelocityControl = new VelocityVoltage(0).withSlot(1);
+  private final VelocityVoltage rightBackVelocityControl = new VelocityVoltage(0).withSlot(1);
+  private final VelocityVoltage leftFrontVelocityControl = new VelocityVoltage(0).withSlot(1);
+  private final VelocityVoltage leftBackVelocityControl = new VelocityVoltage(0).withSlot(1);
 
   public ClimbIOTalonFX() {
     rightFrontMotor = new TalonFX(ClimbConstants.RIGHT_FRONT_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
@@ -83,7 +83,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     // Neutral Mode (same for all)
     baseConfig.MotorOutput.NeutralMode = ClimbConstants.NEUTRAL_MODE;
 
-    // PID and Feedforward (order: KP, KI, KD, KS, KV, KA, KG)
+    // PID and Feedforward — Slot 0: MotionMagicVoltage position control
     baseConfig.Slot0.kP = ClimbConstants.KP;
     baseConfig.Slot0.kI = ClimbConstants.KI;
     baseConfig.Slot0.kD = ClimbConstants.KD;
@@ -91,6 +91,14 @@ public class ClimbIOTalonFX implements ClimbIO {
     baseConfig.Slot0.kV = ClimbConstants.KV;
     baseConfig.Slot0.kA = ClimbConstants.KA;
     baseConfig.Slot0.kG = ClimbConstants.KG;
+
+    // PID and Feedforward — Slot 1: VelocityVoltage path following
+    baseConfig.Slot1.kP = ClimbConstants.VELOCITY_KP;
+    baseConfig.Slot1.kI = ClimbConstants.VELOCITY_KI;
+    baseConfig.Slot1.kD = ClimbConstants.VELOCITY_KD;
+    baseConfig.Slot1.kS = ClimbConstants.VELOCITY_KS;
+    baseConfig.Slot1.kV = ClimbConstants.VELOCITY_KV;
+    baseConfig.Slot1.kA = ClimbConstants.VELOCITY_KA;
 
     // Current Limits
     baseConfig.CurrentLimits.StatorCurrentLimit = ClimbConstants.STATOR_CURRENT_LIMIT;
@@ -103,6 +111,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightFrontConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_FRONT_MOTOR_INVERTED;
     rightFrontConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     rightFrontConfig.Slot0 = baseConfig.Slot0;
+    rightFrontConfig.Slot1 = baseConfig.Slot1;
     // Motion Magic - convert mechanism speeds to motor speeds
     rightFrontConfig.MotionMagic.MotionMagicCruiseVelocity =
         ClimbConstants.CRUISE_VELOCITY / ClimbConstants.FRONT_GEAR_RATIO;
@@ -119,6 +128,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightBackConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_BACK_MOTOR_INVERTED;
     rightBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     rightBackConfig.Slot0 = baseConfig.Slot0;
+    rightBackConfig.Slot1 = baseConfig.Slot1;
     // Motion Magic - convert mechanism speeds to motor speeds
     rightBackConfig.MotionMagic.MotionMagicCruiseVelocity =
         ClimbConstants.CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
@@ -135,6 +145,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftFrontConfig.MotorOutput.Inverted = ClimbConstants.LEFT_FRONT_MOTOR_INVERTED;
     leftFrontConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     leftFrontConfig.Slot0 = baseConfig.Slot0;
+    leftFrontConfig.Slot1 = baseConfig.Slot1;
     // Motion Magic - convert mechanism speeds to motor speeds
     leftFrontConfig.MotionMagic.MotionMagicCruiseVelocity =
         ClimbConstants.CRUISE_VELOCITY / ClimbConstants.FRONT_GEAR_RATIO;
@@ -151,6 +162,7 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftBackConfig.MotorOutput.Inverted = ClimbConstants.LEFT_BACK_MOTOR_INVERTED;
     leftBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     leftBackConfig.Slot0 = baseConfig.Slot0;
+    leftBackConfig.Slot1 = baseConfig.Slot1;
     // Motion Magic - convert mechanism speeds to motor speeds
     leftBackConfig.MotionMagic.MotionMagicCruiseVelocity =
         ClimbConstants.CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;

@@ -657,10 +657,10 @@ public final class Constants {
     }
 
     // PWM Channels
-    public static final int LEFT_ANGLE_SERVO_PWM = 6;
-    public static final int LEFT_HARDSTOP_SERVO_PWM = 7;
-    public static final int RIGHT_ANGLE_SERVO_PWM = 8;
-    public static final int RIGHT_HARDSTOP_SERVO_PWM = 9;
+    public static final int RIGHT_ANGLE_SERVO_PWM = 6;
+    public static final int RIGHT_HARDSTOP_SERVO_PWM = 7;
+    public static final int LEFT_ANGLE_SERVO_PWM = 8;
+    public static final int LEFT_HARDSTOP_SERVO_PWM = 9;
 
     // Per-servo inversion flags (true = CW-positive, max° at set(0.0))
     public static final boolean RIGHT_ANGLE_SERVO_INVERTED = false;

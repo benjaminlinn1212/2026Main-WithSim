@@ -608,6 +608,7 @@ public class RobotContainer {
     operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowAllServosCommand());
 
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
+    operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseAllServosCommand());
   }
 
   /**

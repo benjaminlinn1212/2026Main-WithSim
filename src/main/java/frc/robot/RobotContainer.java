@@ -243,8 +243,8 @@ public class RobotContainer {
         "Dashboard Auto",
         Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(swerveIO)));
 
-    // Hardcoded fallback autos — pick lane via sub-chooser on dashboard
-    hardcodedAutos = new HardcodedAutos(swerveIO, superstructure, robotState);
+    // Hardcoded fallback autos — reads Start Pose from dashboard auto settings
+    hardcodedAutos = new HardcodedAutos(swerveIO, superstructure, dashboardAutoManager);
     autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====

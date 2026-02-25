@@ -525,6 +525,15 @@ public class RobotContainer {
    *   <li>Y/A: Right front motor ±3V
    *   <li>X/B: Right back motor ±3V
    * </ul>
+   *
+   * <p>Non-calibration controls:
+   *
+   * <ul>
+   *   <li>X: Left angle servo stow
+   *   <li>B: Left angle servo release
+   *   <li>LT: Left hardstop servo stow
+   *   <li>RT: Left hardstop servo release
+   * </ul>
    */
   private void configureOperatorBindings() {
     System.out.println("[RobotContainer] Configuring operator bindings...");
@@ -603,12 +612,26 @@ public class RobotContainer {
                 climb::isInCalibrationMode));
 
     // X/B: Right back motor ±3V (whileTrue) in calibration mode;
-    //       X: all servos to 0 (onTrue) in normal mode
+    //       X: left angle servo stow (onTrue) in normal mode
     operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
-    operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowAllServosCommand());
+    operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowLeftAngleServoCommand());
 
+    //       B: left angle servo release (onTrue) in normal mode
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
-    operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseAllServosCommand());
+    operator
+        .b()
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(climb.releaseLeftAngleServoCommand());
+
+    // LT/RT: Left hardstop servo stow/release (onTrue) in normal mode
+    operator
+        .leftTrigger(0.3)
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(climb.stowLeftHardstopServoCommand());
+    operator
+        .rightTrigger(0.3)
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(climb.releaseLeftHardstopServoCommand());
   }
 
   /**

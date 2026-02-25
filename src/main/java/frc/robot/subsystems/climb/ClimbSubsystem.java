@@ -821,6 +821,38 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(this::releaseRightServos).withName("ClimbReleaseRightServos");
   }
 
+  /** Command: stow left angle servo only (no hardstop change). Fire-and-forget (runOnce). */
+  public Command stowLeftAngleServoCommand() {
+    return runOnce(
+            () -> io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION))
+        .withName("ClimbStowLeftAngleServo");
+  }
+
+  /** Command: release left angle servo only (no hardstop change). Fire-and-forget (runOnce). */
+  public Command releaseLeftAngleServoCommand() {
+    return runOnce(
+            () -> io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION))
+        .withName("ClimbReleaseLeftAngleServo");
+  }
+
+  /** Command: stow left hardstop servo only (no angle change). Fire-and-forget (runOnce). */
+  public Command stowLeftHardstopServoCommand() {
+    return runOnce(
+            () ->
+                io.setLeftSecondaryHookHardstopPosition(
+                    ClimbConstants.HardstopServo.STOWED_POSITION))
+        .withName("ClimbStowLeftHardstopServo");
+  }
+
+  /** Command: release left hardstop servo only (no angle change). Fire-and-forget (runOnce). */
+  public Command releaseLeftHardstopServoCommand() {
+    return runOnce(
+            () ->
+                io.setLeftSecondaryHookHardstopPosition(
+                    ClimbConstants.HardstopServo.RELEASED_POSITION))
+        .withName("ClimbReleaseLeftHardstopServo");
+  }
+
   // ─── Servo sequence building blocks (command + wait for travel) ───
 
   /** Release angle servos and wait for them to reach the released position. */

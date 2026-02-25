@@ -639,10 +639,10 @@ public final class Constants {
       public static final double FULL_RANGE_DEG = 180.0;
       public static final int PULSE_MIN_US = 500;
       public static final int PULSE_MAX_US = 2500;
-      public static final double STOWED_POSITION = 0.0; // 0.0–1.0 (before inversion)
-      public static final double RELEASED_POSITION = 150.0 / 180.0; // 150° → 0.833 (before inv.)
+      public static final double STOWED_POSITION = 40.0 / 180.0; // 0.0–1.0 (before inversion)
+      public static final double RELEASED_POSITION = 180.0 / 180.0; // 150° → 0.833 (before inv.)
       /** Time (seconds) for the angle servo to travel its full 180° range. */
-      public static final double TRAVEL_TIME_SEC = 0.5;
+      public static final double TRAVEL_TIME_SEC = 1.0;
     }
 
     /** Hardstop servo config: 100° range, 1000µs–2000µs pulse. */
@@ -650,10 +650,10 @@ public final class Constants {
       public static final double FULL_RANGE_DEG = 100.0;
       public static final int PULSE_MIN_US = 1000;
       public static final int PULSE_MAX_US = 2000;
-      public static final double STOWED_POSITION = 0.0; // 0.0–1.0 (before inversion)
-      public static final double RELEASED_POSITION = 90.0 / 100.0; // 90° → 0.9 (before inv.)
+      public static final double STOWED_POSITION = 30.0 / 100.0; // 0.0–1.0 (before inversion)
+      public static final double RELEASED_POSITION = 87.0 / 100.0; // 52° → 0.52 (before inv.)
       /** Time (seconds) for the hardstop servo to travel its full 100° range. */
-      public static final double TRAVEL_TIME_SEC = 0.3;
+      public static final double TRAVEL_TIME_SEC = 0.7;
     }
 
     // PWM Channels

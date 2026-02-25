@@ -71,6 +71,21 @@ public final class AutoTuning {
    */
   public static final double INTAKE_NUDGE_TIMEOUT_SECONDS = 0.5;
 
+  // ===== Neutral Zone Repeat Visit Depth =====
+
+  /**
+   * TUNE THIS: How much deeper (meters) to drive past the nominal neutral zone intake waypoint on
+   * each subsequent visit. On the first visit (visitNumber=1), the robot drives to the nominal
+   * pose. On the second visit (visitNumber=2), it drives {@code 1 * NEUTRAL_ZONE_DEEPER_PER_VISIT}
+   * meters deeper. On the third visit, {@code 2 * NEUTRAL_ZONE_DEEPER_PER_VISIT}, etc.
+   *
+   * <p>The "deeper" direction is along the intake heading (the direction the robot faces when
+   * intaking). For NEUTRAL_ZONE_UPPER (heading=90°), deeper means further positive-Y. For
+   * NEUTRAL_ZONE_LOWER (heading=-90°), deeper means further negative-Y. This pushes the robot
+   * further into the FUEL scatter zone where un-collected FUEL remains after previous passes.
+   */
+  public static final double NEUTRAL_ZONE_DEEPER_PER_VISIT = 1.5;
+
   // ===== Shooter Current-Based Shot Completion Detection =====
   // New logic: monitor the CONVEYOR motor current instead of the shooter motor. Because there's
   // motor accel time, the conveyor always draws current when feeding. If conveyor current drops

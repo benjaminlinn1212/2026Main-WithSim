@@ -152,21 +152,43 @@ public abstract class AutoAction {
     }
   }
 
-  /** Drive from the current pose to an intake location and pick up FUEL. */
+  /**
+   * Drive from the current pose to an intake location and pick up FUEL.
+   *
+   * <p>{@code visitNumber} tracks how many times this specific intake location has been visited
+   * (1-based). On the first visit (visitNumber=1), the robot drives to the nominal intake pose. On
+   * subsequent visits (visitNumber≥2), the robot drives deeper past the original waypoint to reach
+   * FUEL that wasn't collected on previous passes. The deeper offset is computed at runtime by
+   * {@link AutoCommandBuilder#buildIntakeAt}.
+   */
   public static final class IntakeAt extends AutoAction {
     private final IntakeLocation location;
+    private final int visitNumber;
 
     public IntakeAt(IntakeLocation location) {
+      this(location, 1);
+    }
+
+    public IntakeAt(IntakeLocation location, int visitNumber) {
       super(Type.INTAKE_AT);
       this.location = location;
+      this.visitNumber = visitNumber;
     }
 
     public IntakeLocation getLocation() {
       return location;
     }
 
+    /** How many times this intake location has been visited (1-based). */
+    public int getVisitNumber() {
+      return visitNumber;
+    }
+
     @Override
     public String describe() {
+      if (visitNumber > 1) {
+        return "Intake FUEL at " + location.name() + " (visit #" + visitNumber + ", deeper)";
+      }
       return "Intake FUEL at " + location.name();
     }
 

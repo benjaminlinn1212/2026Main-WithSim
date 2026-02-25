@@ -652,6 +652,41 @@ public class AutoCommandBuilder {
   }
 
   /**
+   * Compute a pose that is {@code deeperMeters} further into the neutral zone from the given
+   * nominal pose. Used for repeat neutral zone visits where the nearby FUEL has already been
+   * collected — the robot needs to drive past the original waypoint to reach fresh FUEL.
+   *
+   * <p>"Deeper" means toward the center of the field (Y → FIELD_WIDTH/2). The robot approaches the
+   * neutral zone from the field edges, so FUEL near the edge is collected first. On subsequent
+   * visits, the robot pushes further toward center Y where un-collected FUEL remains.
+   *
+   * <ul>
+   *   <li>NEUTRAL_ZONE_UPPER (Y=5.9, heading=90°): deeper = toward center = negative-Y
+   *   <li>NEUTRAL_ZONE_LOWER (Y=2.2, heading=-90°): deeper = toward center = positive-Y
+   * </ul>
+   *
+   * <p>The result is clamped to stay within the field bounds.
+   *
+   * @param nominalPose The original intake waypoint (alliance-corrected)
+   * @param deeperMeters How many meters deeper toward field center to go
+   * @return A new pose offset toward field center Y, clamped to field bounds
+   */
+  private static Pose2d computeDeeperPose(Pose2d nominalPose, double deeperMeters) {
+    double centerY = FieldConstants.FIELD_WIDTH / 2.0;
+    double currentY = nominalPose.getY();
+    double deltaY = centerY - currentY;
+    // Move toward center Y by deeperMeters
+    double offsetY;
+    if (Math.abs(deltaY) < 0.01) {
+      offsetY = 0; // Already at center — no offset
+    } else {
+      offsetY = Math.signum(deltaY) * deeperMeters;
+    }
+    double newY = MathUtil.clamp(currentY + offsetY, 0.5, FieldConstants.FIELD_WIDTH - 0.5);
+    return new Pose2d(nominalPose.getX(), newY, nominalPose.getRotation());
+  }
+
+  /**
    * Build a command that waits until the Superstructure detects all FUEL has been fired, based on
    * conveyor motor current dropping below threshold for a sustained period.
    *
@@ -919,20 +954,39 @@ public class AutoCommandBuilder {
    */
   private Command buildIntakeAt(AutoAction.IntakeAt action) {
     FieldConstants.IntakeLocation loc = action.getLocation();
-    Pose2d intakePose = loc.getPose();
+    Pose2d nominalPose = loc.getPose();
+    int visitNumber = action.getVisitNumber();
+
+    // On repeat visits (visitNumber ≥ 2), drive deeper past the nominal waypoint.
+    // The nearby FUEL was already collected on previous passes, so we extend further
+    // along the intake heading direction to reach un-collected FUEL.
+    Pose2d intakePose;
+    if (visitNumber > 1 && loc.reusable) {
+      double deeperOffset = (visitNumber - 1) * NEUTRAL_ZONE_DEEPER_PER_VISIT;
+      intakePose = computeDeeperPose(nominalPose, deeperOffset);
+    } else {
+      intakePose = nominalPose;
+    }
+
+    String visitLabel = visitNumber > 1 ? loc.name() + "_v" + visitNumber : loc.name();
 
     // All intakes use the same logic: zone-aware intake during drive, then check
     // Superstructure's intake detection on arrival. Detection runs in Superstructure's
     // periodic() — no separate monitor command needed.
     return Commands.sequence(
-            Commands.print("[DashboardAuto] Intaking at " + loc.name()),
+            Commands.print(
+                "[DashboardAuto] Intaking at "
+                    + visitLabel
+                    + " (pose="
+                    + String.format("%.2f, %.2f", intakePose.getX(), intakePose.getY())
+                    + ")"),
             // Reset the intake detection before starting the drive
             Commands.runOnce(() -> superstructure.resetIntakeDetection()),
             // Drive with zone-aware intake (detection runs automatically in Superstructure)
             Commands.deadline(pathfindTo(intakePose), zoneAwareIntake()),
             // Upon arrival: check detection — nudge if no FUEL detected during drive
             waitForIntakePickup(intakePose))
-        .withName("IntakeAt_" + loc.name());
+        .withName("IntakeAt_" + visitLabel);
   }
 
   /** Drive to an arbitrary pose. */

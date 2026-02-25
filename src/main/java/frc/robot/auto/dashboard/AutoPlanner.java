@@ -12,8 +12,10 @@ import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
@@ -162,6 +164,10 @@ public class AutoPlanner {
     int cyclesCompleted = 0;
     // Track depleted intake locations (OUTPOST/DEPOT are one-shot; NEUTRAL ZONE is reusable)
     Set<IntakeLocation> depletedIntakes = new HashSet<>();
+    // Track how many times each reusable intake location has been visited.
+    // On repeat visits (visitNumber ≥ 2) to a neutral zone location, the robot drives deeper
+    // past the original waypoint because the nearby FUEL was already collected.
+    Map<IntakeLocation, Integer> intakeVisitCounts = new HashMap<>();
 
     while (cyclesCompleted < settings.getIntakePriority().size()) {
       // Pick FUEL intake location — advances through the sequence string each cycle
@@ -231,8 +237,12 @@ public class AutoPlanner {
         break;
       }
 
-      // Add the intake action
-      actions.add(new AutoAction.IntakeAt(intakeLoc));
+      // Add the intake action — track visit number for reusable (neutral zone) locations.
+      // On the 2nd+ visit, the robot drives deeper past the original waypoint because nearby
+      // FUEL was already collected on the previous pass.
+      int visitNumber = intakeVisitCounts.getOrDefault(intakeLoc, 0) + 1;
+      intakeVisitCounts.put(intakeLoc, visitNumber);
+      actions.add(new AutoAction.IntakeAt(intakeLoc, visitNumber));
       timeRemaining -= driveToIntakeTime;
       currentPose = intakeLoc.getPose();
 

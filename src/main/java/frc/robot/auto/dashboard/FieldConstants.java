@@ -694,10 +694,10 @@ public final class FieldConstants {
 
     /** NEUTRAL ZONE upper — pick up FUEL from the upper side of the neutral zone. */
     NEUTRAL_ZONE_UPPER(
-        new Pose2d(7.84, 5.905, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, true),
+        new Pose2d(7.84, 5.405, Rotation2d.fromDegrees(90)), Zone.NEUTRAL_ZONE, true),
     /** NEUTRAL ZONE lower — pick up FUEL from the lower side of the neutral zone. */
     NEUTRAL_ZONE_LOWER(
-        new Pose2d(7.84, 2.165, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, true);
+        new Pose2d(7.84, 2.665, Rotation2d.fromDegrees(-90)), Zone.NEUTRAL_ZONE, true);
 
     public final Pose2d bluePose;
     public final Zone zone;

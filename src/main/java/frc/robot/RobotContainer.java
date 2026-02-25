@@ -568,7 +568,7 @@ public class RobotContainer {
         .whileTrue(
             Commands.either(
                 climb.calibrationLeftBackReverse(),
-                superstructure.previousClimbState(),
+                climb.previousState(),
                 climb::isInCalibrationMode));
 
     operator
@@ -576,7 +576,7 @@ public class RobotContainer {
         .whileTrue(
             Commands.either(
                 climb.calibrationLeftBackForward(),
-                superstructure.nextClimbState(),
+                climb.nextClimbStep(),
                 climb::isInCalibrationMode));
 
     // Y/A: Right front motor ±3V

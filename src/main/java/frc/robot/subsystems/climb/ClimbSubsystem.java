@@ -16,6 +16,7 @@ import frc.robot.subsystems.climb.util.ClimbIK;
 import frc.robot.subsystems.climb.util.ClimbIK.ClimbIKResult;
 import frc.robot.subsystems.climb.util.ClimbPathPlanner;
 import java.util.List;
+import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
@@ -762,6 +763,32 @@ public class ClimbSubsystem extends SubsystemBase {
     io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
   }
 
+  // ─── Individual angle / hardstop setters ───
+
+  /** Release both angle servos only (no hardstop change). */
+  public void releaseAngleServos() {
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+  }
+
+  /** Release both hardstop servos only (no angle change). */
+  public void releaseHardstopServos() {
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+  }
+
+  /** Stow both angle servos only (no hardstop change). */
+  public void stowAngleServos() {
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+  }
+
+  /** Stow both hardstop servos only (no angle change). */
+  public void stowHardstopServos() {
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+  }
+
   // ─── Command-returning versions for teleop/auto ───
 
   /** Command: stow all secondary hook servos. Fire-and-forget (runOnce). */
@@ -792,6 +819,100 @@ public class ClimbSubsystem extends SubsystemBase {
   /** Command: release right secondary hook servos. Fire-and-forget (runOnce). */
   public Command releaseRightServosCommand() {
     return runOnce(this::releaseRightServos).withName("ClimbReleaseRightServos");
+  }
+
+  // ─── Servo sequence building blocks (command + wait for travel) ───
+
+  /** Release angle servos and wait for them to reach the released position. */
+  private Command releaseAngleServosAndWait() {
+    return Commands.sequence(
+        runOnce(this::releaseAngleServos),
+        Commands.waitSeconds(ClimbConstants.AngleServo.TRAVEL_TIME_SEC));
+  }
+
+  /** Release hardstop servos (fire-and-forget, no wait). */
+  private Command releaseHardstopServosInstant() {
+    return runOnce(this::releaseHardstopServos);
+  }
+
+  /** Stow hardstop servos and wait, then stow angle servos. */
+  private Command stowHardstopThenAngle() {
+    return Commands.sequence(
+        runOnce(this::stowHardstopServos),
+        Commands.waitSeconds(ClimbConstants.HardstopServo.TRAVEL_TIME_SEC),
+        runOnce(this::stowAngleServos));
+  }
+
+  /**
+   * Servo release sub-sequence used between retract and the next extend:
+   *
+   * <ol>
+   *   <li>Release angle servos
+   *   <li>Wait for angle to reach released position
+   *   <li>Release hardstop servos
+   * </ol>
+   */
+  private Command releaseServosSequence() {
+    return Commands.sequence(releaseAngleServosAndWait(), releaseHardstopServosInstant())
+        .withName("ReleaseServosSequence");
+  }
+
+  // ===========================================================================
+  // TELEOP CLIMB STEP (6 presses)
+  // ===========================================================================
+
+  /**
+   * Advance climb by one operator-triggered step. Each POV-Right press runs exactly one step:
+   *
+   * <pre>
+   *  Press 1 (STOWED)      → Extend L1
+   *  Press 2 (EXTEND_L1)   → Retract L1, then release angle→wait→release hardstop
+   *  Press 3 (RETRACT_L1)  → Extend L2
+   *  Press 4 (EXTEND_L2)   → Retract L2 ∥ stow servos, then release angle→wait→release hardstop
+   *  Press 5 (RETRACT_L2)  → Extend L3
+   *  Press 6 (EXTEND_L3)   → Retract L3
+   * </pre>
+   *
+   * <p>Servo commands use {@code runOnce()} (no subsystem requirement), so they can run in parallel
+   * with arm path commands that DO require the Climb subsystem.
+   */
+  public Command nextClimbStep() {
+    return Commands.defer(
+        () -> {
+          switch (currentState) {
+              // ── Press 1: Extend to L1 ──
+            case STOWED:
+              return setStateCommand(ClimbState.EXTEND_L1);
+
+              // ── Press 2: Retract L1 + release hooks for L2 ──
+            case EXTEND_L1:
+              return Commands.sequence(
+                  setStateCommand(ClimbState.RETRACT_L1), releaseServosSequence());
+
+              // ── Press 3: Extend to L2 ──
+            case RETRACT_L1:
+              return setStateCommand(ClimbState.EXTEND_L2);
+
+              // ── Press 4: Retract L2 ∥ stow servos, then release hooks for L3 ──
+            case EXTEND_L2:
+              return Commands.sequence(
+                  Commands.parallel(
+                      setStateCommand(ClimbState.RETRACT_L2), stowHardstopThenAngle()),
+                  releaseServosSequence());
+
+              // ── Press 5: Extend to L3 ──
+            case RETRACT_L2:
+              return setStateCommand(ClimbState.EXTEND_L3);
+
+              // ── Press 6: Retract L3 (final) ──
+            case EXTEND_L3:
+              return setStateCommand(ClimbState.RETRACT_L3);
+
+            default:
+              return Commands.none();
+          }
+        },
+        Set.of(this));
   }
 
   // ===========================================================================

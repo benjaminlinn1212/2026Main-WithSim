@@ -504,8 +504,8 @@ public class Superstructure extends SubsystemBase {
   }
 
   // ==================== Climb (Independent Subsystem) ====================
-  // Climb operates independently from superstructure — both auto and teleop use the same
-  // direct API: climb.nextState(), climb.previousState(), climb.setStateCommand().
+  // Climb operates independently from superstructure — RobotContainer binds directly to
+  // climb.nextClimbStep(), climb.previousState(), etc.
   // Superstructure continues running (intaking, aiming, etc.) in parallel.
 
   /**
@@ -546,26 +546,6 @@ public class Superstructure extends SubsystemBase {
    */
   public boolean isIntakeStowed() {
     return intakePivot.isStowed();
-  }
-
-  /**
-   * Advance to next climb state. Climb is an independent subsystem — no superstructure state
-   * gating. The operator can advance the climb at any time.
-   *
-   * @return Command to advance climb state
-   */
-  public Command nextClimbState() {
-    return climb.nextState().withName("Superstructure_NextClimbState");
-  }
-
-  /**
-   * Go back to previous climb state. Climb is an independent subsystem — no superstructure state
-   * gating.
-   *
-   * @return Command to go to previous climb state
-   */
-  public Command previousClimbState() {
-    return climb.previousState().withName("Superstructure_PreviousClimbState");
   }
 
   /** Emergency stop - immediately stow everything and stop all motors including climb. */

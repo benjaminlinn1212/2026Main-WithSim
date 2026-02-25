@@ -241,7 +241,7 @@ public class ShooterSetpoint {
 
   /**
    * Get the appropriate target based on alliance and robot position. Returns hub target normally,
-   * or alliance wall direction if in neutral zone.
+   * or neutral zone aim target if in neutral zone (upper/lower based on robot Y).
    */
   private static Translation3d getSmartTarget(Pose2d robotPose) {
     // Get alliance from DriverStation
@@ -256,13 +256,16 @@ public class ShooterSetpoint {
 
     // Check if in neutral zone
     if (isInNeutralZone(robotPose)) {
-      // Shoot back towards alliance wall
+      // Aim at upper or lower neutral zone target based on robot Y position
+      double robotY = robotPose.getY();
       if (isBlueAlliance) {
-        // Blue: shoot towards X=0 (blue wall)
-        return new Translation3d(0, robotPose.getY(), hubTarget.getZ());
+        return robotY > FieldConstants.FIELD_WIDTH / 2.0
+            ? FieldConstants.BLUE_NEUTRAL_ZONE_UPPER_AIM
+            : FieldConstants.BLUE_NEUTRAL_ZONE_LOWER_AIM;
       } else {
-        // Red: shoot towards X=field_length (red wall)
-        return new Translation3d(FieldConstants.FIELD_LENGTH, robotPose.getY(), hubTarget.getZ());
+        return robotY > FieldConstants.FIELD_WIDTH / 2.0
+            ? FieldConstants.RED_NEUTRAL_ZONE_UPPER_AIM
+            : FieldConstants.RED_NEUTRAL_ZONE_LOWER_AIM;
       }
     }
 

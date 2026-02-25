@@ -617,19 +617,52 @@ public final class Constants {
     public static final int LEFT_BACK_MOTOR_CAN_ID = 54;
     public static final CANBus CAN_BUS = new CANBus("Superstructure");
 
-    // All climb servos are 180° with 500µs–2500µs pulse range.
-    // PWM bounds are overridden in the IO layer so set(0.0) = 0° and set(1.0) = 180°.
-    public static final double SERVO_FULL_RANGE_DEG = 180.0; // degrees of travel
+    // ==================== Secondary Hook Servo Configuration ====================
+    //
+    // Two servo types:
+    //   Angle servos   — 180° travel, 500µs–2500µs pulse range
+    //   Hardstop servos — 100° travel, 1000µs–2000µs pulse range
+    //
+    // Inversion convention (all servos are CCW-positive when non-inverted):
+    //   Non-inverted: set(0.0) = 0°,   requesting +N° moves 0° → N°
+    //   Inverted:     set(0.0) = max°, requesting +N° moves max° → (max−N)°
+    //   In code: pwmValue = inverted ? (1.0 − input) : input
+    //
+    // Per-side inversion:
+    //   Right angle   → NOT inverted   (CCW-positive, 0°→180°)
+    //   Right hardstop → INVERTED      (CW-positive,  100°→0°)
+    //   Left angle    → INVERTED       (CW-positive,  180°→0°)
+    //   Left hardstop → NOT inverted   (CCW-positive, 0°→100°)
 
-    // Secondary Hook Angle Servos
-    public static final int LEFT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 6;
-    public static final int RIGHT_SECONDARY_HOOK_ANGLE_SERVO_PWM = 8;
-    public static final double SECONDARY_HOOK_ANGLE_STOWED_POSITION = 0.0;
+    /** Angle servo config: 180° range, 500µs–2500µs pulse. */
+    public static class AngleServo {
+      public static final double FULL_RANGE_DEG = 180.0;
+      public static final int PULSE_MIN_US = 500;
+      public static final int PULSE_MAX_US = 2500;
+      public static final double STOWED_POSITION = 0.0; // 0.0–1.0 (before inversion)
+      public static final double RELEASED_POSITION = 150.0 / 180.0; // 150° → 0.833 (before inv.)
+    }
 
-    // Secondary Hook Hardstop Servos
-    public static final int LEFT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 7;
-    public static final int RIGHT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM = 9;
-    public static final double SECONDARY_HOOK_HARDSTOP_STOWED_POSITION = 0.0;
+    /** Hardstop servo config: 100° range, 1000µs–2000µs pulse. */
+    public static class HardstopServo {
+      public static final double FULL_RANGE_DEG = 100.0;
+      public static final int PULSE_MIN_US = 1000;
+      public static final int PULSE_MAX_US = 2000;
+      public static final double STOWED_POSITION = 0.0; // 0.0–1.0 (before inversion)
+      public static final double RELEASED_POSITION = 90.0 / 100.0; // 90° → 0.9 (before inv.)
+    }
+
+    // PWM Channels
+    public static final int LEFT_ANGLE_SERVO_PWM = 6;
+    public static final int LEFT_HARDSTOP_SERVO_PWM = 7;
+    public static final int RIGHT_ANGLE_SERVO_PWM = 8;
+    public static final int RIGHT_HARDSTOP_SERVO_PWM = 9;
+
+    // Per-servo inversion flags (true = CW-positive, max° at set(0.0))
+    public static final boolean RIGHT_ANGLE_SERVO_INVERTED = false;
+    public static final boolean RIGHT_HARDSTOP_SERVO_INVERTED = true;
+    public static final boolean LEFT_ANGLE_SERVO_INVERTED = true;
+    public static final boolean LEFT_HARDSTOP_SERVO_INVERTED = false;
 
     // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
     // Front motors: 100:1 reduction → 1 motor rotation = 1/100 drum rotation

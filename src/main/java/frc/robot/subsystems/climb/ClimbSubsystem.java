@@ -696,6 +696,8 @@ public class ClimbSubsystem extends SubsystemBase {
   // SECONDARY HOOK SERVOS
   // ===========================================================================
 
+  // ─── Raw per-servo setters (0.0–1.0 logical position, inversion applied in IO) ───
+
   /** Set the right secondary hook angle servo position (0.0–1.0). */
   public void setRightSecondaryHookAngle(double position) {
     io.setRightSecondaryHookAnglePosition(position);
@@ -716,12 +718,80 @@ public class ClimbSubsystem extends SubsystemBase {
     io.setLeftSecondaryHookHardstopPosition(position);
   }
 
-  /** Set all 4 secondary hook servos (both angle and hardstop, both sides) to 0. */
-  public void setAllServosToZero() {
-    io.setLeftSecondaryHookAnglePosition(0.0);
-    io.setRightSecondaryHookAnglePosition(0.0);
-    io.setLeftSecondaryHookHardstopPosition(0.0);
-    io.setRightSecondaryHookHardstopPosition(0.0);
+  // ─── Stow (retract hooks) ───
+
+  /** Stow all 4 secondary hook servos to their starting position. */
+  public void stowAllServos() {
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+  }
+
+  /** Stow the left side secondary hook servos (angle + hardstop). */
+  public void stowLeftServos() {
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+  }
+
+  /** Stow the right side secondary hook servos (angle + hardstop). */
+  public void stowRightServos() {
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+  }
+
+  // ─── Release (deploy hooks) ───
+
+  /** Release all 4 secondary hook servos to their deployed position. */
+  public void releaseAllServos() {
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+  }
+
+  /** Release the left side secondary hook servos (angle + hardstop). */
+  public void releaseLeftServos() {
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+  }
+
+  /** Release the right side secondary hook servos (angle + hardstop). */
+  public void releaseRightServos() {
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+  }
+
+  // ─── Command-returning versions for teleop/auto ───
+
+  /** Command: stow all secondary hook servos. Fire-and-forget (runOnce). */
+  public Command stowAllServosCommand() {
+    return runOnce(this::stowAllServos).withName("ClimbStowAllServos");
+  }
+
+  /** Command: release all secondary hook servos. Fire-and-forget (runOnce). */
+  public Command releaseAllServosCommand() {
+    return runOnce(this::releaseAllServos).withName("ClimbReleaseAllServos");
+  }
+
+  /** Command: stow left secondary hook servos. Fire-and-forget (runOnce). */
+  public Command stowLeftServosCommand() {
+    return runOnce(this::stowLeftServos).withName("ClimbStowLeftServos");
+  }
+
+  /** Command: stow right secondary hook servos. Fire-and-forget (runOnce). */
+  public Command stowRightServosCommand() {
+    return runOnce(this::stowRightServos).withName("ClimbStowRightServos");
+  }
+
+  /** Command: release left secondary hook servos. Fire-and-forget (runOnce). */
+  public Command releaseLeftServosCommand() {
+    return runOnce(this::releaseLeftServos).withName("ClimbReleaseLeftServos");
+  }
+
+  /** Command: release right secondary hook servos. Fire-and-forget (runOnce). */
+  public Command releaseRightServosCommand() {
+    return runOnce(this::releaseRightServos).withName("ClimbReleaseRightServos");
   }
 
   // ===========================================================================

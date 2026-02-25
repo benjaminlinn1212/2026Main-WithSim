@@ -38,24 +38,44 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftBackMotor = new TalonFX(ClimbConstants.LEFT_BACK_MOTOR_CAN_ID, ClimbConstants.CAN_BUS);
 
     // Initialize secondary hook angle servos — 180° servo with 500µs–2500µs pulse range.
-    leftSecondaryHookAngleServo = new Servo(ClimbConstants.LEFT_SECONDARY_HOOK_ANGLE_SERVO_PWM);
-    leftSecondaryHookAngleServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
-    rightSecondaryHookAngleServo = new Servo(ClimbConstants.RIGHT_SECONDARY_HOOK_ANGLE_SERVO_PWM);
-    rightSecondaryHookAngleServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
+    leftSecondaryHookAngleServo = new Servo(ClimbConstants.LEFT_ANGLE_SERVO_PWM);
+    leftSecondaryHookAngleServo.setBoundsMicroseconds(
+        ClimbConstants.AngleServo.PULSE_MAX_US, 0, 0, 0, ClimbConstants.AngleServo.PULSE_MIN_US);
+    rightSecondaryHookAngleServo = new Servo(ClimbConstants.RIGHT_ANGLE_SERVO_PWM);
+    rightSecondaryHookAngleServo.setBoundsMicroseconds(
+        ClimbConstants.AngleServo.PULSE_MAX_US, 0, 0, 0, ClimbConstants.AngleServo.PULSE_MIN_US);
 
-    leftSecondaryHookAngleServo.set(ClimbConstants.SECONDARY_HOOK_ANGLE_STOWED_POSITION);
-    rightSecondaryHookAngleServo.set(ClimbConstants.SECONDARY_HOOK_ANGLE_STOWED_POSITION);
+    leftSecondaryHookAngleServo.set(
+        applyInversion(
+            ClimbConstants.AngleServo.STOWED_POSITION, ClimbConstants.LEFT_ANGLE_SERVO_INVERTED));
+    rightSecondaryHookAngleServo.set(
+        applyInversion(
+            ClimbConstants.AngleServo.STOWED_POSITION, ClimbConstants.RIGHT_ANGLE_SERVO_INVERTED));
 
-    // Initialize secondary hook hardstop servos — 180° servo with 500µs–2500µs pulse range.
-    leftSecondaryHookHardstopServo =
-        new Servo(ClimbConstants.LEFT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM);
-    leftSecondaryHookHardstopServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
-    rightSecondaryHookHardstopServo =
-        new Servo(ClimbConstants.RIGHT_SECONDARY_HOOK_HARDSTOP_SERVO_PWM);
-    rightSecondaryHookHardstopServo.setBoundsMicroseconds(2500, 0, 0, 0, 500);
+    // Initialize secondary hook hardstop servos — 100° servo with 1000µs–2000µs pulse range.
+    leftSecondaryHookHardstopServo = new Servo(ClimbConstants.LEFT_HARDSTOP_SERVO_PWM);
+    leftSecondaryHookHardstopServo.setBoundsMicroseconds(
+        ClimbConstants.HardstopServo.PULSE_MAX_US,
+        0,
+        0,
+        0,
+        ClimbConstants.HardstopServo.PULSE_MIN_US);
+    rightSecondaryHookHardstopServo = new Servo(ClimbConstants.RIGHT_HARDSTOP_SERVO_PWM);
+    rightSecondaryHookHardstopServo.setBoundsMicroseconds(
+        ClimbConstants.HardstopServo.PULSE_MAX_US,
+        0,
+        0,
+        0,
+        ClimbConstants.HardstopServo.PULSE_MIN_US);
 
-    leftSecondaryHookHardstopServo.set(ClimbConstants.SECONDARY_HOOK_HARDSTOP_STOWED_POSITION);
-    rightSecondaryHookHardstopServo.set(ClimbConstants.SECONDARY_HOOK_HARDSTOP_STOWED_POSITION);
+    leftSecondaryHookHardstopServo.set(
+        applyInversion(
+            ClimbConstants.HardstopServo.STOWED_POSITION,
+            ClimbConstants.LEFT_HARDSTOP_SERVO_INVERTED));
+    rightSecondaryHookHardstopServo.set(
+        applyInversion(
+            ClimbConstants.HardstopServo.STOWED_POSITION,
+            ClimbConstants.RIGHT_HARDSTOP_SERVO_INVERTED));
 
     // Base configuration (shared by all motors)
     TalonFXConfiguration baseConfig = new TalonFXConfiguration();
@@ -302,22 +322,34 @@ public class ClimbIOTalonFX implements ClimbIO {
 
   @Override
   public void setLeftSecondaryHookAnglePosition(double position) {
-    leftSecondaryHookAngleServo.set(position);
+    leftSecondaryHookAngleServo.set(
+        applyInversion(position, ClimbConstants.LEFT_ANGLE_SERVO_INVERTED));
   }
 
   @Override
   public void setRightSecondaryHookAnglePosition(double position) {
-    rightSecondaryHookAngleServo.set(position);
+    rightSecondaryHookAngleServo.set(
+        applyInversion(position, ClimbConstants.RIGHT_ANGLE_SERVO_INVERTED));
   }
 
   @Override
   public void setLeftSecondaryHookHardstopPosition(double position) {
-    leftSecondaryHookHardstopServo.set(position);
+    leftSecondaryHookHardstopServo.set(
+        applyInversion(position, ClimbConstants.LEFT_HARDSTOP_SERVO_INVERTED));
   }
 
   @Override
   public void setRightSecondaryHookHardstopPosition(double position) {
-    rightSecondaryHookHardstopServo.set(position);
+    rightSecondaryHookHardstopServo.set(
+        applyInversion(position, ClimbConstants.RIGHT_HARDSTOP_SERVO_INVERTED));
+  }
+
+  /**
+   * Apply inversion to a servo position (0.0–1.0). When inverted, 0.0 maps to the servo's max angle
+   * and 1.0 maps to 0°, effectively reversing the direction of positive rotation.
+   */
+  private static double applyInversion(double position, boolean inverted) {
+    return inverted ? 1.0 - position : position;
   }
 
   @Override

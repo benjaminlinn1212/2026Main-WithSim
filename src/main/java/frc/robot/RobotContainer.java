@@ -605,10 +605,7 @@ public class RobotContainer {
     // X/B: Right back motor ±3V (whileTrue) in calibration mode;
     //       X: all servos to 0 (onTrue) in normal mode
     operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
-    operator
-        .x()
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(Commands.runOnce(() -> climb.setAllServosToZero()));
+    operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowAllServosCommand());
 
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
   }

@@ -130,7 +130,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
   }
 
   @Override
-  public void readInputs(VisionIOInputs inputs) {
+  public void updateInputs(VisionIOInputs inputs) {
     updateOrientations();
 
     // Front camera

@@ -54,6 +54,7 @@ import frc.robot.subsystems.intakepivot.IntakePivotIO;
 import frc.robot.subsystems.intakepivot.IntakePivotIOSim;
 import frc.robot.subsystems.intakepivot.IntakePivotIOTalonFX;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
+import frc.robot.subsystems.led.LEDSubsystem;
 import frc.robot.subsystems.shooter.ShooterIO;
 import frc.robot.subsystems.shooter.ShooterIOSim;
 import frc.robot.subsystems.shooter.ShooterIOTalonFX;
@@ -81,7 +82,7 @@ public class RobotContainer {
   private final RobotState robotState = new RobotState();
 
   // Subsystems
-  private final DriveSwerveDrivetrain swerveIO;
+  private final DriveSwerveDrivetrain drive;
   private final IntakeSubsystem intake;
   private final IntakePivotSubsystem intakePivot;
   private final TurretSubsystem turret;
@@ -90,6 +91,7 @@ public class RobotContainer {
   private final ConveyorSubsystem conveyor;
   private final IndexerSubsystem indexer;
   private final ClimbSubsystem climb;
+  private final LEDSubsystem leds;
   private final Superstructure superstructure;
 
   @SuppressWarnings("unused")
@@ -124,7 +126,7 @@ public class RobotContainer {
     switch (Constants.currentMode) {
       case REAL:
         // Real robot, use CTRE SwerveDrivetrain directly (254's approach)
-        swerveIO =
+        drive =
             new DriveSwerveDrivetrain(
                 new DriveIOHardware(
                     robotState,
@@ -138,7 +140,7 @@ public class RobotContainer {
 
       case SIM:
         // Sim robot, use DriveIOSim with Maple-Sim integration (254's approach)
-        swerveIO =
+        drive =
             new DriveSwerveDrivetrain(
                 new DriveIOSim(
                     robotState,
@@ -152,7 +154,7 @@ public class RobotContainer {
 
       default:
         // For replay, create minimal DriveIOHardware
-        swerveIO =
+        drive =
             new DriveSwerveDrivetrain(
                 new DriveIOHardware(
                     robotState,
@@ -180,6 +182,7 @@ public class RobotContainer {
         conveyor = new ConveyorSubsystem(new ConveyorIOTalonFX());
         indexer = new IndexerSubsystem(new IndexerIOTalonFX());
         climb = new ClimbSubsystem(new ClimbIOTalonFX());
+        leds = new LEDSubsystem();
         break;
       case SIM:
         intake = new IntakeSubsystem(new IntakeIOSim());
@@ -190,6 +193,7 @@ public class RobotContainer {
         conveyor = new ConveyorSubsystem(new ConveyorIOSim());
         indexer = new IndexerSubsystem(new IndexerIOSim());
         climb = new ClimbSubsystem(new ClimbIOSim());
+        leds = new LEDSubsystem();
         break;
       default:
         intake = new IntakeSubsystem(new IntakeIO() {});
@@ -200,12 +204,14 @@ public class RobotContainer {
         conveyor = new ConveyorSubsystem(new ConveyorIO() {});
         indexer = new IndexerSubsystem(new IndexerIO() {});
         climb = new ClimbSubsystem(new ClimbIO() {});
+        leds = new LEDSubsystem();
         break;
     }
 
     // Instantiate Superstructure with all subsystems
     superstructure =
-        new Superstructure(shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb);
+        new Superstructure(
+            shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb, leds);
 
     // Instantiate Vision with pose consumer that feeds into the drive's pose estimator
     switch (Constants.currentMode) {
@@ -215,7 +221,7 @@ public class RobotContainer {
                 new VisionIOHardwareLimelight(robotState),
                 robotState,
                 estimate ->
-                    swerveIO
+                    drive
                         .getDriveIO()
                         .addVisionMeasurement(
                             estimate.getVisionRobotPoseMeters(),
@@ -238,13 +244,13 @@ public class RobotContainer {
     // The planner reads field-aware settings from Shuffleboard, generates an
     // optimal action sequence, and builds the command tree at autonomousInit().
     // Configure settings in the "Auto Settings" Shuffleboard tab before each match.
-    dashboardAutoManager = new DashboardAutoManager(swerveIO, superstructure, climb);
+    dashboardAutoManager = new DashboardAutoManager(drive, superstructure, climb);
     autoChooser.addOption(
         "Dashboard Auto",
-        Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(swerveIO)));
+        Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(drive)));
 
     // Hardcoded fallback autos — reads Start Pose from dashboard auto settings
-    hardcodedAutos = new HardcodedAutos(swerveIO, superstructure, dashboardAutoManager);
+    hardcodedAutos = new HardcodedAutos(drive, superstructure, dashboardAutoManager);
     autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
@@ -257,10 +263,10 @@ public class RobotContainer {
     shooter.setShooterSetpointSupplier(shooterSetpointSupplier);
 
     // Provide robot pose for turret's field-relative tracking
-    turret.setRobotPoseSupplier(() -> swerveIO.getPose());
+    turret.setRobotPoseSupplier(() -> drive.getPose());
 
     // Provide robot pose for trench detection (hood stow override)
-    superstructure.setRobotPoseSupplier(() -> swerveIO.getPose());
+    superstructure.setRobotPoseSupplier(() -> drive.getPose());
 
     // Configure the button bindings
     configureButtonBindings();
@@ -281,15 +287,18 @@ public class RobotContainer {
 
       // Configure AutoBuilder with swerve drive
       AutoBuilder.configure(
-          swerveIO::getPose, // Pose supplier
-          swerveIO::setPose, // Pose reset consumer
-          swerveIO::getChassisSpeeds, // ChassisSpeeds supplier
+          drive::getPose, // Pose supplier
+          drive::setPose, // Pose reset consumer
+          drive::getChassisSpeeds, // ChassisSpeeds supplier
           (speeds, feedforwards) ->
-              swerveIO.runVelocity(speeds), // Drive output consumer (ignore feedforwards)
+              drive.runVelocity(speeds), // Drive output consumer (ignore feedforwards)
           new PPHolonomicDriveController(
               new PIDConstants(
-                  Constants.AutoConstants.kPLTEController, 0.0, 0.0), // Translation PID
-              new PIDConstants(Constants.AutoConstants.kPThetaController, 0.0, 0.0) // Rotation PID
+                  Constants.AutoConstants.PATH_FOLLOWING_TRANSLATION_KP,
+                  0.0,
+                  0.0), // Translation PID
+              new PIDConstants(
+                  Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0.0, 0.0) // Rotation PID
               ),
           config, // Robot configuration
           () -> {
@@ -297,7 +306,7 @@ public class RobotContainer {
             var alliance = DriverStation.getAlliance();
             return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
           },
-          swerveIO // Drive subsystem requirement
+          drive // Drive subsystem requirement
           );
 
       System.out.println("[RobotContainer] AutoBuilder configured successfully");
@@ -309,7 +318,7 @@ public class RobotContainer {
       // not just at the destination.
       PPHolonomicDriveController.setRotationTargetOverride(
           () -> {
-            Pose2d pose = swerveIO.getPose();
+            Pose2d pose = drive.getPose();
             if (FieldConstants.isNearTrench(pose.getTranslation())) {
               return java.util.Optional.of(FieldConstants.snapToCardinal(pose.getRotation()));
             }
@@ -343,7 +352,7 @@ public class RobotContainer {
     // Default command, field-relative drive
     // In WPILib blue-origin coordinates, +X = toward red wall, +Y = toward left (from blue DS).
     // On red alliance the driver faces the opposite direction, so we negate vx and vy.
-    swerveIO.setDefaultCommand(
+    drive.setDefaultCommand(
         Commands.run(
             () -> {
               // Apply deadband to prevent drift from joystick noise
@@ -376,8 +385,8 @@ public class RobotContainer {
               //    the nearest cardinal so the robot physically fits through the tunnel.
               // 2. Lateral centering — deflects velocity direction toward the trench's
               //    center Y line, guiding the travel path to the middle of the corridor.
-              Translation2d bluePos = swerveIO.getPose().getTranslation();
-              Rotation2d robotHeading = swerveIO.getPose().getRotation();
+              Translation2d bluePos = drive.getPose().getTranslation();
+              Rotation2d robotHeading = drive.getPose().getRotation();
               // Convert to blue-origin if on red alliance (field geometry is defined in blue)
               if (isRed) {
                 bluePos = FieldConstants.flipTranslation(bluePos);
@@ -432,9 +441,9 @@ public class RobotContainer {
               Logger.recordOutput("Drive/TrenchAssist/CenteringDeg", assisted[2]);
               Logger.recordOutput("Drive/TrenchAssist/OrientationOmega", orientationOmega);
 
-              swerveIO.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
+              drive.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
-            swerveIO));
+            drive));
 
     // Left bumper: Reset orientation (REAL) or full pose (SIM)
     // SIM: reset to DEFAULT_RESET_POSE for repeatable testing
@@ -445,19 +454,19 @@ public class RobotContainer {
             Commands.runOnce(
                     () -> {
                       if (Constants.currentMode == Constants.Mode.SIM) {
-                        swerveIO.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
+                        drive.setPose(Constants.AutoConstants.DEFAULT_RESET_POSE);
                       } else {
                         var alliance = DriverStation.getAlliance();
                         boolean isRed =
                             alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-                        Pose2d current = swerveIO.getPose();
-                        swerveIO.setPose(
+                        Pose2d current = drive.getPose();
+                        drive.setPose(
                             new Pose2d(
                                 current.getTranslation(),
                                 Rotation2d.fromDegrees(isRed ? 180.0 : 0.0)));
                       }
                     },
-                    swerveIO)
+                    drive)
                 .ignoringDisable(true));
 
     // ===== SUPERSTRUCTURE STATE CONTROLS =====
@@ -479,6 +488,7 @@ public class RobotContainer {
     // On release, reverts to the aiming-only state.
     controller
         .rightTrigger(0.2)
+        .onTrue(Commands.runOnce(superstructure::resetShooterDetection))
         .whileTrue(
             Commands.run(
                 () -> {
@@ -508,14 +518,20 @@ public class RobotContainer {
 
   /**
    * Configure button bindings for the operator controller (port 1). Controls climb state machine,
-   * intake shake (dislodge stuck fuel), and climb calibration mode.
+   * intake shake (dislodge stuck fuel), and climb calibration / manual modes.
    *
    * <p>Climb is an independent subsystem — operator can control it at any time without entering a
    * special mode. Superstructure continues running (intake, aiming, etc.) in parallel.
    *
-   * <p>CALIBRATION MODE (left bumper enter, right bumper exit): Allows individual motor voltage
-   * control for cable tension adjustment. On exit, encoder positions are re-seeded to match the
-   * initial STOWED end-effector pose.
+   * <p>MODE TOGGLES:
+   *
+   * <ul>
+   *   <li>LB (left bumper): Toggle calibration mode — press to enter, press again to exit. On exit,
+   *       encoder positions are re-seeded to match the initial STOWED end-effector pose.
+   *   <li>RB (right bumper): Toggle manual control mode — press to enter, press again to exit.
+   *       While in manual mode the left and right mushroom-head sticks command the left and right
+   *       climb end-effector velocities respectively (stick up = EE up, stick right = EE forward).
+   * </ul>
    *
    * <p>Calibration controls (while in calibration mode):
    *
@@ -539,19 +555,21 @@ public class RobotContainer {
     System.out.println("[RobotContainer] Configuring operator bindings...");
 
     // ===== CLIMB CALIBRATION MODE =====
-    // Left bumper: Enter calibration mode — stops motors, enables individual voltage control
+    // Left bumper: Toggle calibration mode (press to enter, press again to exit)
     operator
         .leftBumper()
         .onTrue(
             Commands.either(
-                Commands.none(), climb.enterCalibrationMode(), climb::isInCalibrationMode));
+                climb.exitCalibrationMode(),
+                climb.enterCalibrationMode(),
+                climb::isInCalibrationMode));
 
-    // Right bumper: Exit calibration mode — stops motors, recalibrates encoders, returns to STOWED
+    // Right bumper: Toggle manual control mode (press to enter manual, press again to exit)
     operator
         .rightBumper()
         .onTrue(
             Commands.either(
-                climb.exitCalibrationMode(), Commands.none(), climb::isInCalibrationMode));
+                climb.exitManualMode(), climb.enterManualMode(), climb::isInManualMode));
 
     // ===== CALIBRATION MOTOR CONTROLS (only active in calibration mode) =====
     // POV Up/Down: Left front motor ±3V (whileTrue in cal mode, onTrue in normal mode)
@@ -621,6 +639,39 @@ public class RobotContainer {
         .rightTrigger(0.3)
         .and(() -> !climb.isInCalibrationMode())
         .onTrue(climb.releaseLeftHardstopServoCommand());
+
+    // ===== MANUAL CONTROL: operator mushroom heads control EE velocity while in manual mode =====
+    // Operator faces the back of the robot.
+    //   Left stick  → robot-left  climb arm (leftEE)
+    //   Right stick → robot-right climb arm (rightEE)
+    //
+    // Climb coordinate system: X = forward (away from robot), Y = up.
+    // Mapping (from operator's perspective):
+    //   Stick UP   (-getLeftY / -getRightY)  → climb +Y  (EE moves up)
+    //   Stick RIGHT (getLeftX / getRightX)   → climb +X  (EE moves forward / away from robot)
+    new edu.wpi.first.wpilibj2.command.button.Trigger(climb::isInManualMode)
+        .whileTrue(
+            Commands.run(
+                () -> {
+                  double maxVel = frc.robot.Constants.ClimbConstants.PATH_MAX_VELOCITY_MPS;
+                  double db = Constants.DriveConstants.JOYSTICK_DEADBAND;
+
+                  // Left stick → left climb EE
+                  double leftEeX = // climb X (forward) ← stick right
+                      edu.wpi.first.math.MathUtil.applyDeadband(operator.getLeftX(), db) * maxVel;
+                  double leftEeY = // climb Y (up)      ← stick up
+                      edu.wpi.first.math.MathUtil.applyDeadband(-operator.getLeftY(), db) * maxVel;
+
+                  // Right stick → right climb EE
+                  double rightEeX = // climb X (forward) ← stick right
+                      edu.wpi.first.math.MathUtil.applyDeadband(operator.getRightX(), db) * maxVel;
+                  double rightEeY = // climb Y (up)      ← stick up
+                      edu.wpi.first.math.MathUtil.applyDeadband(-operator.getRightY(), db) * maxVel;
+
+                  climb.manualControl(
+                      new Translation2d(leftEeX, leftEeY), new Translation2d(rightEeX, rightEeY));
+                },
+                climb));
   }
 
   /**
@@ -629,7 +680,7 @@ public class RobotContainer {
    * @param pose The starting pose
    */
   public void setSwerveStartingPose(edu.wpi.first.math.geometry.Pose2d pose) {
-    swerveIO.setPose(pose);
+    drive.setPose(pose);
   }
 
   /**
@@ -641,18 +692,19 @@ public class RobotContainer {
    * @return true if within 0.25m translation and 8° rotation
    */
   public boolean odometryCloseToPose(Pose2d pose) {
-    Pose2d current = swerveIO.getPose();
+    Pose2d current = drive.getPose();
     double distance = current.getTranslation().getDistance(pose.getTranslation());
     double rotation =
         Math.abs(current.getRotation().rotateBy(pose.getRotation().unaryMinus()).getDegrees());
     Logger.recordOutput("Auto/DistanceFromStartPose", distance);
     Logger.recordOutput("Auto/RotationFromStartPose", rotation);
-    return distance < 0.25 && rotation < 8.0;
+    return distance < Constants.ODOMETRY_CLOSE_TRANSLATION_METERS
+        && rotation < Constants.ODOMETRY_CLOSE_ROTATION_DEGREES;
   }
 
   /** Get the drive subsystem (for Robot.java lifecycle access). */
   public DriveSwerveDrivetrain getDriveSubsystem() {
-    return swerveIO;
+    return drive;
   }
 
   /** Get the climb subsystem (for Robot.java sim-reset access). */

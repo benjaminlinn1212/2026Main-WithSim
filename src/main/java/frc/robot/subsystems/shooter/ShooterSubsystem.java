@@ -55,10 +55,10 @@ public class ShooterSubsystem extends SubsystemBase {
    *
    * @return A command that stops the shooter
    */
-  public Command stopShooter() {
+  public Command stop() {
     return runOnce(
             () -> {
-              stop();
+              stopMotor();
             })
         .withName("ShooterStop");
   }
@@ -109,7 +109,7 @@ public class ShooterSubsystem extends SubsystemBase {
   }
 
   /** Stops the shooter motors */
-  public void stop() {
+  public void stopMotor() {
     io.stop();
   }
 

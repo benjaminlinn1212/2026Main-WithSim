@@ -122,11 +122,23 @@ public class ClimbIK {
   /**
    * Solve IK for one side of the climb mechanism.
    *
-   * @param xe End effector X position (meters)
-   * @param ye End effector Y position (meters)
-   * @return IK solution with motor rotations
+   * @param ex End effector X position (meters)
+   * @param ey End effector Y position (meters)
+   * @return IK solution with motor rotations (enforces joint limits when enabled)
    */
   public static ClimbSideIKResult calculateIK(double ex, double ey) {
+    return calculateIK(ex, ey, true);
+  }
+
+  /**
+   * Solve IK for one side of the climb mechanism.
+   *
+   * @param ex End effector X position (meters)
+   * @param ey End effector Y position (meters)
+   * @param enforceJointLimits if true, applies joint angle limit checks (when enabled in constants)
+   * @return IK solution with motor rotations
+   */
+  public static ClimbSideIKResult calculateIK(double ex, double ey, boolean enforceJointLimits) {
     // ─── Mechanism geometry from constants ───
     // Fixed points
     final double sx = ClimbConstants.SHOULDER_X_METERS; // Shoulder pivot
@@ -180,6 +192,28 @@ public class ClimbIK {
     final double jx = sx + d * ux + h * upx;
     final double jy = sy + d * uy + h * upy;
 
+    // ─── Joint Angle Limit Check ───
+    if (enforceJointLimits && ClimbConstants.ENABLE_JOINT_LIMITS) {
+      // Shoulder angle: angle of link 1 (S → J) measured from +X axis
+      final double shoulderAngle = Math.atan2(jy - sy, jx - sx);
+      if (shoulderAngle < ClimbConstants.MIN_SHOULDER_ANGLE_RAD
+          || shoulderAngle > ClimbConstants.MAX_SHOULDER_ANGLE_RAD) {
+        return ClimbSideIKResult.invalid();
+      }
+
+      // Elbow angle: relative bend at J between link 1 (S → J) and link 2 (J → E)
+      // Computed as the signed angle from the S→J direction to the J→E direction.
+      final double link1Angle = Math.atan2(jy - sy, jx - sx);
+      final double link2Angle = Math.atan2(ey - jy, ex - jx);
+      double elbowAngle = link2Angle - link1Angle;
+      // Normalize to [-π, π]
+      elbowAngle = Math.atan2(Math.sin(elbowAngle), Math.cos(elbowAngle));
+      if (elbowAngle < ClimbConstants.MIN_ELBOW_ANGLE_RAD
+          || elbowAngle > ClimbConstants.MAX_ELBOW_ANGLE_RAD) {
+        return ClimbSideIKResult.invalid();
+      }
+    }
+
     // ─── Cable Attachment Points ───
 
     // Point P on link 1: backAttach meters from J toward S
@@ -224,6 +258,19 @@ public class ClimbIK {
    */
   public static ClimbSideIKResult calculateIK(Translation2d endEffectorPosition) {
     return calculateIK(endEffectorPosition.getX(), endEffectorPosition.getY());
+  }
+
+  /**
+   * Calculate IK from Translation2d, optionally skipping joint limits. Use enforceJointLimits=false
+   * for visualization (Mechanism2d) so the display always renders.
+   *
+   * @param endEffectorPosition Target position (x, y) in meters
+   * @param enforceJointLimits if true, applies joint angle limit checks
+   * @return IK solution with motor rotations
+   */
+  public static ClimbSideIKResult calculateIK(
+      Translation2d endEffectorPosition, boolean enforceJointLimits) {
+    return calculateIK(endEffectorPosition.getX(), endEffectorPosition.getY(), enforceJointLimits);
   }
 
   /**

@@ -14,8 +14,8 @@ public class IndexerIOSim implements IndexerIO {
   }
 
   @Override
-  public void setDutyCycle(double dutyCycle) {
-    this.appliedDutyCycle = dutyCycle;
+  public void setPercent(double percent) {
+    this.appliedDutyCycle = percent;
   }
 
   @Override

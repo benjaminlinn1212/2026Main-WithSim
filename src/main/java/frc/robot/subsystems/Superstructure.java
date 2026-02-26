@@ -13,6 +13,7 @@ import frc.robot.subsystems.hood.HoodSubsystem;
 import frc.robot.subsystems.indexer.IndexerSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
+import frc.robot.subsystems.led.LEDSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
 import frc.robot.subsystems.turret.TurretSubsystem;
 import java.util.function.Supplier;
@@ -56,6 +57,7 @@ public class Superstructure extends SubsystemBase {
   private final ConveyorSubsystem conveyor;
   private final IndexerSubsystem indexer;
   private final ClimbSubsystem climb;
+  private final LEDSubsystem leds;
 
   private SuperstructureState currentState = SuperstructureState.IDLE;
   private SuperstructureState wantedState = SuperstructureState.IDLE;
@@ -136,7 +138,8 @@ public class Superstructure extends SubsystemBase {
       IntakePivotSubsystem intakePivot,
       ConveyorSubsystem conveyor,
       IndexerSubsystem indexer,
-      ClimbSubsystem climb) {
+      ClimbSubsystem climb,
+      LEDSubsystem leds) {
     this.shooter = shooter;
     this.turret = turret;
     this.hood = hood;
@@ -145,6 +148,7 @@ public class Superstructure extends SubsystemBase {
     this.conveyor = conveyor;
     this.indexer = indexer;
     this.climb = climb;
+    this.leds = leds;
   }
 
   // ==================== Periodic — Continuously Apply Wanted State ====================
@@ -225,21 +229,23 @@ public class Superstructure extends SubsystemBase {
       case IDLE:
         turret.applyStow();
         hood.applyStow();
-        shooter.stop();
+        shooter.stopMotor();
         intakePivot.applyStow();
         intake.stopMotor();
         conveyor.stopMotor();
         indexer.stopMotor();
+        leds.setStowed();
         break;
 
       case ONLY_INTAKE:
         turret.applyStow();
         hood.applyStow();
-        shooter.stop();
+        shooter.stopMotor();
         applyIntakePivotDeploy();
         intake.applyIntake();
         conveyor.stopMotor();
         indexer.stopMotor();
+        leds.setIntaking();
         break;
 
       case ONLY_AIMING:
@@ -254,6 +260,7 @@ public class Superstructure extends SubsystemBase {
         intake.stopMotor();
         conveyor.stopMotor();
         indexer.stopMotor();
+        leds.setAiming();
         break;
 
       case ONLY_SHOOTING:
@@ -268,6 +275,7 @@ public class Superstructure extends SubsystemBase {
         intake.stopMotor();
         conveyor.applyFeedToShooter();
         indexer.applyFeedToShooter();
+        leds.setShooting();
         break;
 
       case AIMING_WHILE_INTAKING:
@@ -282,6 +290,7 @@ public class Superstructure extends SubsystemBase {
         intake.applyIntake();
         conveyor.stopMotor();
         indexer.stopMotor();
+        leds.setAiming();
         break;
 
       case SHOOTING_WHILE_INTAKING:
@@ -296,16 +305,18 @@ public class Superstructure extends SubsystemBase {
         intake.applyIntake();
         conveyor.applyFeedToShooter();
         indexer.applyFeedToShooter();
+        leds.setShooting();
         break;
 
       case EJECT:
         turret.applyStow();
         hood.applyStow();
-        shooter.stop();
+        shooter.stopMotor();
         applyIntakePivotDeploy();
         intake.applyOuttake();
         conveyor.applyFeedToBucket();
         indexer.stopMotor();
+        leds.setError();
         break;
 
       case EMERGENCY:
@@ -475,7 +486,8 @@ public class Superstructure extends SubsystemBase {
 
   /** Set state to ONLY_INTAKE (deploy intake, everything else stowed). Instant. */
   public Command onlyIntake() {
-    return setWantedState(SuperstructureState.ONLY_INTAKE);
+    return Commands.runOnce(this::resetIntakeDetection)
+        .andThen(setWantedState(SuperstructureState.ONLY_INTAKE));
   }
 
   /** Set state to ONLY_AIMING (turret/hood/shooter aim, intake stowed). Instant. */
@@ -490,7 +502,8 @@ public class Superstructure extends SubsystemBase {
 
   /** Set state to AIMING_WHILE_INTAKING (intake + aim simultaneously). Instant. */
   public Command aimingWhileIntaking() {
-    return setWantedState(SuperstructureState.AIMING_WHILE_INTAKING);
+    return Commands.runOnce(this::resetIntakeDetection)
+        .andThen(setWantedState(SuperstructureState.AIMING_WHILE_INTAKING));
   }
 
   /** Set state to SHOOTING_WHILE_INTAKING (intake + aim + feed simultaneously). Instant. */
@@ -557,12 +570,13 @@ public class Superstructure extends SubsystemBase {
               // Directly stop all motors immediately — don't wait for periodic
               turret.applyStow();
               hood.applyStow();
-              shooter.stop();
+              shooter.stopMotor();
               intakePivot.applyStow();
               intake.stopMotor();
               conveyor.stopMotor();
               indexer.stopMotor();
               climb.stopMotors();
+              leds.setError();
             })
         .withName("Superstructure_EmergencyStop");
   }

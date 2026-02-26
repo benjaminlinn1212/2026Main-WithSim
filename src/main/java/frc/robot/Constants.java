@@ -13,8 +13,6 @@ import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import com.pathplanner.lib.config.PIDConstants;
-import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -31,6 +29,13 @@ import edu.wpi.first.wpilibj.RobotBase;
 public final class Constants {
   public static final Mode simMode = Mode.SIM;
   public static final Mode currentMode = RobotBase.isReal() ? Mode.REAL : simMode;
+
+  // Shared CAN bus used by all superstructure subsystems
+  public static final CANBus SUPERSTRUCTURE_CAN_BUS = new CANBus("Superstructure");
+
+  // Odometry proximity check thresholds (used in RobotContainer.odometryCloseToPose)
+  public static final double ODOMETRY_CLOSE_TRANSLATION_METERS = 0.25;
+  public static final double ODOMETRY_CLOSE_ROTATION_DEGREES = 8.0;
 
   public static enum Mode {
     /** Running on a real robot. */
@@ -73,8 +78,9 @@ public final class Constants {
     // Path following PID controllers (inspired by Team 254's tuning approach)
     // Note: Standard PathPlanner uses 2 controllers (translation + rotation)
     // We use 254's translation value as our baseline
-    public static final double kPLTEController = 3.0; // Translation (along/cross track combined)
-    public static final double kPThetaController = 5.0; // Rotation error
+    public static final double PATH_FOLLOWING_TRANSLATION_KP =
+        3.0; // Translation (along/cross track combined)
+    public static final double PATH_FOLLOWING_ROTATION_KP = 5.0; // Rotation error
 
     // PathPlanner pathfinding constraints (single source of truth)
     public static final double PATHFINDING_MAX_VELOCITY_MPS = 3.0;
@@ -143,14 +149,6 @@ public final class Constants {
     public static final double JOYSTICK_DEADBAND = 0.05;
     public static final LinearVelocity JOYSTICK_POV_VELOCITY = MetersPerSecond.of(0.2);
 
-    public static final PPHolonomicDriveController PP_HOLONOMIC_DRIVE_CONTROLLER =
-        new PPHolonomicDriveController(
-            // PPHolonomicController is the built in path following controller for holonomic drive
-            // trains.
-            new PIDConstants(3.5, 0.0, 0.0), // Translation PID constants
-            new PIDConstants(2.8, 0.0, 0.0) // Rotation PID constants
-            );
-
     public static class DriveToPose {
       // This constraint is used in the driveToPose() function by PPLib AND PIDControl.
       public static final double TRANSLATION_KP = 2.0; // Reduced from 5 to reduce oscillation
@@ -170,10 +168,10 @@ public final class Constants {
      * Trench Teleop Assist tuning. When the robot is near a trench, two effects activate:
      *
      * <ol>
-     *   <li><b>Chassis orientation alignment</b> — injects omega (rotational velocity) to LERP the
-     *       robot's heading toward the nearest cardinal direction, so the bumpers fit through the
-     *       22.25in tunnel. This modifies {@code omega}, not the velocity direction.
-     *   <li><b>Lateral centering</b> — deflects the velocity vector toward the trench's center Y
+     *   <li><b>Chassis orientation alignment</b> â€” injects omega (rotational velocity) to LERP
+     *       the robot's heading toward the nearest cardinal direction, so the bumpers fit through
+     *       the 22.25in tunnel. This modifies {@code omega}, not the velocity direction.
+     *   <li><b>Lateral centering</b> â€” deflects the velocity vector toward the trench's center Y
      *       line, guiding the travel path toward the middle of the 48in corridor. Speed magnitude
      *       is preserved.
      * </ol>
@@ -181,7 +179,7 @@ public final class Constants {
      * Both effects ramp from 0 at the buffer edge to full strength inside the trench.
      */
     public static class TrenchAssist {
-      /** Maximum blend factor (0–1). 0.7 = the driver always retains at least 30% authority. */
+      /** Maximum blend factor (0â€“1). 0.7 = the driver always retains at least 30% authority. */
       public static final double MAX_BLEND_FACTOR = 0.8;
 
       /**
@@ -202,27 +200,27 @@ public final class Constants {
       /**
        * Maximum angular error (degrees) between the velocity vector and the nearest cardinal before
        * the assist activates. If the driver is traveling perpendicular to the trench, they clearly
-       * don't intend to go through it — don't fight them.
+       * don't intend to go through it â€” don't fight them.
        */
       public static final double MAX_HEADING_ERROR_DEG = 50.0;
 
       /**
        * Lateral centering strength (deg per meter of offset). The trench half-width is ~0.61m, so
-       * 35°/m gives ~21° at the wall — a noticeable but gentle nudge toward center. Lower values
-       * feel more like a suggestion, higher values feel like rails.
+       * 35Â°/m gives ~21Â° at the wall â€” a noticeable but gentle nudge toward center. Lower
+       * values feel more like a suggestion, higher values feel like rails.
        */
       public static final double CENTERING_DEG_PER_METER = 45.0;
 
       /**
-       * Maximum centering deflection angle (degrees). At 25° the lateral component is ~42% of speed
-       * — enough to guide you toward center without stealing all your forward momentum.
+       * Maximum centering deflection angle (degrees). At 25Â° the lateral component is ~42% of
+       * speed â€” enough to guide you toward center without stealing all your forward momentum.
        */
       public static final double MAX_CENTERING_DEG = 30.0;
 
       /**
        * Maximum omega correction (rad/s) for orientation alignment. Caps the injected rotational
        * rate so the trench assist doesn't spin the robot violently. The heading P-gain itself is
-       * reused from {@link DriveToPose#ROTATION_KP} — no separate KP needed.
+       * reused from {@link DriveToPose#ROTATION_KP} â€” no separate KP needed.
        */
       public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 2.0;
 
@@ -230,14 +228,14 @@ public final class Constants {
 
       /**
        * Half the robot's bumper width in meters. Used to compute the position of the robot's bumper
-       * edges relative to trench walls. 32in bumper → 16in → 0.406m.
+       * edges relative to trench walls. 32in bumper â†’ 16in â†’ 0.406m.
        */
       public static final double ROBOT_HALF_WIDTH_M =
           Units.inchesToMeters(BUMPER_WIDTH_INCHES / 2.0);
 
       /**
        * Wall repulsion gain (m/s of lateral push per meter of encroachment into the danger zone).
-       * Higher = harder virtual wall. At 4.0, a 0.1m encroachment produces 0.4 m/s of push-back —
+       * Higher = harder virtual wall. At 4.0, a 0.1m encroachment produces 0.4 m/s of push-back â€”
        * firm enough to prevent wall contact without feeling like a spring.
        */
       public static final double WALL_REPULSION_MPS_PER_METER = 5.0;
@@ -246,7 +244,7 @@ public final class Constants {
        * Distance (meters) from a trench wall at which the repulsion force begins, measured from the
        * robot's <b>bumper edge</b> (the distance calculation already accounts for {@link
        * #ROBOT_HALF_WIDTH_M}). The trench has only ~0.20m of clearance per side, so this should be
-       * small — just enough to catch the robot before contact. At 0.12m the repulsion activates
+       * small â€” just enough to catch the robot before contact. At 0.12m the repulsion activates
        * when the bumper is ~4.7in from the wall.
        */
       public static final double WALL_DANGER_ZONE_M = 0.12;
@@ -257,7 +255,7 @@ public final class Constants {
     // Hardware Configuration
     public static final int UPPER_MOTOR_CAN_ID = 41;
     public static final int LOWER_MOTOR_CAN_ID = 42;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
@@ -281,16 +279,12 @@ public final class Constants {
     public static final double LOWER_INTAKE_PERCENT = 0.75;
     public static final double UPPER_OUTTAKE_PERCENT = -0.5;
     public static final double LOWER_OUTTAKE_PERCENT = -0.5;
-
-    // Combined (for backward compatibility)
-    public static final double INTAKE_PERCENT = 0.45; // 45% speed for intaking
-    public static final double OUTTAKE_PERCENT = -0.5; // 50% speed for outtaking
   }
 
   public static class IntakePivotConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 43;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO = 1.0; // Direct drive or specify actual ratio
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
@@ -307,7 +301,7 @@ public final class Constants {
     public static final double KS = 0.0;
     public static final double KV = 0.0;
     public static final double KA = 0.0;
-    // Note: KG is no longer used — gravity FF is computed by IntakePivotFF via linkage kinematics
+    // Note: KG is no longer used â€” gravity FF is computed by IntakePivotFF via linkage kinematics
 
     /** When true, use the IntakePivotFF linkage-based gravity feedforward. When false, no FF. */
     public static final boolean USE_CALCULATED_FF = false;
@@ -330,8 +324,8 @@ public final class Constants {
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.5; // rotations
 
-    // ─── Gravity Feedforward Linkage Geometry (IntakePivotFF) ───
-    // All values in meters / radians / kg — MEASURE FROM CAD AND FILL IN.
+    // â”€â”€â”€ Gravity Feedforward Linkage Geometry (IntakePivotFF) â”€â”€â”€
+    // All values in meters / radians / kg â€” MEASURE FROM CAD AND FILL IN.
     // See IntakePivotFF.java Javadoc for coordinate frame definitions.
 
     /** Number of teeth on the pinion gear. Read directly from the gear datasheet or CAD. */
@@ -348,13 +342,13 @@ public final class Constants {
 
     /**
      * Total rack travel (meters), derived from rack tooth count and tooth distance. Do not set
-     * directly — change RACK_NUM_TEETH and RACK_TOOTH_DISTANCE instead.
+     * directly â€” change RACK_NUM_TEETH and RACK_TOOTH_DISTANCE instead.
      */
     public static final double FF_RACK_TRAVEL_M = FF_RACK_NUM_TEETH * FF_RACK_TOOTH_DISTANCE_M;
 
     /**
      * Pinion pitch radius (meters), derived from tooth count and rack tooth distance. r = N * d /
-     * (2π). Do not set directly — change NUM_TEETH and RACK_TOOTH_DISTANCE instead.
+     * (2Ï€). Do not set directly â€” change NUM_TEETH and RACK_TOOTH_DISTANCE instead.
      */
     public static final double FF_PINION_RADIUS_M =
         FF_PINION_NUM_TEETH * FF_RACK_TOOTH_DISTANCE_M / (2.0 * Math.PI);
@@ -363,12 +357,12 @@ public final class Constants {
     public static final double FF_RACK_GEAR_RATIO = GEAR_RATIO;
 
     /**
-     * Rack axis angle θ from +x (radians). 0 = horizontal rightward, π/2 = vertical upward. Measure
-     * the rack's travel direction in the mechanism coordinate frame.
+     * Rack axis angle Î¸ from +x (radians). 0 = horizontal rightward, Ï€/2 = vertical upward.
+     * Measure the rack's travel direction in the mechanism coordinate frame.
      */
     public static final double FF_RACK_THETA_RAD = 0.0; // TODO: measure from CAD
 
-    /** Rack attachment point A₀ (meters) when rack displacement s = 0. */
+    /** Rack attachment point Aâ‚€ (meters) when rack displacement s = 0. */
     public static final double FF_A0X_M = 0.0; // TODO: measure from CAD
 
     public static final double FF_A0Y_M = 0.0; // TODO: measure from CAD
@@ -381,7 +375,7 @@ public final class Constants {
     /** Distance from pivot O to elbow point E (meters). */
     public static final double FF_ELBOW_RADIUS_M = 0.0; // TODO: measure from CAD
 
-    /** Coupler link length — between rack attachment A and elbow E (meters). */
+    /** Coupler link length â€” between rack attachment A and elbow E (meters). */
     public static final double FF_COUPLER_LENGTH_M = 0.0; // TODO: measure from CAD
 
     /** Total moving mass hanging from the V-link (kg). */
@@ -390,13 +384,13 @@ public final class Constants {
     /** Distance from pivot O to lumped center-of-mass (meters). */
     public static final double FF_COM_RADIUS_M = 0.0; // TODO: estimate from CAD
 
-    /** COM angle offset δ relative to the elbow ray (radians). 0 if COM is on same ray as E. */
+    /** COM angle offset Î´ relative to the elbow ray (radians). 0 if COM is on same ray as E. */
     public static final double FF_COM_ANGLE_OFFSET_RAD = 0.0; // TODO: estimate from CAD
 
-    /** Motor torque constant Kt (N·m/A). Kraken X60 ≈ 0.0194, NEO ≈ 0.025. */
+    /** Motor torque constant Kt (NÂ·m/A). Kraken X60 â‰ˆ 0.0194, NEO â‰ˆ 0.025. */
     public static final double FF_MOTOR_KT = 0.025; // TODO: set for your motor
 
-    /** Motor winding resistance (Ω). NEO ≈ 0.114, Kraken X60 ≈ 0.025. */
+    /** Motor winding resistance (Î©). NEO â‰ˆ 0.114, Kraken X60 â‰ˆ 0.025. */
     public static final double FF_MOTOR_R_OHM = 0.114; // TODO: set for your motor
 
     /** Efficiency fudge factor (0..1). Start at 0.85, tune on the real mechanism. */
@@ -406,7 +400,7 @@ public final class Constants {
   public static class ConveyorConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 45;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
@@ -434,7 +428,7 @@ public final class Constants {
     // Hardware Configuration
     public static final int LEADER_MOTOR_CAN_ID = 47;
     public static final int FOLLOWER_MOTOR_CAN_ID = 48;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO = 1.0; // Direct drive
     public static final InvertedValue LEADER_INVERTED = InvertedValue.Clockwise_Positive;
     public static final InvertedValue FOLLOWER_INVERTED = InvertedValue.CounterClockwise_Positive;
@@ -454,8 +448,8 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Indexer Duty Cycle
-    public static final double TO_SHOOTER_DUTY_CYCLE = 0.7;
+    // Indexer Percent Output
+    public static final double TO_SHOOTER_PERCENT = 0.7;
   }
 
   public static class Aiming {
@@ -478,7 +472,7 @@ public final class Constants {
   public static class TurretConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 44;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO =
         1.0 / 26.812; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
@@ -505,8 +499,8 @@ public final class Constants {
     // Motion Magic Constants (motor rotations per second)
     // Note: These are in motor units since SensorToMechanismRatio = 1.0
     public static final double CRUISE_VELOCITY = 2.0 / GEAR_RATIO; // motor rotations/sec
-    public static final double ACCELERATION = 10.0 / GEAR_RATIO; // motor rotations/sec²
-    public static final double JERK = 100.0 / GEAR_RATIO; // motor rotations/sec³
+    public static final double ACCELERATION = 10.0 / GEAR_RATIO; // motor rotations/secÂ²
+    public static final double JERK = 100.0 / GEAR_RATIO; // motor rotations/secÂ³
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 150.0;
@@ -516,8 +510,8 @@ public final class Constants {
     // Position Tolerance (radians)
     public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
 
-    // Boot Position (radians) — the mechanism angle when the robot powers on.
-    // The turret physically starts at -90° (facing right when viewed from above).
+    // Boot Position (radians) â€” the mechanism angle when the robot powers on.
+    // The turret physically starts at -90Â° (facing right when viewed from above).
     // TurretIOTalonFX seeds the encoder to this value via motor.setPosition() at boot
     // because FeedbackRotorOffset is limited to [0,1) motor rotations and cannot
     // represent the multi-rotation offset required by the 26.8:1 gear ratio.
@@ -530,7 +524,7 @@ public final class Constants {
   public static class ShooterConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 49;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO =
         1.0; // 1 mechanism rotation per 1 motor rotation (direct drive)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
@@ -562,7 +556,7 @@ public final class Constants {
   public static class HoodConstants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 50;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO =
         1.0 / 12.6; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
@@ -615,44 +609,44 @@ public final class Constants {
     public static final int RIGHT_BACK_MOTOR_CAN_ID = 52;
     public static final int LEFT_FRONT_MOTOR_CAN_ID = 53;
     public static final int LEFT_BACK_MOTOR_CAN_ID = 54;
-    public static final CANBus CAN_BUS = new CANBus("Superstructure");
+    public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
 
     // ==================== Secondary Hook Servo Configuration ====================
     //
     // Two servo types:
-    //   Angle servos   — 180° travel, 500µs–2500µs pulse range
-    //   Hardstop servos — 100° travel, 1000µs–2000µs pulse range
+    //   Angle servos   â€” 180Â° travel, 500Âµsâ€“2500Âµs pulse range
+    //   Hardstop servos â€” 100Â° travel, 1000Âµsâ€“2000Âµs pulse range
     //
     // Inversion convention (all servos are CCW-positive when non-inverted):
-    //   Non-inverted: set(0.0) = 0°,   requesting +N° moves 0° → N°
-    //   Inverted:     set(0.0) = max°, requesting +N° moves max° → (max−N)°
-    //   In code: pwmValue = inverted ? (1.0 − input) : input
+    //   Non-inverted: set(0.0) = 0Â°,   requesting +NÂ° moves 0Â° â†’ NÂ°
+    //   Inverted:     set(0.0) = maxÂ°, requesting +NÂ° moves maxÂ° â†’ (maxâˆ’N)Â°
+    //   In code: pwmValue = inverted ? (1.0 âˆ’ input) : input
     //
     // Per-side inversion:
-    //   Right angle   → NOT inverted   (CCW-positive, 0°→180°)
-    //   Right hardstop → INVERTED      (CW-positive,  100°→0°)
-    //   Left angle    → INVERTED       (CW-positive,  180°→0°)
-    //   Left hardstop → NOT inverted   (CCW-positive, 0°→100°)
+    //   Right angle   â†’ NOT inverted   (CCW-positive, 0Â°â†’180Â°)
+    //   Right hardstop â†’ INVERTED      (CW-positive,  100Â°â†’0Â°)
+    //   Left angle    â†’ INVERTED       (CW-positive,  180Â°â†’0Â°)
+    //   Left hardstop â†’ NOT inverted   (CCW-positive, 0Â°â†’100Â°)
 
-    /** Angle servo config: 180° range, 500µs–2500µs pulse. */
+    /** Angle servo config: 180Â° range, 500Âµsâ€“2500Âµs pulse. */
     public static class AngleServo {
       public static final double FULL_RANGE_DEG = 180.0;
       public static final int PULSE_MIN_US = 500;
       public static final int PULSE_MAX_US = 2500;
-      public static final double STOWED_POSITION = 40.0 / 180.0; // 0.0–1.0 (before inversion)
-      public static final double RELEASED_POSITION = 180.0 / 180.0; // 150° → 0.833 (before inv.)
-      /** Time (seconds) for the angle servo to travel its full 180° range. */
+      public static final double STOWED_POSITION = 40.0 / 180.0; // 0.0â€“1.0 (before inversion)
+      public static final double RELEASED_POSITION = 180.0 / 180.0; // 150Â° â†’ 0.833 (before inv.)
+      /** Time (seconds) for the angle servo to travel its full 180Â° range. */
       public static final double TRAVEL_TIME_SEC = 1.0;
     }
 
-    /** Hardstop servo config: 100° range, 1000µs–2000µs pulse. */
+    /** Hardstop servo config: 100Â° range, 1000Âµsâ€“2000Âµs pulse. */
     public static class HardstopServo {
       public static final double FULL_RANGE_DEG = 100.0;
       public static final int PULSE_MIN_US = 1000;
       public static final int PULSE_MAX_US = 2000;
-      public static final double STOWED_POSITION = 30.0 / 100.0; // 0.0–1.0 (before inversion)
-      public static final double RELEASED_POSITION = 87.0 / 100.0; // 52° → 0.52 (before inv.)
-      /** Time (seconds) for the hardstop servo to travel its full 100° range. */
+      public static final double STOWED_POSITION = 30.0 / 100.0; // 0.0â€“1.0 (before inversion)
+      public static final double RELEASED_POSITION = 87.0 / 100.0; // 52Â° â†’ 0.52 (before inv.)
+      /** Time (seconds) for the hardstop servo to travel its full 100Â° range. */
       public static final double TRAVEL_TIME_SEC = 0.7;
     }
 
@@ -662,15 +656,15 @@ public final class Constants {
     public static final int LEFT_ANGLE_SERVO_PWM = 8;
     public static final int LEFT_HARDSTOP_SERVO_PWM = 9;
 
-    // Per-servo inversion flags (true = CW-positive, max° at set(0.0))
+    // Per-servo inversion flags (true = CW-positive, maxÂ° at set(0.0))
     public static final boolean RIGHT_ANGLE_SERVO_INVERTED = false;
     public static final boolean RIGHT_HARDSTOP_SERVO_INVERTED = true;
     public static final boolean LEFT_ANGLE_SERVO_INVERTED = true;
     public static final boolean LEFT_HARDSTOP_SERVO_INVERTED = false;
 
     // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
-    // Front motors: 100:1 reduction → 1 motor rotation = 1/100 drum rotation
-    // Back motors: 80:1 reduction → 1 motor rotation = 1/80 drum rotation
+    // Front motors: 100:1 reduction â†’ 1 motor rotation = 1/100 drum rotation
+    // Back motors: 80:1 reduction â†’ 1 motor rotation = 1/80 drum rotation
     // Used in both Phoenix SensorToMechanismRatio and IK calculations
     public static final double FRONT_GEAR_RATIO = 1.0 / 100.0; // 0.01
     public static final double BACK_GEAR_RATIO = 1.0 / 80.0; // 0.0125
@@ -685,7 +679,7 @@ public final class Constants {
 
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // PID and Feedforward Constants (Slot 0 — MotionMagicVoltage position control)
+    // PID and Feedforward Constants (Slot 0 â€” MotionMagicVoltage position control)
     public static final double KP = 10.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -694,7 +688,7 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.0;
 
-    // Velocity PID and Feedforward Constants (Slot 1 — VelocityVoltage path following)
+    // Velocity PID and Feedforward Constants (Slot 1 â€” VelocityVoltage path following)
     // Matched to ShooterConstants velocity control gains
     public static final double VELOCITY_KP = 0.5;
     public static final double VELOCITY_KI = 0.0;
@@ -705,7 +699,7 @@ public final class Constants {
 
     // Motion Magic Constants (in mechanism/drum rotations per second)
     // IO layer converts to motor units: motorVel = drumVel / GEAR_RATIO
-    // Kraken/Falcon free speed ≈ 100 motor rot/s
+    // Kraken/Falcon free speed â‰ˆ 100 motor rot/s
     // Front motors (100:1): 0.8 drum rot/s = 80 motor rot/s (80% of free speed)
     // Back motors (80:1): 0.8 drum rot/s = 64 motor rot/s (64% of free speed)
     public static final double CRUISE_VELOCITY = 0.8; // mechanism (drum) rotations per second
@@ -726,11 +720,11 @@ public final class Constants {
     // ==================== Inverse Kinematics Configuration ====================
 
     // Fixed Points (all relative to back winch at origin)
-    // Back winch (W_back) = (0, 0) — origin, drives the back cable
-    // Front winch (W_front) — drives the front cable
+    // Back winch (W_back) = (0, 0) â€” origin, drives the back cable
+    // Front winch (W_front) â€” drives the front cable
     public static final double FRONT_WINCH_X_METERS = 0.341;
     public static final double FRONT_WINCH_Y_METERS = 0.13208;
-    // Shoulder joint (S) — fixed pivot where link 1 attaches to the frame
+    // Shoulder joint (S) â€” fixed pivot where link 1 attaches to the frame
     public static final double SHOULDER_X_METERS = 0.3048;
     public static final double SHOULDER_Y_METERS = 0.0;
 
@@ -748,7 +742,7 @@ public final class Constants {
     public static final double CABLE_DRUM_CIRCUMFERENCE_METERS =
         0.0439941; // Base circumference of bare cable drum (meters per rotation, layer 0)
 
-    // Cable Layer Buildup — as cable stacks on the drum, effective circumference grows.
+    // Cable Layer Buildup â€” as cable stacks on the drum, effective circumference grows.
     // One full layer = ROTATIONS_PER_LAYER rotations. When a new layer starts, the
     // circumference increases by CIRCUMFERENCE_PER_LAYER_METERS (step function, not linear).
     public static final double ROTATIONS_PER_LAYER = 4.0; // rotations to fill one layer
@@ -766,15 +760,15 @@ public final class Constants {
     public static final double MAX_MECHANISM_POSITION = 100.0; // Maximum safe drum position
 
     // Joint Angle Limits (safety limits in radians)
-    public static final double MIN_SHOULDER_ANGLE_RAD = -Math.PI / 2; // -90 degrees
-    public static final double MAX_SHOULDER_ANGLE_RAD = Math.PI / 2; // 90 degrees
-    public static final double MIN_ELBOW_ANGLE_RAD = -Math.PI; // -180 degrees
-    public static final double MAX_ELBOW_ANGLE_RAD = Math.PI; // 180 degrees
+    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(100);
+    public static final double MAX_SHOULDER_ANGLE_RAD = Math.toRadians(160);
+    public static final double MIN_ELBOW_ANGLE_RAD = Math.toRadians(-150);
+    public static final double MAX_ELBOW_ANGLE_RAD = Math.toRadians(-45);
     // Set false for testing paths outside joint limits
-    public static final boolean ENABLE_JOINT_LIMITS = false;
+    public static final boolean ENABLE_JOINT_LIMITS = true;
 
     // Workspace Limits (for end effector reachability checks)
-    // NOTE: Opened wide for testing — tighten these after validating real mechanism range
+    // NOTE: Opened wide for testing â€” tighten these after validating real mechanism range
     public static final double WORKSPACE_MIN_X_METERS = -5.0; // Minimum X position
     public static final double WORKSPACE_MAX_X_METERS = 5.0; // Maximum X position
     public static final double WORKSPACE_MIN_Y_METERS = -5.0; // Minimum Y position
@@ -794,9 +788,15 @@ public final class Constants {
     // ==================== Path Planning Constraints ====================
 
     // Cartesian path generation constraints (for ClimbPathPlanner)
-    public static final double PATH_MAX_VELOCITY_MPS = 1.0; // Maximum end effector velocity (m/s)
+    // Derived from physical limits:
+    //   Cable speed = CRUISE_VELOCITY × drum circumference
+    //              ≈ 0.8 rot/s × 0.044–0.068 m/rot ≈ 0.035–0.054 m/s
+    //   Use 0.04 m/s to stay within single-cable limits across all drum layers.
+    //   Acceleration = ACCELERATION × drum circumference
+    //              ≈ 3.0 rot/s² × 0.044–0.068 m/rot ≈ 0.13–0.20 m/s²
+    public static final double PATH_MAX_VELOCITY_MPS = 0.04; // Maximum end effector velocity (m/s)
     public static final double PATH_MAX_ACCELERATION_MPS2 =
-        10.0; // Maximum end effector acceleration (m/s^2)
+        0.15; // Maximum end effector acceleration (m/s^2)
 
     // Velocity control feedforward (for pulling paths under load)
     public static final double VELOCITY_KG_PULLING =

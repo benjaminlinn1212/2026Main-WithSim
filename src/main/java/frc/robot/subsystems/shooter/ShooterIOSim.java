@@ -30,7 +30,7 @@ public class ShooterIOSim implements ShooterIO {
     inputs.positionRot = positionRot;
     inputs.appliedVolts = appliedVolts;
     inputs.currentAmps = Math.abs(appliedVolts) * 8.0; // Kraken draws more current
-    inputs.tempCelsius = 25.0 + Math.abs(velocityRotPerSec) * 0.1;
+    inputs.temperatureCelsius = 25.0 + Math.abs(velocityRotPerSec) * 0.1;
   }
 
   @Override

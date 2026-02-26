@@ -29,7 +29,7 @@ public class ShooterIOTalonFX implements ShooterIO {
     inputs.positionRot = motor.getPosition().getValueAsDouble();
     inputs.appliedVolts = motor.getMotorVoltage().getValueAsDouble();
     inputs.currentAmps = motor.getStatorCurrent().getValueAsDouble();
-    inputs.tempCelsius = motor.getDeviceTemp().getValueAsDouble();
+    inputs.temperatureCelsius = motor.getDeviceTemp().getValueAsDouble();
   }
 
   @Override

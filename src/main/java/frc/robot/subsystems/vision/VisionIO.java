@@ -15,5 +15,5 @@ public interface VisionIO {
   }
 
   /** Update inputs from hardware. */
-  void readInputs(VisionIOInputs inputs);
+  void updateInputs(VisionIOInputs inputs);
 }

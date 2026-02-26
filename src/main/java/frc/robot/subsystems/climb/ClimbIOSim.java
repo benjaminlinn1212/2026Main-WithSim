@@ -1,16 +1,24 @@
 package frc.robot.subsystems.climb;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
-import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
-import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
-import edu.wpi.first.wpilibj.util.Color;
-import edu.wpi.first.wpilibj.util.Color8Bit;
 import frc.robot.Constants.ClimbConstants;
 import frc.robot.subsystems.climb.util.ClimbIK;
 
+/**
+ * Simulated ClimbIO that models MotionMagic-style trapezoidal motion profiles.
+ *
+ * <p>All positions and velocities in this class are in <b>mechanism (drum) rotations</b>, matching
+ * the IO interface contract. The real hardware converts to motor rotations via gear ratio
+ * internally (TalonFX SensorToMechanismRatio=1.0, code divides by GEAR_RATIO before sending to
+ * motor).
+ *
+ * <p>The sim enforces the same cruise-velocity and acceleration constraints as the real MotionMagic
+ * config, so the Mechanism2d visualization moves at a physically realistic speed.
+ */
 public class ClimbIOSim implements ClimbIO {
 
+  // ── Per-motor simulated state ──
   private double rightFrontPositionRotations;
   private double rightFrontVelocityRotPerSec = 0.0;
   private double rightFrontAppliedVolts = 0.0;
@@ -35,13 +43,13 @@ public class ClimbIOSim implements ClimbIO {
   private double leftSecondaryHookHardstopServoPosition = 0.0;
   private double rightSecondaryHookHardstopServoPosition = 0.0;
 
-  // Mechanism2d visualization
-  private final Mechanism2d mechanism;
-  private final MechanismRoot2d leftWinch1Root;
-  private final MechanismLigament2d leftLink1;
-
-  // Simple physics parameters
+  // ── Simulation timing ──
   private static final double DT = 0.02; // 20ms loop time
+
+  // ── Motion profile constraints (mechanism rotations) ──
+  // These match ClimbConstants; they are the *mechanism-side* limits.
+  private static final double CRUISE_VEL = ClimbConstants.CRUISE_VELOCITY; // mech rot/s
+  private static final double MAX_ACCEL = ClimbConstants.ACCELERATION; // mech rot/s²
 
   public ClimbIOSim() {
     // Initialize motor positions to the STOWED cable-length rotations so the sim starts
@@ -54,30 +62,11 @@ public class ClimbIOSim implements ClimbIO {
       rightFrontPositionRotations = stowedIK.frontMotorRotations;
       rightBackPositionRotations = stowedIK.backMotorRotations;
     } else {
-      // Fallback — shouldn't happen for STOWED
       leftFrontPositionRotations = 0.0;
       leftBackPositionRotations = 0.0;
       rightFrontPositionRotations = 0.0;
       rightBackPositionRotations = 0.0;
     }
-    // Create Mechanism2d for visualization (1.5m x 1.5m)
-    mechanism = new Mechanism2d(1.5, 1.5);
-
-    // Left side winches and links
-    leftWinch1Root = mechanism.getRoot("LeftWinch1", 0.0, 0.0);
-
-    // Two-link arm (approximate angles, updated in updateInputs)
-    leftLink1 =
-        leftWinch1Root.append(
-            new MechanismLigament2d(
-                "LeftLink1",
-                ClimbConstants.LINK_1_LENGTH_METERS,
-                45,
-                6,
-                new Color8Bit(Color.kBlue)));
-    leftLink1.append(
-        new MechanismLigament2d(
-            "LeftLink2", ClimbConstants.LINK_2_LENGTH_METERS, -30, 4, new Color8Bit(Color.kGreen)));
   }
 
   @Override
@@ -125,63 +114,115 @@ public class ClimbIOSim implements ClimbIO {
 
   @Override
   public void setRightFrontPosition(double positionRotations) {
-    // Simulate motion toward target with simple velocity model
-    double error = positionRotations - this.rightFrontPositionRotations;
-    double targetVelocity =
-        Math.signum(error) * Math.min(Math.abs(error) / DT, ClimbConstants.CRUISE_VELOCITY);
-    this.rightFrontVelocityRotPerSec = targetVelocity;
-    this.rightFrontPositionRotations += targetVelocity * DT;
+    rightFrontVelocityRotPerSec =
+        simulateMotionMagicStep(
+            rightFrontPositionRotations, rightFrontVelocityRotPerSec, positionRotations);
+    rightFrontPositionRotations += rightFrontVelocityRotPerSec * DT;
   }
 
   @Override
   public void setRightBackPosition(double positionRotations) {
-    double error = positionRotations - this.rightBackPositionRotations;
-    double targetVelocity =
-        Math.signum(error) * Math.min(Math.abs(error) / DT, ClimbConstants.CRUISE_VELOCITY);
-    this.rightBackVelocityRotPerSec = targetVelocity;
-    this.rightBackPositionRotations += targetVelocity * DT;
+    rightBackVelocityRotPerSec =
+        simulateMotionMagicStep(
+            rightBackPositionRotations, rightBackVelocityRotPerSec, positionRotations);
+    rightBackPositionRotations += rightBackVelocityRotPerSec * DT;
   }
 
   @Override
   public void setLeftFrontPosition(double positionRotations) {
-    double error = positionRotations - this.leftFrontPositionRotations;
-    double targetVelocity =
-        Math.signum(error) * Math.min(Math.abs(error) / DT, ClimbConstants.CRUISE_VELOCITY);
-    this.leftFrontVelocityRotPerSec = targetVelocity;
-    this.leftFrontPositionRotations += targetVelocity * DT;
+    leftFrontVelocityRotPerSec =
+        simulateMotionMagicStep(
+            leftFrontPositionRotations, leftFrontVelocityRotPerSec, positionRotations);
+    leftFrontPositionRotations += leftFrontVelocityRotPerSec * DT;
   }
 
   @Override
   public void setLeftBackPosition(double positionRotations) {
-    double error = positionRotations - this.leftBackPositionRotations;
-    double targetVelocity =
-        Math.signum(error) * Math.min(Math.abs(error) / DT, ClimbConstants.CRUISE_VELOCITY);
-    this.leftBackVelocityRotPerSec = targetVelocity;
-    this.leftBackPositionRotations += targetVelocity * DT;
+    leftBackVelocityRotPerSec =
+        simulateMotionMagicStep(
+            leftBackPositionRotations, leftBackVelocityRotPerSec, positionRotations);
+    leftBackPositionRotations += leftBackVelocityRotPerSec * DT;
   }
 
   @Override
   public void setRightFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    this.rightFrontVelocityRotPerSec = velocityRotPerSec;
-    this.rightFrontPositionRotations += velocityRotPerSec * DT;
+    rightFrontVelocityRotPerSec = rampVelocity(rightFrontVelocityRotPerSec, velocityRotPerSec);
+    rightFrontPositionRotations += rightFrontVelocityRotPerSec * DT;
   }
 
   @Override
   public void setRightBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    this.rightBackVelocityRotPerSec = velocityRotPerSec;
-    this.rightBackPositionRotations += velocityRotPerSec * DT;
+    rightBackVelocityRotPerSec = rampVelocity(rightBackVelocityRotPerSec, velocityRotPerSec);
+    rightBackPositionRotations += rightBackVelocityRotPerSec * DT;
   }
 
   @Override
   public void setLeftFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    this.leftFrontVelocityRotPerSec = velocityRotPerSec;
-    this.leftFrontPositionRotations += velocityRotPerSec * DT;
+    leftFrontVelocityRotPerSec = rampVelocity(leftFrontVelocityRotPerSec, velocityRotPerSec);
+    leftFrontPositionRotations += leftFrontVelocityRotPerSec * DT;
   }
 
   @Override
   public void setLeftBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    this.leftBackVelocityRotPerSec = velocityRotPerSec;
-    this.leftBackPositionRotations += velocityRotPerSec * DT;
+    leftBackVelocityRotPerSec = rampVelocity(leftBackVelocityRotPerSec, velocityRotPerSec);
+    leftBackPositionRotations += leftBackVelocityRotPerSec * DT;
+  }
+
+  // ── MotionMagic-style trapezoidal profile simulation ──
+
+  /**
+   * Simulate one DT step of a trapezoidal motion profile (MotionMagic). The motor accelerates
+   * toward cruise velocity, decelerates to stop at the target, and respects the acceleration limit.
+   *
+   * @param currentPos Current mechanism position (rotations)
+   * @param currentVel Current mechanism velocity (rot/s)
+   * @param targetPos Desired mechanism position (rotations)
+   * @return New velocity for this cycle (rot/s)
+   */
+  private static double simulateMotionMagicStep(
+      double currentPos, double currentVel, double targetPos) {
+    double error = targetPos - currentPos;
+    double absError = Math.abs(error);
+    double direction = Math.signum(error);
+
+    // If very close and slow enough, snap to zero velocity (holding position)
+    if (absError < 1e-5 && Math.abs(currentVel) < 1e-3) {
+      return 0.0;
+    }
+
+    // Calculate braking distance at current velocity: d = v² / (2*a)
+    double brakingDistance = (currentVel * currentVel) / (2.0 * MAX_ACCEL);
+
+    double desiredVel;
+    if (absError <= brakingDistance + CRUISE_VEL * DT) {
+      // Deceleration phase: ramp down to stop at target
+      // Target velocity to reach zero at target position: v = sqrt(2 * a * remaining)
+      desiredVel = direction * Math.sqrt(Math.max(0, 2.0 * MAX_ACCEL * absError));
+      // Don't exceed cruise
+      desiredVel = MathUtil.clamp(desiredVel, -CRUISE_VEL, CRUISE_VEL);
+    } else {
+      // Acceleration/cruise phase
+      desiredVel = direction * CRUISE_VEL;
+    }
+
+    // Apply acceleration limit to velocity change
+    return rampVelocity(currentVel, desiredVel);
+  }
+
+  /**
+   * Ramp current velocity toward a target velocity, limited by MAX_ACCEL * DT per cycle.
+   *
+   * @param currentVel Current velocity (rot/s)
+   * @param targetVel Desired velocity (rot/s)
+   * @return New velocity after one DT step, acceleration-limited
+   */
+  private static double rampVelocity(double currentVel, double targetVel) {
+    double maxDeltaVel = MAX_ACCEL * DT;
+    double deltaVel = targetVel - currentVel;
+    deltaVel = MathUtil.clamp(deltaVel, -maxDeltaVel, maxDeltaVel);
+    double newVel = currentVel + deltaVel;
+    // Also clamp absolute velocity to cruise
+    return MathUtil.clamp(newVel, -CRUISE_VEL, CRUISE_VEL);
   }
 
   @Override

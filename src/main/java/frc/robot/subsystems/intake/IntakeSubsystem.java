@@ -28,7 +28,8 @@ public class IntakeSubsystem extends SubsystemBase {
    */
   public Command intake() {
     return run(() -> {
-          io.setPercent(IntakeConstants.INTAKE_PERCENT);
+          io.setUpperPercent(IntakeConstants.UPPER_INTAKE_PERCENT);
+          io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
         })
         .finallyDo(() -> io.stop())
         .withName("Intake");
@@ -41,7 +42,8 @@ public class IntakeSubsystem extends SubsystemBase {
    */
   public Command outtake() {
     return run(() -> {
-          io.setPercent(IntakeConstants.OUTTAKE_PERCENT);
+          io.setUpperPercent(IntakeConstants.UPPER_OUTTAKE_PERCENT);
+          io.setLowerPercent(IntakeConstants.LOWER_OUTTAKE_PERCENT);
         })
         .finallyDo(() -> io.stop())
         .withName("Outtake");
@@ -77,7 +79,8 @@ public class IntakeSubsystem extends SubsystemBase {
    * method — no command scheduling overhead.
    */
   public void applyIntake() {
-    io.setPercent(IntakeConstants.INTAKE_PERCENT);
+    io.setUpperPercent(IntakeConstants.UPPER_INTAKE_PERCENT);
+    io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
   }
 
   /**
@@ -85,7 +88,8 @@ public class IntakeSubsystem extends SubsystemBase {
    * wanted state requires the intake to eject.
    */
   public void applyOuttake() {
-    io.setPercent(IntakeConstants.OUTTAKE_PERCENT);
+    io.setUpperPercent(IntakeConstants.UPPER_OUTTAKE_PERCENT);
+    io.setLowerPercent(IntakeConstants.LOWER_OUTTAKE_PERCENT);
   }
 
   /**

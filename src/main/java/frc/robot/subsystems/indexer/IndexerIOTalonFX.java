@@ -62,8 +62,8 @@ public class IndexerIOTalonFX implements IndexerIO {
   }
 
   @Override
-  public void setDutyCycle(double dutyCycle) {
-    leaderMotor.setControl(dutyCycleControl.withOutput(dutyCycle));
+  public void setPercent(double percent) {
+    leaderMotor.setControl(dutyCycleControl.withOutput(percent));
   }
 
   @Override

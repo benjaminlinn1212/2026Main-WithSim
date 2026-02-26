@@ -64,7 +64,7 @@ public class VisionSubsystem extends SubsystemBase {
 
   @Override
   public void periodic() {
-    io.readInputs(inputs);
+    io.updateInputs(inputs);
     // Manual logging of important vision data
     Logger.recordOutput("Vision/Front/SeesTarget", inputs.frontCameraSeesTarget);
     Logger.recordOutput("Vision/Turret/SeesTarget", inputs.turretCameraSeesTarget);

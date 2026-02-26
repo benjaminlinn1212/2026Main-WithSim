@@ -28,7 +28,7 @@ public class IndexerSubsystem extends SubsystemBase {
    */
   public Command toShooter() {
     return run(() -> {
-          io.setDutyCycle(IndexerConstants.TO_SHOOTER_DUTY_CYCLE);
+          io.setPercent(IndexerConstants.TO_SHOOTER_PERCENT);
         })
         .withName("IndexerToShooter");
   }
@@ -62,6 +62,6 @@ public class IndexerSubsystem extends SubsystemBase {
    * method.
    */
   public void applyFeedToShooter() {
-    io.setDutyCycle(IndexerConstants.TO_SHOOTER_DUTY_CYCLE);
+    io.setPercent(IndexerConstants.TO_SHOOTER_PERCENT);
   }
 }

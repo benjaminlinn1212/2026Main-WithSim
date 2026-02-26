@@ -17,8 +17,8 @@ public interface IndexerIO {
   /** Updates the set of loggable inputs */
   public default void updateInputs(IndexerIOInputs inputs) {}
 
-  /** Run indexer at specified duty cycle */
-  public default void setDutyCycle(double dutyCycle) {}
+  /** Run indexer at specified percent output (-1.0 to 1.0) */
+  public default void setPercent(double percent) {}
 
   /** Stop the indexer motors */
   public default void stop() {}

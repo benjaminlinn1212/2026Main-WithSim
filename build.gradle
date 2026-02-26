@@ -129,6 +129,7 @@ wpi.java.configureTestTasks(test)
 // Configure string concat to always inline compile
 tasks.withType(JavaCompile) {
     options.compilerArgs.add '-XDstringConcat=inline'
+    options.encoding = 'UTF-8'
 }
 
 // Create version file
@@ -176,7 +177,24 @@ task(eventDeploy) {
 createVersionFile.dependsOn(eventDeploy)
 
 // Spotless formatting
+// Strip UTF-8 BOM from Java sources before spotless runs (google-java-format crashes on BOM).
+// VS Code sometimes saves files with BOM encoding; this task prevents build failures.
+task stripBom {
+    doLast {
+        fileTree(dir: "src", include: "**/*.java").each { f ->
+            byte[] bytes = f.bytes
+            if (bytes.length >= 3 && bytes[0] == (byte) 0xEF && bytes[1] == (byte) 0xBB && bytes[2] == (byte) 0xBF) {
+                f.bytes = Arrays.copyOfRange(bytes, 3, bytes.length)
+                logger.warn("Stripped UTF-8 BOM from {}", f)
+            }
+        }
+    }
+}
 project.compileJava.dependsOn(spotlessApply)
+// Ensure BOM stripping runs before any spotless task touches Java files
+project.tasks.matching { it.name.startsWith("spotless") }.configureEach {
+    it.dependsOn(stripBom)
+}
 spotless {
     java {
         target fileTree(".") {

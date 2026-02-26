@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2026 Littleton Robotics
+﻿// Copyright (c) 2021-2026 Littleton Robotics
 // http://github.com/Mechanical-Advantage
 //
 // Use of this source code is governed by a BSD
@@ -806,5 +806,27 @@ public final class Constants {
     public static final double TEST_MODE_POSITION_INCREMENT =
         1.0; // rotations increment per button press
     public static final double TEST_MODE_VOLTAGE = 3.0; // volts for manual control
+  }
+
+  public static class OrchestraConstants {
+    /**
+     * Name of the .chrp file to play. Place the file in {@code src/main/deploy/} — it will be
+     * automatically deployed to the roboRIO. Convert MIDI → CHRP using Phoenix Tuner X's CHRP
+     * Converter (Tools → CHRP Converter).
+     */
+    public static final String CHRP_FILE = "4trackCruelAngel.chrp";
+
+    /**
+     * When true, applies the {@code AllowMusicDurDisable} audio config so Orchestra can play even
+     * when the robot is disabled. Useful for pre-match entertainment.
+     */
+    public static final boolean ALLOW_MUSIC_DURING_DISABLE = true;
+
+    /**
+     * Number of tracks in the .chrp file. Motors are distributed across tracks using modulo — if
+     * you have 8 motors and 2 tracks, 4 motors play track 0 and 4 motors play track 1. Set to 1 if
+     * your MIDI was exported as a single-track file (all motors play the same part).
+     */
+    public static final int NUM_TRACKS = 4;
   }
 }

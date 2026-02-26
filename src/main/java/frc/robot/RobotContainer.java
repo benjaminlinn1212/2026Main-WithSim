@@ -55,6 +55,7 @@ import frc.robot.subsystems.intakepivot.IntakePivotIOSim;
 import frc.robot.subsystems.intakepivot.IntakePivotIOTalonFX;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.led.LEDSubsystem;
+import frc.robot.subsystems.orchestra.OrchestraManager;
 import frc.robot.subsystems.shooter.ShooterIO;
 import frc.robot.subsystems.shooter.ShooterIOSim;
 import frc.robot.subsystems.shooter.ShooterIOTalonFX;
@@ -109,6 +110,9 @@ public class RobotContainer {
 
   // Hardcoded fallback autos (one per lane)
   private HardcodedAutos hardcodedAutos;
+
+  // Orchestra manager for playing music through Kraken motors
+  private OrchestraManager orchestraManager;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -252,6 +256,13 @@ public class RobotContainer {
     // Hardcoded fallback autos — reads Start Pose from dashboard auto settings
     hardcodedAutos = new HardcodedAutos(drive, superstructure, dashboardAutoManager);
     autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
+
+    // ===== ORCHESTRA (Play Music) AUTO =====
+    // Only create on real robot — Orchestra requires real TalonFX hardware
+    if (Constants.currentMode == Constants.Mode.REAL) {
+      orchestraManager = new OrchestraManager();
+      autoChooser.addOption("Play Music", orchestraManager.playMusicCommand());
+    }
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
     // Create a ShooterSetpoint supplier that uses robotState for calculations

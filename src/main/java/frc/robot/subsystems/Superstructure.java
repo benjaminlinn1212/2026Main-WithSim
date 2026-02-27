@@ -16,6 +16,7 @@ import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
 import frc.robot.subsystems.led.LEDSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
 import frc.robot.subsystems.turret.TurretSubsystem;
+import frc.robot.util.MechanismVisualizer;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
@@ -58,6 +59,7 @@ public class Superstructure extends SubsystemBase {
   private final IndexerSubsystem indexer;
   private final ClimbSubsystem climb;
   private final LEDSubsystem leds;
+  private final MechanismVisualizer mechanismViz = new MechanismVisualizer();
 
   private SuperstructureState currentState = SuperstructureState.IDLE;
   private SuperstructureState wantedState = SuperstructureState.IDLE;
@@ -323,6 +325,12 @@ public class Superstructure extends SubsystemBase {
         // Emergency is entered via emergencyStop() and doesn't continuously re-apply.
         break;
     }
+
+    // --- 3D Mechanism Visualization (AdvantageScope component poses) ---
+    mechanismViz.update(
+        turret.getCurrentPosition(), // turret yaw (rad)
+        hood.getCurrentPosition(), // hood pitch (rad from horizontal)
+        intakePivot.getPosition()); // intake pivot (motor rotations)
   }
 
   public SuperstructureState getState() {

@@ -130,12 +130,12 @@ public final class Constants {
     // Default pose for gyro/pose reset
     public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =
         new edu.wpi.first.math.geometry.Pose2d(
-            0.33, 0.33, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
+            0.0, 0.0, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
   }
 
   public static class DriveConstants {
     // Maple-Sim Physics Simulation Configuration
-    public static final boolean USE_MAPLE_SIM = true;
+    public static final boolean USE_MAPLE_SIM = false;
     public static final double ROBOT_WEIGHT_KILOGRAMS = 30.0;
     public static final double BUMPER_LENGTH_INCHES = 32.0;
     public static final double BUMPER_WIDTH_INCHES = 35.055;
@@ -833,5 +833,61 @@ public final class Constants {
      * your MIDI was exported as a single-track file (all motors play the same part).
      */
     public static final int NUM_TRACKS = 4;
+  }
+
+  // ==================== 3D Mechanism Visualization (AdvantageScope) ====================
+  // Component layout for articulated 3D rendering in AdvantageScope's 3D Field tab.
+  // Components (indexed 0–2 in the robot model config):
+  //   0 = Turret   — yaw rotation, mounted on frame
+  //   1 = Hood     — pitch rotation, mounted on turret
+  //   2 = IntakePivot — pitch rotation, mounted on frame rear
+  //
+  // All positions are robot-relative (origin = robot center at floor level).
+  // Units: meters for positions, used with Pose3d / Rotation3d.
+  public static class MechanismVisualization {
+    /** Number of articulated components logged to AdvantageScope. */
+    public static final int NUM_COMPONENTS = 3;
+
+    // --- Component 0: Turret ---
+    /** Height of the turret rotation axis above the floor (meters). */
+    public static final double TURRET_HEIGHT_M = 0.3887;
+    /** X offset of turret pivot from robot center (forward-positive, meters). */
+    public static final double TURRET_X_M = 0.1909;
+    /** Y offset of turret pivot from robot center (left-positive, meters). */
+    public static final double TURRET_Y_M = 0;
+
+    // --- Component 1: Hood ---
+    /** Height of the hood pivot above the turret base (meters). Sits on top of turret. */
+    public static final double HOOD_Z_ABOVE_TURRET_M = 0.065;
+    /**
+     * Forward offset of the hood pivot from the turret axis (meters). The hood pitches at this
+     * point.
+     */
+    public static final double HOOD_X_FROM_TURRET_M = 0.105;
+    /**
+     * Pitch offset (radians) added to the hood angle for visualization. Use this to align the 3D
+     * model with the actual mechanism — positive tilts the model further up.
+     */
+    public static final double HOOD_PITCH_OFFSET_RAD = Units.degreesToRadians(-48.0);
+
+    // --- Component 2: Intake Pivot ---
+    /** Height of the intake pivot axis above the floor (meters). */
+    public static final double INTAKE_PIVOT_HEIGHT_M = 0.25;
+    /** X offset of the intake pivot from robot center (negative = rear of robot, meters). */
+    public static final double INTAKE_PIVOT_X_M = -0.35;
+    /** Y offset of the intake pivot from robot center (meters). Centered. */
+    public static final double INTAKE_PIVOT_Y_M = 0.0;
+    /**
+     * Length of the intake arm from pivot to roller center (meters). Used to position the end of
+     * the arm for visualization.
+     */
+    public static final double INTAKE_ARM_LENGTH_M = 0.30;
+    /**
+     * Intake pivot motor rotations for a full 90° sweep (stowed → deployed). Used to convert motor
+     * rotations to radians for visualization.
+     *
+     * <p>pivotAngleRad = (position / ROTATIONS_PER_90_DEG) * (π/2)
+     */
+    public static final double ROTATIONS_PER_90_DEG = IntakePivotConstants.DEPLOYED_POSITION;
   }
 }

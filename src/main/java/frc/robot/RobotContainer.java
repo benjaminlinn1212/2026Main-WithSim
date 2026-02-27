@@ -189,15 +189,50 @@ public class RobotContainer {
         leds = new LEDSubsystem();
         break;
       case SIM:
-        intake = new IntakeSubsystem(new IntakeIOSim());
-        intakePivot = new IntakePivotSubsystem(new IntakePivotIOSim());
-        turret = new TurretSubsystem(new TurretIOSim(), robotState);
-        hood = new HoodSubsystem(new HoodIOSim());
-        shooter = new ShooterSubsystem(new ShooterIOSim());
-        conveyor = new ConveyorSubsystem(new ConveyorIOSim());
-        indexer = new IndexerSubsystem(new IndexerIOSim());
-        climb = new ClimbSubsystem(new ClimbIOSim());
-        leds = new LEDSubsystem();
+        {
+          // Get the SwerveDriveSimulation for maple-sim integration
+          org.ironmaple.simulation.drivesims.SwerveDriveSimulation driveSim = null;
+          if (Constants.DriveConstants.USE_MAPLE_SIM && drive.getDriveIO() instanceof DriveIOSim) {
+            DriveIOSim driveIOSim = (DriveIOSim) drive.getDriveIO();
+            if (driveIOSim.getMapleSimDrive() != null) {
+              driveSim = driveIOSim.getMapleSimDrive().mapleSimDrive;
+            }
+          }
+
+          // Create intake sim with maple-sim integration (or fallback)
+          IntakeIOSim intakeIOSimInstance = null;
+          if (driveSim != null) {
+            intakeIOSimInstance = new IntakeIOSim(driveSim);
+            intake = new IntakeSubsystem(intakeIOSimInstance);
+          } else {
+            intake = new IntakeSubsystem(new IntakeIO() {});
+          }
+
+          intakePivot = new IntakePivotSubsystem(new IntakePivotIOSim());
+          turret = new TurretSubsystem(new TurretIOSim(), robotState);
+          hood = new HoodSubsystem(new HoodIOSim());
+
+          // Create shooter sim with maple-sim integration (or fallback)
+          if (driveSim != null) {
+            shooter =
+                new ShooterSubsystem(
+                    new ShooterIOSim(
+                        driveSim, turret::getCurrentPosition, hood::getCurrentPosition));
+          } else {
+            shooter = new ShooterSubsystem(new ShooterIO() {});
+          }
+
+          // Create conveyor sim and wire it to intake sim for fuel transfer
+          ConveyorIOSim conveyorIOSimInstance = new ConveyorIOSim();
+          if (intakeIOSimInstance != null) {
+            conveyorIOSimInstance.setIntakeIOSim(intakeIOSimInstance);
+          }
+          conveyor = new ConveyorSubsystem(conveyorIOSimInstance);
+
+          indexer = new IndexerSubsystem(new IndexerIOSim());
+          climb = new ClimbSubsystem(new ClimbIOSim());
+          leds = new LEDSubsystem();
+        }
         break;
       default:
         intake = new IntakeSubsystem(new IntakeIO() {});

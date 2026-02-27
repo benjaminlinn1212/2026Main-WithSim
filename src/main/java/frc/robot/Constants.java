@@ -135,7 +135,7 @@ public final class Constants {
 
   public static class DriveConstants {
     // Maple-Sim Physics Simulation Configuration
-    public static final boolean USE_MAPLE_SIM = false;
+    public static final boolean USE_MAPLE_SIM = true;
     public static final double ROBOT_WEIGHT_KILOGRAMS = 30.0;
     public static final double BUMPER_LENGTH_INCHES = 32.0;
     public static final double BUMPER_WIDTH_INCHES = 35.055;
@@ -833,6 +833,69 @@ public final class Constants {
      * your MIDI was exported as a single-track file (all motors play the same part).
      */
     public static final int NUM_TRACKS = 4;
+  }
+
+  // ==================== Maple-Sim Tuning Constants ====================
+  // All tunable parameters for the maple-sim integration (intake, shooter projectiles, conveyor
+  // fuel transfer). Tweak these to dial in simulation behavior without hunting through IO files.
+  public static class SimConstants {
+
+    // --- Intake Simulation ---
+    /** Width of the intake zone on the chassis (meters). */
+    public static final double INTAKE_WIDTH_METERS = 0.67;
+
+    /** How far the intake extends beyond the chassis frame when deployed (meters). */
+    public static final double INTAKE_EXTENSION_METERS = 0.2;
+
+    /** Maximum number of fuel the intake can hold at once. */
+    public static final int INTAKE_CAPACITY = 20;
+
+    /** Minimum motor percent-output to consider the intake "running". */
+    public static final double INTAKE_MOTOR_THRESHOLD = 0.05;
+
+    // --- Shooter / Projectile ---
+    // Motor physics (acceleration, kV, current) come from ShooterConstants + WPILib DCMotorSim.
+    // Only projectile-specific tuning values live here.
+    // XY offset and height are derived from the real mechanism geometry
+    // (TurretConstants + MechanismVisualization) — no need to duplicate values here.
+
+    /**
+     * Height above floor at which the fuel leaves the shooter (meters). Derived from turret height
+     * + hood offset above turret.
+     */
+    public static final double PROJECTILE_INITIAL_HEIGHT_METERS =
+        MechanismVisualization.TURRET_HEIGHT_M + MechanismVisualization.HOOD_Z_ABOVE_TURRET_M;
+
+    /**
+     * Launch-speed scaling factor. Actual launch speed (m/s) = flywheel RPS / 100 *
+     * LAUNCH_SPEED_SCALE. Example: 50 RPS → 5 m/s at scale 10, 80 RPS → 8 m/s.
+     */
+    public static final double LAUNCH_SPEED_SCALE = 10.0;
+
+    /**
+     * Compression / efficiency multiplier (0–1). On a real robot the ball compresses against the
+     * flywheel and hood, so exit speed is lower than ideal surface speed. 1.0 = no loss, 0.7 = 30%
+     * speed loss. Tune this until sim trajectories match real-robot shot distances.
+     */
+    public static final double FUEL_SPEED_EFFICIENCY = 1.15;
+
+    /** Minimum flywheel velocity (rot/s) before the sim will launch a projectile. */
+    public static final double MIN_LAUNCH_VELOCITY_RPS = 10.0;
+
+    /** Minimum allowed launch angle (degrees) — clamp for hood safety. */
+    public static final double MIN_LAUNCH_ANGLE_DEG = 15.0;
+
+    /** Maximum allowed launch angle (degrees) — clamp for hood safety. */
+    public static final double MAX_LAUNCH_ANGLE_DEG = 75.0;
+
+    // --- Conveyor / Fuel Transfer ---
+    /**
+     * Conveyor percent-output threshold to trigger feeding toward the shooter (negative = feed).
+     */
+    public static final double CONVEYOR_FEED_THRESHOLD = -0.05;
+
+    /** Cooldown ticks (× 20 ms) between consecutive fuel transfers from intake → shooter. */
+    public static final int FEED_COOLDOWN_TICKS = 7;
   }
 
   // ==================== 3D Mechanism Visualization (AdvantageScope) ====================

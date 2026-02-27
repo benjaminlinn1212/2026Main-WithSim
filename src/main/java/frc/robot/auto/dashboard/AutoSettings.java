@@ -5,7 +5,6 @@ package frc.robot.auto.dashboard;
 
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import frc.robot.auto.dashboard.FieldConstants.ClimbLevel;
 import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
@@ -48,7 +47,6 @@ public class AutoSettings {
   private final List<ScoringWaypoint> scoringPriority = new ArrayList<>();
   private final List<IntakeLocation> intakePriority = new ArrayList<>();
   private boolean attemptClimb = true;
-  private ClimbLevel climbLevel = ClimbLevel.LEVEL_1;
   private ClimbPose climbPose = ClimbPose.DEPOT_SIDE;
   private boolean scorePreload = true;
   private RiskLevel riskLevel = RiskLevel.BALANCED;
@@ -58,7 +56,6 @@ public class AutoSettings {
 
   // ===== SendableChoosers for dropdown settings in Elastic =====
   private final SendableChooser<StartPose> startPoseChooser = new SendableChooser<>();
-  private final SendableChooser<ClimbLevel> climbLevelChooser = new SendableChooser<>();
   private final SendableChooser<ClimbPose> climbPoseChooser = new SendableChooser<>();
   private final SendableChooser<RiskLevel> riskLevelChooser = new SendableChooser<>();
 
@@ -88,16 +85,6 @@ public class AutoSettings {
     // Example: "ULDO" → Upper Neutral first, then Lower Neutral, Depot, Outpost
     // Duplicate or unknown characters are ignored.
     SmartDashboard.putString(PREFIX + "Intake Sequence", "UUUU");
-
-    // --- Dropdown: Climb Level ---
-    for (ClimbLevel cl : ClimbLevel.values()) {
-      if (cl == ClimbLevel.LEVEL_1) {
-        climbLevelChooser.setDefaultOption(cl.name(), cl);
-      } else {
-        climbLevelChooser.addOption(cl.name(), cl);
-      }
-    }
-    SmartDashboard.putData(PREFIX + "Climb Level", climbLevelChooser);
 
     // --- Dropdown: Climb Pose (which side of TOWER to approach) ---
     for (ClimbPose cp : ClimbPose.values()) {
@@ -168,12 +155,6 @@ public class AutoSettings {
     attemptClimb = SmartDashboard.getBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
     scorePreload = SmartDashboard.getBoolean(PREFIX + "Score Preload", scorePreload);
 
-    // Climb Level (dropdown)
-    ClimbLevel selectedClimb = climbLevelChooser.getSelected();
-    if (selectedClimb != null) {
-      climbLevel = selectedClimb;
-    }
-
     // Climb Pose (dropdown)
     ClimbPose selectedClimbPose = climbPoseChooser.getSelected();
     if (selectedClimbPose != null) {
@@ -217,8 +198,9 @@ public class AutoSettings {
     return attemptClimb;
   }
 
-  public ClimbLevel getClimbLevel() {
-    return climbLevel;
+  /** Auto always climbs L1 — no dashboard selection needed. */
+  public FieldConstants.ClimbLevel getClimbLevel() {
+    return FieldConstants.ClimbLevel.LEVEL_1;
   }
 
   public ClimbPose getClimbPose() {
@@ -256,8 +238,6 @@ public class AutoSettings {
         + "|"
         + attemptClimb
         + "|"
-        + climbLevel.name()
-        + "|"
         + climbPose.name()
         + "|"
         + scorePreload
@@ -275,7 +255,7 @@ public class AutoSettings {
         SmartDashboard.getString(PREFIX + "Intake Sequence", "ULDO"));
     Logger.recordOutput("AutoSettings/IntakePriority", intakePriority.toString());
     Logger.recordOutput("AutoSettings/AttemptClimb", attemptClimb);
-    Logger.recordOutput("AutoSettings/ClimbLevel", climbLevel.name());
+    Logger.recordOutput("AutoSettings/ClimbLevel", "LEVEL_1");
     Logger.recordOutput("AutoSettings/ClimbPose", climbPose.name());
     Logger.recordOutput("AutoSettings/ScorePreload", scorePreload);
     Logger.recordOutput("AutoSettings/RiskLevel", riskLevel.name());
@@ -292,8 +272,7 @@ public class AutoSettings {
         + intakePriority
         + ", climb="
         + attemptClimb
-        + ", climbLevel="
-        + climbLevel
+        + ", climbLevel=LEVEL_1"
         + ", climbPose="
         + climbPose
         + ", scorePreload="

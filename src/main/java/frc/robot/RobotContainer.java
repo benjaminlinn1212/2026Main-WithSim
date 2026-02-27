@@ -105,6 +105,11 @@ public class RobotContainer {
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
 
+  // Operator climb level chooser (L1 auto sequence vs full L2L3 teleop sequence)
+  private final edu.wpi.first.wpilibj.smartdashboard.SendableChooser<
+          ClimbSubsystem.OperatorClimbLevel>
+      operatorClimbLevelChooser = new edu.wpi.first.wpilibj.smartdashboard.SendableChooser<>();
+
   // Dashboard-driven autonomous system (254/6328 style)
   private DashboardAutoManager dashboardAutoManager;
 
@@ -251,6 +256,19 @@ public class RobotContainer {
     superstructure =
         new Superstructure(
             shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb, leds);
+
+    // ===== OPERATOR CLIMB LEVEL CHOOSER =====
+    // L1 = auto L1 sequence (EXTEND_L1_AUTO → RETRACT_L1_AUTO), quick climb
+    // L2L3 = full teleop sequence through all rungs with servo operations
+    operatorClimbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.OperatorClimbLevel.L2L3);
+    operatorClimbLevelChooser.addOption("L1", ClimbSubsystem.OperatorClimbLevel.L1);
+    edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.putData(
+        "Operator/Climb Level", operatorClimbLevelChooser);
+    climb.setOperatorClimbLevelSupplier(
+        () -> {
+          var selected = operatorClimbLevelChooser.getSelected();
+          return selected != null ? selected : ClimbSubsystem.OperatorClimbLevel.L2L3;
+        });
 
     // Instantiate Vision with pose consumer that feeds into the drive's pose estimator
     switch (Constants.currentMode) {

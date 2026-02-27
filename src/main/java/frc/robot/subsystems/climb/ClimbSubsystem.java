@@ -33,12 +33,30 @@ import org.littletonrobotics.junction.Logger;
  */
 public class ClimbSubsystem extends SubsystemBase {
 
+  /**
+   * Operator-selectable climb level for teleop. Determines which sequence the operator's
+   * nextClimbStep / previousClimbStep commands follow.
+   *
+   * <ul>
+   *   <li>{@code L1} — Uses the auto L1 sequence (EXTEND_L1_AUTO → RETRACT_L1_AUTO). Quick climb.
+   *   <li>{@code L2L3} — Uses the full teleop sequence through L1 → L2 → L3 with servo operations.
+   * </ul>
+   */
+  public enum OperatorClimbLevel {
+    L1,
+    L2L3
+  }
+
   private final ClimbIO io;
   private final ClimbIOInputsAutoLogged inputs = new ClimbIOInputsAutoLogged();
 
   private ClimbState currentState = ClimbState.STOWED;
   private Translation2d leftTargetPosition = ClimbState.STOWED.getTargetPosition();
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
+
+  // ─── Operator climb level (set from RobotContainer via supplier) ───
+  private java.util.function.Supplier<OperatorClimbLevel> operatorClimbLevelSupplier =
+      () -> OperatorClimbLevel.L2L3;
 
   // ─── Calibration mode ───
   private boolean calibrationMode = false;
@@ -278,6 +296,20 @@ public class ClimbSubsystem extends SubsystemBase {
     rightTargetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
   }
 
+  /**
+   * Set the supplier for the operator climb level chooser. Called from RobotContainer after
+   * constructing the SendableChooser.
+   */
+  public void setOperatorClimbLevelSupplier(
+      java.util.function.Supplier<OperatorClimbLevel> supplier) {
+    this.operatorClimbLevelSupplier = supplier;
+  }
+
+  /** Get the current operator-selected climb level. */
+  public OperatorClimbLevel getOperatorClimbLevel() {
+    return operatorClimbLevelSupplier.get();
+  }
+
   @Override
   public void periodic() {
     io.updateInputs(inputs);
@@ -286,6 +318,7 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/CalibrationMode", calibrationMode);
     Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
     Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
+    Logger.recordOutput("Climb/OperatorClimbLevel", getOperatorClimbLevel().name());
 
     // Estimate and log actual end effector positions from motor encoders (FK)
     Translation2d measuredLeft =
@@ -976,7 +1009,16 @@ public class ClimbSubsystem extends SubsystemBase {
   // ===========================================================================
 
   /**
-   * Advance climb by one operator-triggered step. Each POV-Right press runs exactly one action:
+   * Advance climb by one operator-triggered step. Each POV-Right press runs exactly one action.
+   *
+   * <p><b>L1 mode</b> (operator chooser = L1): Uses the auto L1 sequence — only 2 presses.
+   *
+   * <pre>
+   *  Press 1 (STOWED)         → Extend L1 auto (path)
+   *  Press 2 (EXTEND_L1_AUTO) → Retract L1 auto (path)
+   * </pre>
+   *
+   * <p><b>L2L3 mode</b> (operator chooser = L2L3): Full teleop sequence — 11 presses.
    *
    * <pre>
    *  Press  1 (STOWED)             → Extend L1 (path)
@@ -995,6 +1037,19 @@ public class ClimbSubsystem extends SubsystemBase {
   public Command nextClimbStep() {
     return Commands.defer(
         () -> {
+          // ── L1 mode: auto L1 sequence ──
+          if (getOperatorClimbLevel() == OperatorClimbLevel.L1) {
+            switch (currentState) {
+              case STOWED:
+                return setStateCommand(ClimbState.EXTEND_L1_AUTO);
+              case EXTEND_L1_AUTO:
+                return setStateCommand(ClimbState.RETRACT_L1_AUTO);
+              default:
+                return Commands.none();
+            }
+          }
+
+          // ── L2L3 mode: full teleop sequence ──
           switch (currentState) {
             case STOWED:
               return setStateCommand(ClimbState.EXTEND_L1);
@@ -1068,11 +1123,27 @@ public class ClimbSubsystem extends SubsystemBase {
 
   /**
    * Go back one operator-triggered step. Each POV-Left press undoes exactly one action, reversing
-   * servo changes or running the reversed path as appropriate.
+   * servo changes or running the reversed path as appropriate. Branches on operator climb level (L1
+   * vs L2L3).
    */
   public Command previousClimbStep() {
     return Commands.defer(
         () -> {
+          // ── L1 mode: reverse auto L1 sequence ──
+          if (getOperatorClimbLevel() == OperatorClimbLevel.L1) {
+            switch (currentState) {
+              case EXTEND_L1_AUTO:
+                // Reverse extend path back to STOWED
+                return stowFromCurrentState();
+              case RETRACT_L1_AUTO:
+                // Reverse retract path back to EXTEND_L1_AUTO (same as releaseFromAutoL1)
+                return releaseFromAutoL1();
+              default:
+                return Commands.none();
+            }
+          }
+
+          // ── L2L3 mode: full teleop previous ──
           switch (currentState) {
             case EXTEND_L1:
               // Reverse the extend path back to STOWED

@@ -764,7 +764,7 @@ public final class Constants {
     public static final double MAX_MECHANISM_POSITION = 100.0; // Maximum safe drum position
 
     // Joint Angle Limits (safety limits in radians)
-    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(90);
+    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(85);
     public static final double MAX_SHOULDER_ANGLE_RAD = Math.toRadians(160);
     public static final double MIN_ELBOW_ANGLE_RAD = Math.toRadians(-140);
     public static final double MAX_ELBOW_ANGLE_RAD = Math.toRadians(-30);

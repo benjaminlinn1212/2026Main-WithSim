@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2021-2026 Littleton Robotics
+// Copyright (c) 2021-2026 Littleton Robotics
 // http://github.com/Mechanical-Advantage
 //
 // Use of this source code is governed by a BSD
@@ -666,8 +666,8 @@ public final class Constants {
     // Front motors: 100:1 reduction â†’ 1 motor rotation = 1/100 drum rotation
     // Back motors: 80:1 reduction â†’ 1 motor rotation = 1/80 drum rotation
     // Used in both Phoenix SensorToMechanismRatio and IK calculations
-    public static final double FRONT_GEAR_RATIO = 1.0 / 100.0; // 0.01
-    public static final double BACK_GEAR_RATIO = 1.0 / 80.0; // 0.0125
+    public static final double FRONT_GEAR_RATIO = 1.0 / 100.0;
+    public static final double BACK_GEAR_RATIO = 1.0 / 80.0;
 
     // Motor Inversion - Configure each motor independently
     public static final InvertedValue RIGHT_FRONT_MOTOR_INVERTED =
@@ -699,12 +699,16 @@ public final class Constants {
 
     // Motion Magic Constants (in mechanism/drum rotations per second)
     // IO layer converts to motor units: motorVel = drumVel / GEAR_RATIO
-    // Kraken/Falcon free speed â‰ˆ 100 motor rot/s
-    // Front motors (100:1): 0.8 drum rot/s = 80 motor rot/s (80% of free speed)
-    // Back motors (80:1): 0.8 drum rot/s = 64 motor rot/s (64% of free speed)
-    public static final double CRUISE_VELOCITY = 0.8; // mechanism (drum) rotations per second
-    public static final double ACCELERATION = 3.0; // mechanism (drum) rotations per second^2
-    public static final double JERK = 12.0; // mechanism (drum) rotations per second^3
+    // Derived from Kraken/Falcon free speed (~100 motor rot/s) and gear ratios.
+    // Limited by the slower (front) gear ratio to keep both motor pairs within safe speed.
+    // CRUISE_VELOCITY = MOTOR_FREE_SPEED * FRONT_GEAR_RATIO * SPEED_UTILIZATION
+    public static final double MOTOR_FREE_SPEED_RPS = 100.0; // Kraken/Falcon free speed (rot/s)
+    public static final double SPEED_UTILIZATION = 0.80; // 80% of free speed
+    public static final double CRUISE_VELOCITY =
+        MOTOR_FREE_SPEED_RPS * FRONT_GEAR_RATIO * SPEED_UTILIZATION; // mechanism (drum) rot/s
+    public static final double ACCELERATION =
+        CRUISE_VELOCITY * 3.75; // mechanism (drum) rotations per second^2
+    public static final double JERK = ACCELERATION * 4.0; // mechanism (drum) rotations per second^3
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
@@ -760,10 +764,10 @@ public final class Constants {
     public static final double MAX_MECHANISM_POSITION = 100.0; // Maximum safe drum position
 
     // Joint Angle Limits (safety limits in radians)
-    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(100);
+    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(90);
     public static final double MAX_SHOULDER_ANGLE_RAD = Math.toRadians(160);
-    public static final double MIN_ELBOW_ANGLE_RAD = Math.toRadians(-150);
-    public static final double MAX_ELBOW_ANGLE_RAD = Math.toRadians(-45);
+    public static final double MIN_ELBOW_ANGLE_RAD = Math.toRadians(-140);
+    public static final double MAX_ELBOW_ANGLE_RAD = Math.toRadians(-30);
     // Set false for testing paths outside joint limits
     public static final boolean ENABLE_JOINT_LIMITS = true;
 
@@ -788,15 +792,16 @@ public final class Constants {
     // ==================== Path Planning Constraints ====================
 
     // Cartesian path generation constraints (for ClimbPathPlanner)
-    // Derived from physical limits:
-    //   Cable speed = CRUISE_VELOCITY × drum circumference
-    //              ≈ 0.8 rot/s × 0.044–0.068 m/rot ≈ 0.035–0.054 m/s
-    //   Use 0.04 m/s to stay within single-cable limits across all drum layers.
-    //   Acceleration = ACCELERATION × drum circumference
-    //              ≈ 3.0 rot/s² × 0.044–0.068 m/rot ≈ 0.13–0.20 m/s²
-    public static final double PATH_MAX_VELOCITY_MPS = 0.04; // Maximum end effector velocity (m/s)
+    // Derived from cruise velocity and drum geometry so they stay consistent
+    // when gear ratios change.
+    //   Cable speed = CRUISE_VELOCITY * effective drum circumference
+    //   Use mid-layer circumference (~layer 1) as a conservative average.
+    private static final double MID_LAYER_CIRCUMFERENCE_M =
+        CABLE_DRUM_CIRCUMFERENCE_METERS + CIRCUMFERENCE_PER_LAYER_METERS; // ~layer 1
+    public static final double PATH_MAX_VELOCITY_MPS =
+        CRUISE_VELOCITY * MID_LAYER_CIRCUMFERENCE_M; // Maximum end effector velocity (m/s)
     public static final double PATH_MAX_ACCELERATION_MPS2 =
-        0.15; // Maximum end effector acceleration (m/s^2)
+        ACCELERATION * MID_LAYER_CIRCUMFERENCE_M; // Maximum end effector acceleration (m/s^2)
 
     // Velocity control feedforward (for pulling paths under load)
     public static final double VELOCITY_KG_PULLING =

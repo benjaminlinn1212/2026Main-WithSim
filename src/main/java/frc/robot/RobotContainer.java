@@ -25,6 +25,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.auto.HardcodedAutos;
+import frc.robot.auto.SweepAuto;
 import frc.robot.auto.dashboard.DashboardAutoManager;
 import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.generated.TunerConstants;
@@ -310,6 +311,10 @@ public class RobotContainer {
     // Hardcoded fallback autos — reads Start Pose from dashboard auto settings
     hardcodedAutos = new HardcodedAutos(drive, superstructure, dashboardAutoManager);
     autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
+
+    // Sweep auto — rush to midfield, S-shape sweep while shoot-while-intaking
+    SweepAuto sweepAuto = new SweepAuto(drive, superstructure, climb, dashboardAutoManager);
+    autoChooser.addOption("Sweep Auto", sweepAuto.getCommand());
 
     // ===== ORCHESTRA (Play Music) AUTO =====
     // Only create on real robot — Orchestra requires real TalonFX hardware

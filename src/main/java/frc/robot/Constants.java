@@ -680,7 +680,7 @@ public final class Constants {
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
     // PID and Feedforward Constants (Slot 0 â€” MotionMagicVoltage position control)
-    public static final double KP = 10.0;
+    public static final double KP = 2.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.0;
@@ -690,12 +690,12 @@ public final class Constants {
 
     // Velocity PID and Feedforward Constants (Slot 1 â€” VelocityVoltage path following)
     // Matched to ShooterConstants velocity control gains
-    public static final double VELOCITY_KP = 0.5;
+    public static final double VELOCITY_KP = 0.06;
     public static final double VELOCITY_KI = 0.0;
     public static final double VELOCITY_KD = 0.0;
-    public static final double VELOCITY_KS = 0.25;
-    public static final double VELOCITY_KV = 0.12;
-    public static final double VELOCITY_KA = 0.01;
+    public static final double VELOCITY_KS = 0.0;
+    public static final double VELOCITY_KV = 0.115;
+    public static final double VELOCITY_KA = 0.0;
 
     // Motion Magic Constants (in mechanism/drum rotations per second)
     // IO layer converts to motor units: motorVel = drumVel / GEAR_RATIO

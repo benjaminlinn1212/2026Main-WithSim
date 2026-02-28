@@ -54,18 +54,19 @@ Registered via `autoChooser.addOption()` in `RobotContainer`:
 All coordinates **blue-alliance origin**. REBUILT uses **point symmetry** (180° rotation about field center) — use `FieldConstants.flipPose()`/`flipTranslation()` for red. Key files: `FieldConstants.java` (zones, waypoints, trenches), `AutoTuning.java` (behavioral thresholds).
 
 ## Build & Development
-- **Java 17**, **GradleRIO 2026.1.1**, Windows: `.\gradlew.bat`
+- **Java 17**, **GradleRIO 2026.2.1**, Windows: `.\gradlew.bat`
 - `.\gradlew.bat build` — Spotless (google-java-format) + BOM stripping + gversion
-- `.\gradlew.bat compileJava` — compile only
+- `.\gradlew.bat compileJava` — compile only (includes `-Xlint:deprecation`)
 - `.\gradlew.bat deploy` — deploy to roboRIO
 - `.\gradlew.bat simulateJava` — Maple-Sim arena with FUEL game pieces
 - Spotless auto-runs before compile. Code is formatted on build.
 - Vendor deps: Phoenix6, REVLib, PathplannerLib, AdvantageKit, maple-sim, PhotonLib, Studica
 
 ## Conventions
+- **No deprecated APIs.** Never use deprecated methods/classes. Check vendor changelogs when updating deps. The build enables `-Xlint:deprecation` — any deprecated usage is a compile warning. When a library deprecates an API (e.g. PathPlannerLib's `setRotationTargetOverride` → `overrideRotationFeedback`), migrate immediately.
 - **Logging:** `Logger.recordOutput("Subsystem/Key", value)` for telemetry; `Logger.processInputs()` for IO.
 - **Constants:** `Constants.java` (nested `XxxConstants` per subsystem) or `AutoTuning.java` (auto thresholds). No magic numbers.
 - **Drive:** `drive.driveFieldRelative(vx, vy, omega)`, `drive.getPose()` from RobotState, `AutoBuilder.pathfindToPose()` for pathing.
 - **Deferred commands:** `Commands.defer(() -> ..., Set.of(drive))` for alliance-aware auto commands.
 - **ChezySequenceCommandGroup:** Use in performance-critical auto paths (runs multiple commands per cycle).
-- **Trenches:** Snap heading to cardinal near trenches (22.25in ceiling). PathPlanner rotation override + teleop trench assist in `FieldConstants`.
+- **Trenches:** Snap heading to cardinal near trenches (22.25in ceiling). PathPlanner `overrideRotationFeedback` (with own PID) + teleop trench assist in `FieldConstants`.

@@ -13,6 +13,7 @@ import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.pathfinding.LocalADStar;
 import com.pathplanner.lib.pathfinding.Pathfinding;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -69,6 +70,7 @@ import frc.robot.subsystems.turret.TurretIOSim;
 import frc.robot.subsystems.turret.TurretIOTalonFX;
 import frc.robot.subsystems.turret.TurretSubsystem;
 import frc.robot.subsystems.vision.VisionIOHardwareLimelight;
+import frc.robot.subsystems.vision.VisionIOPhotonSim;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import frc.robot.util.ShooterSetpoint;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
@@ -288,8 +290,23 @@ public class RobotContainer {
                                 estimate.getTimestampSeconds()),
                             estimate.getVisionMeasurementStdDevs()));
         break;
+      case SIM:
+        // SIM: PhotonVision camera simulation with AprilTag detection
+        vision =
+            new VisionSubsystem(
+                new VisionIOPhotonSim(drive::getPose, robotState),
+                robotState,
+                estimate ->
+                    drive
+                        .getDriveIO()
+                        .addVisionMeasurement(
+                            estimate.getVisionRobotPoseMeters(),
+                            com.ctre.phoenix6.Utils.fpgaToCurrentTime(
+                                estimate.getTimestampSeconds()),
+                            estimate.getVisionMeasurementStdDevs()));
+        break;
       default:
-        // SIM and REPLAY: no-op vision IO
+        // REPLAY: no-op vision IO
         vision = new VisionSubsystem(inputs -> {}, robotState, estimate -> {});
         break;
     }
@@ -343,7 +360,6 @@ public class RobotContainer {
   }
 
   /** Configure PathPlanner AutoBuilder for pathfinding and auto paths. */
-  @SuppressWarnings("deprecation")
   private void configureAutoBuilder() {
     try {
       // Use AD* pathfinder (PathPlannerLib's LocalADStar) for real-time pathfinding
@@ -382,22 +398,39 @@ public class RobotContainer {
       System.out.println("[RobotContainer] AutoBuilder configured successfully");
 
       // ===== Trench Heading Override =====
-      // When the robot is inside/near a TRENCH, override PathPlanner's rotation target
-      // to the nearest cardinal direction (0/90/180/270°). This ensures the robot
-      // maintains the correct heading DURING transit through the 22.25in tunnel,
-      // not just at the destination.
-      PPHolonomicDriveController.setRotationTargetOverride(
-          () -> {
-            Pose2d pose = drive.getPose();
-            if (FieldConstants.isNearTrench(pose.getTranslation())) {
-              Rotation2d snapped =
-                  superstructure.isIntakeDeployed()
-                      ? FieldConstants.snapToHorizontal(pose.getRotation())
-                      : FieldConstants.snapToCardinal(pose.getRotation());
-              return java.util.Optional.of(snapped);
-            }
-            return java.util.Optional.empty();
-          });
+      // When the robot is inside/near a TRENCH, override PathPlanner's rotation feedback
+      // to snap the heading to the nearest cardinal direction (0/90/180/270°). This ensures
+      // the robot maintains the correct heading DURING transit through the 22.25in tunnel.
+      //
+      // Uses overrideRotationFeedback (replaces deprecated setRotationTargetOverride):
+      // we supply our own PID controller output (rad/s) instead of a target angle.
+      // A Trigger dynamically installs/clears the override on trench entry/exit so
+      // PathPlanner's internal rotation PID is used normally outside trenches.
+      @SuppressWarnings(
+          "resource") // PIDController implements AutoCloseable but is never closed in FRC
+      PIDController trenchRotationPID =
+          new PIDController(Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0, 0);
+      trenchRotationPID.enableContinuousInput(-Math.PI, Math.PI);
+
+      new edu.wpi.first.wpilibj2.command.button.Trigger(
+              () -> FieldConstants.isNearTrench(drive.getPose().getTranslation()))
+          .onTrue(
+              Commands.runOnce(
+                  () -> {
+                    trenchRotationPID.reset();
+                    PPHolonomicDriveController.overrideRotationFeedback(
+                        () -> {
+                          Pose2d pose = drive.getPose();
+                          Rotation2d snapped =
+                              superstructure.isIntakeDeployed()
+                                  ? FieldConstants.snapToHorizontal(pose.getRotation())
+                                  : FieldConstants.snapToCardinal(pose.getRotation());
+                          return trenchRotationPID.calculate(
+                              pose.getRotation().getRadians(), snapped.getRadians());
+                        });
+                  }))
+          .onFalse(
+              Commands.runOnce(() -> PPHolonomicDriveController.clearRotationFeedbackOverride()));
       System.out.println("[RobotContainer] Trench rotation override configured");
     } catch (Exception e) {
       System.err.println("[RobotContainer] CRITICAL: Failed to configure AutoBuilder!");

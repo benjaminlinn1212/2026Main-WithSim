@@ -3,6 +3,8 @@
 
 package frc.robot.auto.dashboard;
 
+import edu.wpi.first.apriltag.AprilTagFieldLayout;
+import edu.wpi.first.apriltag.AprilTagFields;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -561,6 +563,19 @@ public final class FieldConstants {
     omega = Math.copySign(Math.min(Math.abs(omega), maxOmega), omega);
 
     return omega;
+  }
+
+  // ===== AprilTag Field Layout =====
+  // Uses the official 2026 REBUILT welded field layout from WPILib (added in 2026.2.1).
+
+  /**
+   * Get the official 2026 REBUILT AprilTag field layout from WPILib. This uses the welded variant
+   * which is the default for competition fields.
+   *
+   * @return The AprilTagFieldLayout for the 2026 REBUILT field
+   */
+  public static AprilTagFieldLayout getAprilTagFieldLayout() {
+    return AprilTagFieldLayout.loadField(AprilTagFields.k2026RebuiltWelded);
   }
 
   // ===== HUB 3D Positions =====

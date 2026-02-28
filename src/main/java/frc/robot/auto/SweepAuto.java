@@ -25,7 +25,6 @@ import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -33,10 +32,10 @@ import java.util.Set;
  * translation while spinning at a constant angular velocity. Superstructure stays idle. If "Attempt
  * TOWER Climb" is checked, climbs afterward.
  *
- * <p>The constant spin is achieved by overriding PathPlanner's rotation target with a continuously
- * advancing angle. The override also handles trench snapping (since it replaces the global override
- * from RobotContainer), ensuring the robot locks heading when passing through trenches during both
- * the sweep and the climb pathfinding phases.
+ * <p>The constant spin is achieved by overriding PathPlanner's rotation feedback with a PID
+ * controller tracking a continuously advancing angle. The override also handles trench snapping
+ * (since it replaces the global override from RobotContainer), ensuring the robot locks heading
+ * when passing through trenches during both the sweep and the climb pathfinding phases.
  *
  * <p>Draw/edit the sweep pattern in PathPlanner: {@code deploy/pathplanner/paths/Sweep Path.path}.
  */
@@ -61,6 +60,18 @@ public class SweepAuto {
   /** Signed omega for the current sweep — set at auto init based on start pose. */
   private double sweepOmega = SWEEP_OMEGA_RAD_PER_SEC;
 
+  /**
+   * PID controller for the rotation feedback override. Uses the same gains as PathPlanner's
+   * holonomic controller so trench-snap and sweep-spin feel consistent with normal path following.
+   */
+  @SuppressWarnings("resource")
+  private final PIDController rotationPID =
+      new PIDController(Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0, 0);
+
+  {
+    rotationPID.enableContinuousInput(-Math.PI, Math.PI);
+  }
+
   public SweepAuto(
       DriveSwerveDrivetrain drive,
       Superstructure superstructure,
@@ -77,24 +88,29 @@ public class SweepAuto {
   }
 
   /**
-   * Returns the rotation override supplier. Trench snapping is ALWAYS active (since this override
-   * replaces the global one from RobotContainer). When spinning, returns a continuously advancing
-   * angle unless near a trench. When not spinning (e.g. climb pathfinding), still snaps to cardinal
-   * near trenches so the robot doesn't get stuck.
+   * Computes the rotation feedback (rad/s) for {@link
+   * PPHolonomicDriveController#overrideRotationFeedback}. Handles trench snapping (always), sweep
+   * spinning (when active), and falls through to zero feedback otherwise (feedforward-only — the
+   * path's rotation feedforward still applies).
    */
-  private Optional<Rotation2d> getRotationOverride() {
+  private double getRotationFeedback() {
+    Pose2d pose = drive.getPose();
+    double currentRad = pose.getRotation().getRadians();
+
     // Near a trench — always lock heading to cardinal so we fit through the 22.25in ceiling
-    if (FieldConstants.isNearTrench(drive.getPose().getTranslation())) {
-      return Optional.of(
+    if (FieldConstants.isNearTrench(pose.getTranslation())) {
+      Rotation2d snapped =
           superstructure.isIntakeDeployed()
-              ? FieldConstants.snapToHorizontal(drive.getPose().getRotation())
-              : FieldConstants.snapToCardinal(drive.getPose().getRotation()));
+              ? FieldConstants.snapToHorizontal(pose.getRotation())
+              : FieldConstants.snapToCardinal(pose.getRotation());
+      return rotationPID.calculate(currentRad, snapped.getRadians());
     }
-    if (!spinActive) {
-      return Optional.empty();
+    if (spinActive) {
+      double targetRad = startHeadingRad + sweepOmega * spinTimer.get();
+      return rotationPID.calculate(currentRad, targetRad);
     }
-    double targetRad = startHeadingRad + sweepOmega * spinTimer.get();
-    return Optional.of(Rotation2d.fromRadians(targetRad));
+    // Not in trench, not spinning — return zero feedback (feedforward-only)
+    return 0.0;
   }
 
   private Command buildSweepAuto() {
@@ -113,8 +129,8 @@ public class SweepAuto {
       return Commands.print("[SweepAuto] ERROR: Could not load path '" + pathName + "'");
     }
 
-    // Install our override (coexists with trench-snap — returns empty when not spinning)
-    PPHolonomicDriveController.setRotationTargetOverride(this::getRotationOverride);
+    // Install our rotation feedback override (handles trench snap + sweep spin)
+    PPHolonomicDriveController.overrideRotationFeedback(this::getRotationFeedback);
 
     Command sweepSequence =
         Commands.sequence(
@@ -149,7 +165,13 @@ public class SweepAuto {
               climb.setStateCommand(ClimbState.RETRACT_L1_AUTO));
     }
 
-    return sweepSequence.withName("SweepAuto");
+    return sweepSequence
+        .finallyDo(
+            (interrupted) -> {
+              // Clear our rotation feedback override so RobotContainer's trench Trigger resumes
+              PPHolonomicDriveController.clearRotationFeedbackOverride();
+            })
+        .withName("SweepAuto");
   }
 
   // ===== Climb Approach Helpers (mirrors AutoCommandBuilder) =====
@@ -181,6 +203,7 @@ public class SweepAuto {
    * 2910-style PID drive-to-pose. Linear PID drives distance error to zero while a heading PID
    * holds the target angle. Static friction feedforward prevents stalling at small distances.
    */
+  @SuppressWarnings("resource") // PIDController implements AutoCloseable but is never closed in FRC
   private Command buildDriveToPose(
       Pose2d target, double maxVelocity, double driveTolerance, double thetaTolerance) {
     PIDController driveController =

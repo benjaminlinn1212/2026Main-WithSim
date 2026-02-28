@@ -129,19 +129,56 @@ public final class AutoTuning {
   // whether there's enough time to continue cycling or to abort to climb.
 
   /**
+   * When true, the time estimation for intake dwell and shooting includes the current-detection
+   * timing constants ({@link #INTAKE_NO_FUEL_TIME_SECONDS}, {@link #SHOOTER_DONE_TIME_SECONDS},
+   * {@link #SHOOTER_DETECT_TIMEOUT_SECONDS}). This gives a more conservative (realistic) estimate
+   * that accounts for the time the robot waits for current-based FUEL presence/absence detection.
+   *
+   * <p>When false, the fixed estimates ({@link #STOP_AND_SHOOT_DURATION}, {@link
+   * #INTAKE_DWELL_ESTIMATE}) are used as-is — simpler but may underestimate actual cycle time.
+   *
+   * <p>TUNE THIS: Enable once current detection is tuned and you want tighter time budgets.
+   */
+  public static final boolean USE_CURRENT_DETECTION_TIMING = false;
+
+  /**
+   * TUNE THIS: Estimated time (seconds) for aim convergence + shooter spin-up before the first FUEL
+   * exits. Used only when {@link #USE_CURRENT_DETECTION_TIMING} is true.
+   */
+  public static final double AIM_CONVERGENCE_SECONDS = 0.3;
+
+  /**
+   * TUNE THIS: Estimated time (seconds) for the robot to decelerate to a stop at an intake
+   * location. Used only when {@link #USE_CURRENT_DETECTION_TIMING} is true.
+   */
+  public static final double INTAKE_DECEL_SECONDS = 0.3;
+
+  /**
    * Estimated time (seconds) for a stop-and-shoot action: pathfind to scoring waypoint, come to a
    * stop, aim, fire all FUEL, and resume. Includes aim convergence + shooter spin-up + firing all
    * loaded FUEL. On a real robot this is typically 1.0-1.5s; in sim it uses {@link
    * #SIM_SHOOTER_DONE_SECONDS}. Use the worst-case estimate for safe time budgeting.
+   *
+   * <p>When {@link #USE_CURRENT_DETECTION_TIMING} is true, uses {@link #AIM_CONVERGENCE_SECONDS} +
+   * {@link #SHOOTER_DETECT_TIMEOUT_SECONDS} (worst-case current detection wait) instead of the
+   * fixed estimate.
    */
-  public static final double STOP_AND_SHOOT_DURATION = 1.5;
+  public static final double STOP_AND_SHOOT_DURATION =
+      USE_CURRENT_DETECTION_TIMING ? AIM_CONVERGENCE_SECONDS + SHOOTER_DETECT_TIMEOUT_SECONDS : 1.5;
 
   /**
    * Estimated time (seconds) spent at an intake location picking up FUEL — deceleration, dwell for
    * current detection or sim latch, and any nudge recovery. On a real robot: ~0.5-1.0s. In sim:
    * nearly instant but the pathfinder still decelerates.
+   *
+   * <p>When {@link #USE_CURRENT_DETECTION_TIMING} is true, uses {@link #INTAKE_DECEL_SECONDS} +
+   * {@link #INTAKE_NO_FUEL_TIME_SECONDS} + {@link #INTAKE_NUDGE_TIMEOUT_SECONDS} (worst-case: no
+   * fuel, nudge, retry) instead of the fixed estimate.
    */
-  public static final double INTAKE_DWELL_ESTIMATE = 1.0;
+  public static final double INTAKE_DWELL_ESTIMATE =
+      USE_CURRENT_DETECTION_TIMING
+          ? INTAKE_DECEL_SECONDS + INTAKE_NO_FUEL_TIME_SECONDS + INTAKE_NUDGE_TIMEOUT_SECONDS
+          : 1.0;
 
   /**
    * Estimated time (seconds) for a shoot-while-driving (SWD) pass through the HUB zone. The robot

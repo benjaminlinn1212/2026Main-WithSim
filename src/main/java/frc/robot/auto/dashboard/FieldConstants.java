@@ -140,6 +140,25 @@ public final class FieldConstants {
     return Rotation2d.fromDegrees(snapped);
   }
 
+  /**
+   * Snap an angle to the nearest horizontal direction (0° or 180°). Used when the intake is
+   * deployed — the robot is wider along 90°/270° and must only travel through trenches at 0° or
+   * 180°.
+   *
+   * @param currentHeading The heading to snap
+   * @return The nearest horizontal Rotation2d (0 or 180 degrees)
+   */
+  public static Rotation2d snapToHorizontal(Rotation2d currentHeading) {
+    double degrees = currentHeading.getDegrees();
+    // Normalize to [0, 360)
+    degrees = ((degrees % 360) + 360) % 360;
+    // Round to nearest 180°
+    double snapped = Math.round(degrees / 180.0) * 180.0;
+    // Wrap 360 → 0
+    if (snapped >= 360.0) snapped = 0.0;
+    return Rotation2d.fromDegrees(snapped);
+  }
+
   // ===== Teleop Trench Assist Helpers =====
 
   /** Center Y of the upper trench (midpoint of Y band). */
@@ -492,6 +511,7 @@ public final class FieldConstants {
    * @param orientationKp P-gain (rad/s per radian of chassis heading error)
    * @param maxOmega Maximum omega correction magnitude (rad/s)
    * @param buffer Approach buffer distance (meters) outside trench walls
+   * @param intakeDeployed If true, snap heading to 0°/180° only instead of all four cardinals
    * @return Omega correction in rad/s to add to the driver's omega. Positive = CCW.
    */
   public static double getTrenchOrientationOmega(
@@ -504,7 +524,8 @@ public final class FieldConstants {
       double maxHeadingErrorDeg,
       double orientationKp,
       double maxOmega,
-      double buffer) {
+      double buffer,
+      boolean intakeDeployed) {
 
     double speed = Math.sqrt(vxFieldMps * vxFieldMps + vyFieldMps * vyFieldMps);
     if (speed < minSpeedMps) {
@@ -527,8 +548,9 @@ public final class FieldConstants {
       return 0.0;
     }
 
-    // Snap the *robot chassis heading* to the nearest cardinal
-    Rotation2d targetHeading = snapToCardinal(robotHeading);
+    // Snap the *robot chassis heading* to the nearest cardinal (or horizontal if intake deployed)
+    Rotation2d targetHeading =
+        intakeDeployed ? snapToHorizontal(robotHeading) : snapToCardinal(robotHeading);
     // Compute heading error (shortest path)
     double headingErrorRad = targetHeading.minus(robotHeading).getRadians();
 

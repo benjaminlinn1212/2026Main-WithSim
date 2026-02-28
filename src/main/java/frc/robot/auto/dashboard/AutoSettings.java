@@ -24,7 +24,7 @@ import org.littletonrobotics.junction.Logger;
  *   <li>Start pose — which DRIVER STATION side to start at
  *   <li>Shooting priority — preferred positions around the HUB to shoot FUEL
  *   <li>Preferred intake — OUTPOST (human player), DEPOT (floor bin), or NEUTRAL ZONE (ground)
- *   <li>Climb level — which TOWER RUNG to attempt (LEVEL 1/2/3, different point values)
+ *   <li>Climb pose — which side of TOWER to approach (auto always climbs L1)
  *   <li>Risk level — conservative/balanced/aggressive time budgets
  * </ul>
  *

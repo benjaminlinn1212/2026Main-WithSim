@@ -129,14 +129,8 @@ public class ShooterIOSim implements ShooterIO {
     // Shooter facing = robot heading + turret angle
     Rotation2d shooterFacing = robotPose.getRotation().plus(Rotation2d.fromRadians(turretAngleRad));
 
-    // Shooter offset from robot center:
-    //  1. Turret pivot is fixed on the robot frame (not rotated by turret)
-    //  2. Hood/shooter exit is forward of the turret pivot (rotated by turret angle)
-    Translation2d turretPivotOnRobot = Constants.TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
-    Translation2d hoodExitFromTurret =
-        new Translation2d(Constants.MechanismVisualization.HOOD_X_FROM_TURRET_M, 0)
-            .rotateBy(Rotation2d.fromRadians(turretAngleRad));
-    Translation2d shooterOffsetOnRobot = turretPivotOnRobot.plus(hoodExitFromTurret);
+    // Shooter exit XY = turret center on the robot
+    Translation2d shooterOffsetOnRobot = Constants.TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
 
     // Get the hood angle (radians from horizontal) and compute launch angle = 90 - hood
     double hoodAngleDeg = Math.toDegrees(hoodAngleRadSupplier.getAsDouble());

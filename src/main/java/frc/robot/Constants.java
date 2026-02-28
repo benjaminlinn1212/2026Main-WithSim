@@ -158,9 +158,9 @@ public final class Constants {
       public static final double STATIC_FRICTION_CONSTANT = 1.2;
       public static final double MAX_VELOCITY = 3.0;
 
-      public static final double ROTATION_KP = 5;
+      public static final double ROTATION_KP = 7;
       public static final double ROTATION_KI = 0.0;
-      public static final double ROTATION_KD = 0.1;
+      public static final double ROTATION_KD = 0;
       public static final double ROTATION_TOLERANCE = Units.degreesToRadians(1);
     }
 
@@ -179,8 +179,8 @@ public final class Constants {
      * Both effects ramp from 0 at the buffer edge to full strength inside the trench.
      */
     public static class TrenchAssist {
-      /** Maximum blend factor (0â€“1). 0.7 = the driver always retains at least 30% authority. */
-      public static final double MAX_BLEND_FACTOR = 0.8;
+
+      public static final double MAX_BLEND_FACTOR = 0.9;
 
       /**
        * Teleop approach buffer (meters). How far outside the trench walls the assist begins
@@ -189,7 +189,7 @@ public final class Constants {
        * heading snap and Superstructure hood stow. Larger = assist starts earlier, more time to
        * center.
        */
-      public static final double APPROACH_BUFFER = 2.0;
+      public static final double APPROACH_BUFFER = 2.5;
 
       /**
        * Minimum speed (m/s) below which the assist is inactive. Prevents the assist from
@@ -222,7 +222,7 @@ public final class Constants {
        * rate so the trench assist doesn't spin the robot violently. The heading P-gain itself is
        * reused from {@link DriveToPose#ROTATION_KP} â€” no separate KP needed.
        */
-      public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 2.0;
+      public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 4.0;
 
       // === Wall Avoidance ===
 
@@ -238,7 +238,7 @@ public final class Constants {
        * Higher = harder virtual wall. At 4.0, a 0.1m encroachment produces 0.4 m/s of push-back â€”
        * firm enough to prevent wall contact without feeling like a spring.
        */
-      public static final double WALL_REPULSION_MPS_PER_METER = 5.0;
+      public static final double WALL_REPULSION_MPS_PER_METER = 6.0;
 
       /**
        * Distance (meters) from a trench wall at which the repulsion force begins, measured from the
@@ -308,7 +308,7 @@ public final class Constants {
 
     // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 100.0; // rotations per second
-    public static final double ACCELERATION = 200.0; // rotations per second^2
+    public static final double ACCELERATION = 300.0; // rotations per second^2
     public static final double JERK = 2000.0; // rotations per second^3
 
     // Current Limits
@@ -844,8 +844,12 @@ public final class Constants {
     /** Width of the intake zone on the chassis (meters). */
     public static final double INTAKE_WIDTH_METERS = 0.67;
 
-    /** How far the intake extends beyond the chassis frame when deployed (meters). */
-    public static final double INTAKE_EXTENSION_METERS = 0.2;
+    /**
+     * How far the intake extends beyond the chassis frame when deployed (meters). Derived from the
+     * X component of the rack-and-pinion linear extension.
+     */
+    public static final double INTAKE_EXTENSION_METERS =
+        MechanismVisualization.INTAKE_EXTENSION_X_M;
 
     /** Maximum number of fuel the intake can hold at once. */
     public static final int INTAKE_CAPACITY = 20;
@@ -933,24 +937,36 @@ public final class Constants {
      */
     public static final double HOOD_PITCH_OFFSET_RAD = Units.degreesToRadians(-48.0);
 
-    // --- Component 2: Intake Pivot ---
-    /** Height of the intake pivot axis above the floor (meters). */
+    // --- Component 2: Intake (rack-and-pinion linear extension) ---
+    /** Height of the intake mount point above the floor (meters). */
     public static final double INTAKE_PIVOT_HEIGHT_M = 0.25;
-    /** X offset of the intake pivot from robot center (negative = rear of robot, meters). */
+    /** X offset of the intake mount from robot center (negative = rear of robot, meters). */
     public static final double INTAKE_PIVOT_X_M = -0.35;
-    /** Y offset of the intake pivot from robot center (meters). Centered. */
+    /** Y offset of the intake mount from robot center (meters). Centered. */
     public static final double INTAKE_PIVOT_Y_M = 0.0;
+
+    /** Total linear travel of the intake rack when fully extended (meters). */
+    public static final double INTAKE_FULL_TRAVEL_M = 0.28;
     /**
-     * Length of the intake arm from pivot to roller center (meters). Used to position the end of
-     * the arm for visualization.
+     * Tilt angle of the intake slide rail from horizontal (radians). 6.278° → mostly rearward,
+     * slightly downward.
      */
-    public static final double INTAKE_ARM_LENGTH_M = 0.30;
+    public static final double INTAKE_TILT_RAD = Units.degreesToRadians(6.278);
+    /** Motor rotations at full extension (soft-limit forward). */
+    public static final double INTAKE_FULL_TRAVEL_ROTATIONS =
+        IntakePivotConstants.SOFT_LIMIT_FORWARD;
+
     /**
-     * Intake pivot motor rotations for a full 90° sweep (stowed → deployed). Used to convert motor
-     * rotations to radians for visualization.
-     *
-     * <p>pivotAngleRad = (position / ROTATIONS_PER_90_DEG) * (π/2)
+     * X component of full intake extension (meters). 6.278° from horizontal → cos is the large X
+     * part.
      */
-    public static final double ROTATIONS_PER_90_DEG = IntakePivotConstants.DEPLOYED_POSITION;
+    public static final double INTAKE_EXTENSION_X_M =
+        INTAKE_FULL_TRAVEL_M * Math.cos(INTAKE_TILT_RAD);
+    /**
+     * Z component of full intake extension (meters). 6.278° from horizontal → sin is the small Z
+     * part.
+     */
+    public static final double INTAKE_EXTENSION_Z_M =
+        INTAKE_FULL_TRAVEL_M * Math.sin(INTAKE_TILT_RAD);
   }
 }

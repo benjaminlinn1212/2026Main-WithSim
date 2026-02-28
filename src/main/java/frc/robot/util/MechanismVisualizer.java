@@ -28,7 +28,7 @@ import org.littletonrobotics.junction.Logger;
  * <ul>
  *   <li>0 = Turret (yaw)
  *   <li>1 = Hood (pitch, rides on turret)
- *   <li>2 = Intake Pivot (pitch, on rear of frame)
+ *   <li>2 = Intake (rack-and-pinion linear extension, on rear of frame)
  * </ul>
  */
 public class MechanismVisualizer {
@@ -55,8 +55,8 @@ public class MechanismVisualizer {
    *
    * @param turretAngleRad turret yaw in radians (0 = forward, CCW-positive from above)
    * @param hoodAngleRad hood pitch in radians from horizontal (positive = tilted up)
-   * @param intakePivotRotations intake pivot position in motor rotations (0 = stowed, deployed =
-   *     full travel)
+   * @param intakePivotRotations intake pivot position in motor rotations (0 = stowed, 28 = fully
+   *     extended)
    */
   public void update(double turretAngleRad, double hoodAngleRad, double intakePivotRotations) {
 
@@ -92,22 +92,18 @@ public class MechanismVisualizer {
             new Rotation3d(
                 0, hoodAngleRad + MechanismVisualization.HOOD_PITCH_OFFSET_RAD, turretAngleRad));
 
-    // --- Component 2: Intake Pivot ---
-    // Stowed = 90° pitch (pointing straight up), deployed = 0° (horizontal).
-    // Convert motor rotations → angle: full travel sweeps from π/2 down to 0.
-    double pivotFraction =
-        intakePivotRotations / MechanismVisualization.ROTATIONS_PER_90_DEG; // 0..1
-    double pivotAngleRad =
-        (Math.PI / 2.0) - pivotFraction * (Math.PI / 2.0); // π/2 = stowed (up), 0 = deployed
+    // --- Component 2: Intake (rack-and-pinion linear extension) ---
+    // The intake slides linearly along a rail tilted 10° from vertical.
+    // Convert motor rotations → extension fraction (0 = stowed, 1 = full travel).
+    double extensionFraction =
+        intakePivotRotations / MechanismVisualization.INTAKE_FULL_TRAVEL_ROTATIONS;
 
-    componentPoses[2] =
-        new Pose3d(
-            new Translation3d(
-                MechanismVisualization.INTAKE_PIVOT_X_M,
-                MechanismVisualization.INTAKE_PIVOT_Y_M,
-                MechanismVisualization.INTAKE_PIVOT_HEIGHT_M),
-            // Intake pivots around Y axis: π/2 = stowed (up), 0 = deployed (horizontal)
-            new Rotation3d(0, pivotAngleRad, 0));
+    // Compute the XZ offset from the mount point.
+    // Negative X = rearward, negative Z = downward.
+    double deltaX = -extensionFraction * MechanismVisualization.INTAKE_EXTENSION_X_M;
+    double deltaZ = -extensionFraction * MechanismVisualization.INTAKE_EXTENSION_Z_M;
+
+    componentPoses[2] = new Pose3d(new Translation3d(deltaX, 0, deltaZ), new Rotation3d());
 
     // --- Log to AdvantageScope ---
     // "ZeroedComponentPoses" is used during the calibration process (step 4).

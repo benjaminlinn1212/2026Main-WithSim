@@ -1265,17 +1265,21 @@ public class AutoCommandBuilder {
 
   /**
    * If the target pose is near a TRENCH, snap its heading to the nearest cardinal direction
-   * (0°/90°/180°/270°). Otherwise, return the pose unchanged.
+   * (0°/90°/180°/270°), or to horizontal only (0°/180°) when the intake is deployed. Otherwise,
+   * return the pose unchanged.
    *
    * <p>This uses the approach buffer defined in {@link FieldConstants#TRENCH_APPROACH_BUFFER} so
    * the robot is already oriented correctly before it enters the trench.
    *
    * @param pose The original target pose
-   * @return The pose with heading snapped to cardinal if near a trench, otherwise unchanged
+   * @return The pose with heading snapped if near a trench, otherwise unchanged
    */
-  private static Pose2d trenchAwarePose(Pose2d pose) {
+  private Pose2d trenchAwarePose(Pose2d pose) {
     if (FieldConstants.isNearTrench(pose.getTranslation())) {
-      Rotation2d snapped = FieldConstants.snapToCardinal(pose.getRotation());
+      Rotation2d snapped =
+          superstructure.isIntakeDeployed()
+              ? FieldConstants.snapToHorizontal(pose.getRotation())
+              : FieldConstants.snapToCardinal(pose.getRotation());
       return new Pose2d(pose.getTranslation(), snapped);
     }
     return pose;

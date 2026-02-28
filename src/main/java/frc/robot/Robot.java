@@ -271,6 +271,9 @@ public class Robot extends LoggedRobot {
 
     // Place game pieces on the field for simulation
     if (Constants.DriveConstants.USE_MAPLE_SIM) {
+      ((org.ironmaple.simulation.seasonspecific.rebuilt2026.Arena2026Rebuilt)
+              SimulatedArena.getInstance())
+          .setEfficiencyMode(false);
       SimulatedArena.getInstance().placeGamePiecesOnField();
     }
   }

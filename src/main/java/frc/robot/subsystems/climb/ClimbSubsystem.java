@@ -17,6 +17,7 @@ import frc.robot.subsystems.climb.util.ClimbIK.ClimbIKResult;
 import frc.robot.subsystems.climb.util.ClimbPathPlanner;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
@@ -55,8 +56,7 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
 
   // ─── Operator climb level (set from RobotContainer via supplier) ───
-  private java.util.function.Supplier<OperatorClimbLevel> operatorClimbLevelSupplier =
-      () -> OperatorClimbLevel.L2L3;
+  private Supplier<OperatorClimbLevel> operatorClimbLevelSupplier = () -> OperatorClimbLevel.L2L3;
 
   // ─── Calibration mode ───
   private boolean calibrationMode = false;
@@ -300,8 +300,7 @@ public class ClimbSubsystem extends SubsystemBase {
    * Set the supplier for the operator climb level chooser. Called from RobotContainer after
    * constructing the SendableChooser.
    */
-  public void setOperatorClimbLevelSupplier(
-      java.util.function.Supplier<OperatorClimbLevel> supplier) {
+  public void setOperatorClimbLevelSupplier(Supplier<OperatorClimbLevel> supplier) {
     this.operatorClimbLevelSupplier = supplier;
   }
 
@@ -588,6 +587,24 @@ public class ClimbSubsystem extends SubsystemBase {
         .withName("StowFromCurrentState");
   }
 
+  /**
+   * Follow a direct path from the current position to STOWED without touching any servos. Used by
+   * the L1 operator sequence where servos are never involved.
+   */
+  public Command stowPathOnly() {
+    return runPath(
+            () -> {
+              if (currentState == ClimbState.STOWED) return null;
+              Translation2d start = leftTargetPosition;
+              Translation2d end = ClimbState.STOWED.getTargetPosition();
+              currentState = ClimbState.STOWED;
+              Logger.recordOutput("Climb/CurrentState", currentState.getName());
+              return new PathParams(List.of(start, end), false);
+            },
+            "StowPathOnly")
+        .withName("StowPathOnly");
+  }
+
   // -- Helper: reusable path-following command --
 
   private record PathParams(List<Translation2d> waypoints, boolean isPulling) {}
@@ -596,7 +613,7 @@ public class ClimbSubsystem extends SubsystemBase {
    * Creates a command that calls the supplier on initialize to get path params, then follows the
    * path. If supplier returns null, finishes immediately (no path to run).
    */
-  private Command runPath(java.util.function.Supplier<PathParams> paramSupplier, String name) {
+  private Command runPath(Supplier<PathParams> paramSupplier, String name) {
     return new Command() {
       private ClimbPathPlanner.PathExecutor executor;
       private PathParams params;
@@ -1129,14 +1146,14 @@ public class ClimbSubsystem extends SubsystemBase {
   public Command previousClimbStep() {
     return Commands.defer(
         () -> {
-          // ── L1 mode: reverse auto L1 sequence ──
+          // ── L1 mode: reverse auto L1 sequence (no servos) ──
           if (getOperatorClimbLevel() == OperatorClimbLevel.L1) {
             switch (currentState) {
               case EXTEND_L1_AUTO:
-                // Reverse extend path back to STOWED
-                return stowFromCurrentState();
+                // Direct path back to STOWED — no servos, no getPreviousState dependency
+                return stowPathOnly();
               case RETRACT_L1_AUTO:
-                // Reverse retract path back to EXTEND_L1_AUTO (same as releaseFromAutoL1)
+                // Reverse retract path back to EXTEND_L1_AUTO — path only, no servos
                 return releaseFromAutoL1();
               default:
                 return Commands.none();

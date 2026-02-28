@@ -19,6 +19,8 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
@@ -30,6 +32,7 @@ import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
 import frc.robot.subsystems.climb.ClimbIOSim;
 import frc.robot.subsystems.climb.ClimbIOTalonFX;
+import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorIO;
 import frc.robot.subsystems.conveyor.ConveyorIOSim;
@@ -106,9 +109,8 @@ public class RobotContainer {
   private final LoggedDashboardChooser<Command> autoChooser;
 
   // Operator climb level chooser (L1 auto sequence vs full L2L3 teleop sequence)
-  private final edu.wpi.first.wpilibj.smartdashboard.SendableChooser<
-          ClimbSubsystem.OperatorClimbLevel>
-      operatorClimbLevelChooser = new edu.wpi.first.wpilibj.smartdashboard.SendableChooser<>();
+  private final SendableChooser<ClimbSubsystem.OperatorClimbLevel> operatorClimbLevelChooser =
+      new SendableChooser<>();
 
   // Dashboard-driven autonomous system (254/6328 style)
   private DashboardAutoManager dashboardAutoManager;
@@ -262,8 +264,7 @@ public class RobotContainer {
     // L2L3 = full teleop sequence through all rungs with servo operations
     operatorClimbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.OperatorClimbLevel.L2L3);
     operatorClimbLevelChooser.addOption("L1", ClimbSubsystem.OperatorClimbLevel.L1);
-    edu.wpi.first.wpilibj.smartdashboard.SmartDashboard.putData(
-        "Operator/Climb Level", operatorClimbLevelChooser);
+    SmartDashboard.putData("Operator/Climb Level", operatorClimbLevelChooser);
     climb.setOperatorClimbLevelSupplier(
         () -> {
           var selected = operatorClimbLevelChooser.getSelected();
@@ -384,7 +385,11 @@ public class RobotContainer {
           () -> {
             Pose2d pose = drive.getPose();
             if (FieldConstants.isNearTrench(pose.getTranslation())) {
-              return java.util.Optional.of(FieldConstants.snapToCardinal(pose.getRotation()));
+              Rotation2d snapped =
+                  superstructure.isIntakeDeployed()
+                      ? FieldConstants.snapToHorizontal(pose.getRotation())
+                      : FieldConstants.snapToCardinal(pose.getRotation());
+              return java.util.Optional.of(snapped);
             }
             return java.util.Optional.empty();
           });
@@ -472,7 +477,8 @@ public class RobotContainer {
                       Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
                       Constants.DriveConstants.DriveToPose.ROTATION_KP,
                       Constants.DriveConstants.TrenchAssist.MAX_ORIENTATION_OMEGA_RAD_PER_SEC,
-                      trenchBuffer);
+                      trenchBuffer,
+                      superstructure.isIntakeDeployed());
               omegaRadPerSec += orientationOmega;
 
               // 2. Lateral centering — deflects velocity toward trench center Y
@@ -644,7 +650,20 @@ public class RobotContainer {
         .povDown()
         .and(climb::isInCalibrationMode)
         .whileTrue(climb.calibrationLeftFrontReverse());
-    operator.povDown().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowFromCurrentState());
+    // POV Down (normal mode): Stow climb.
+    // L1 auto states use stowPathOnly() (no servos); all others use stowFromCurrentState().
+    operator
+        .povDown()
+        .and(() -> !climb.isInCalibrationMode())
+        .onTrue(
+            Commands.either(
+                climb.stowPathOnly(),
+                climb.stowFromCurrentState(),
+                () ->
+                    climb.getOperatorClimbLevel() == ClimbSubsystem.OperatorClimbLevel.L1
+                        && (climb.getState() == ClimbState.EXTEND_L1_AUTO
+                            || climb.getState() == ClimbState.RETRACT_L1_AUTO
+                            || climb.getState() == ClimbState.STOWED)));
 
     // POV Left/Right: Left back motor ±3V (whileTrue in cal mode, onTrue in normal mode)
     operator

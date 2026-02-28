@@ -1,4 +1,4 @@
-// Copyright (c) 2026 FRC Team 0 (Amped)
+// Copyright (c) 2026 FRC Team 10922 (Amped)
 // Hardcoded fallback autonomous routines — one per lane (UPPER, CENTER, LOWER)
 
 package frc.robot.auto;

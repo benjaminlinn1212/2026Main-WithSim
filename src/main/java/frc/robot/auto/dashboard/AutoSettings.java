@@ -1,4 +1,4 @@
-// Copyright (c) 2026 FRC Team 0 (Amped)
+// Copyright (c) 2026 FRC Team 10922 (Amped)
 // Dashboard-driven autonomous system — Configurable settings for REBUILT
 
 package frc.robot.auto.dashboard;

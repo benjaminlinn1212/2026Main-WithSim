@@ -1,4 +1,4 @@
-# Copilot Instructions — 2026 REBUILT FRC Robot (Team 0, Amped)
+# Copilot Instructions — 2026 REBUILT FRC Robot (Team 10922, Amped)
 
 ## Architecture
 WPILib Command-based robot on **AdvantageKit** (logging/replay), **CTRE Phoenix 6** swerve, **Maple-Sim** physics sim. Follows **Team 254** patterns.

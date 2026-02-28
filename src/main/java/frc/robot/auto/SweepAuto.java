@@ -1,4 +1,4 @@
-// Copyright (c) 2026 FRC Team 0 (Amped)
+// Copyright (c) 2026 FRC Team 10922 (Amped)
 // Sweep autonomous — pathfind to start of predrawn sweep path, follow its XY while spinning at
 // constant angular velocity, optionally climb afterward
 

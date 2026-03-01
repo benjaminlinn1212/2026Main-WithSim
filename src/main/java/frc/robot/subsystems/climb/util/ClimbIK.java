@@ -489,22 +489,52 @@ public class ClimbIK {
       return ClimbSideVelocityResult.invalid();
     }
 
-    // Calculate partial derivatives using central differences
-    ClimbSideIKResult posXPlus = calculateIK(position.getX() + h, position.getY());
-    ClimbSideIKResult posXMinus = calculateIK(position.getX() - h, position.getY());
-    if (!posXPlus.isValid || !posXMinus.isValid) {
-      return ClimbSideVelocityResult.invalid();
+    // Calculate partial derivatives using central differences with one-sided fallback.
+    // Near workspace/joint boundaries, one side of the perturbation may be invalid.
+    // Fall back to one-sided (forward or backward) difference to keep the Jacobian valid.
+    double dFront_dx;
+    double dBack_dx;
+    {
+      ClimbSideIKResult posXPlus = calculateIK(position.getX() + h, position.getY());
+      ClimbSideIKResult posXMinus = calculateIK(position.getX() - h, position.getY());
+      if (posXPlus.isValid && posXMinus.isValid) {
+        // Central difference (most accurate)
+        dFront_dx = (posXPlus.frontMotorRotations - posXMinus.frontMotorRotations) / (2.0 * h);
+        dBack_dx = (posXPlus.backMotorRotations - posXMinus.backMotorRotations) / (2.0 * h);
+      } else if (posXPlus.isValid) {
+        // Forward difference
+        dFront_dx = (posXPlus.frontMotorRotations - current.frontMotorRotations) / h;
+        dBack_dx = (posXPlus.backMotorRotations - current.backMotorRotations) / h;
+      } else if (posXMinus.isValid) {
+        // Backward difference
+        dFront_dx = (current.frontMotorRotations - posXMinus.frontMotorRotations) / h;
+        dBack_dx = (current.backMotorRotations - posXMinus.backMotorRotations) / h;
+      } else {
+        return ClimbSideVelocityResult.invalid();
+      }
     }
-    double dFront_dx = (posXPlus.frontMotorRotations - posXMinus.frontMotorRotations) / (2.0 * h);
-    double dBack_dx = (posXPlus.backMotorRotations - posXMinus.backMotorRotations) / (2.0 * h);
 
-    ClimbSideIKResult posYPlus = calculateIK(position.getX(), position.getY() + h);
-    ClimbSideIKResult posYMinus = calculateIK(position.getX(), position.getY() - h);
-    if (!posYPlus.isValid || !posYMinus.isValid) {
-      return ClimbSideVelocityResult.invalid();
+    double dFront_dy;
+    double dBack_dy;
+    {
+      ClimbSideIKResult posYPlus = calculateIK(position.getX(), position.getY() + h);
+      ClimbSideIKResult posYMinus = calculateIK(position.getX(), position.getY() - h);
+      if (posYPlus.isValid && posYMinus.isValid) {
+        // Central difference (most accurate)
+        dFront_dy = (posYPlus.frontMotorRotations - posYMinus.frontMotorRotations) / (2.0 * h);
+        dBack_dy = (posYPlus.backMotorRotations - posYMinus.backMotorRotations) / (2.0 * h);
+      } else if (posYPlus.isValid) {
+        // Forward difference
+        dFront_dy = (posYPlus.frontMotorRotations - current.frontMotorRotations) / h;
+        dBack_dy = (posYPlus.backMotorRotations - current.backMotorRotations) / h;
+      } else if (posYMinus.isValid) {
+        // Backward difference
+        dFront_dy = (current.frontMotorRotations - posYMinus.frontMotorRotations) / h;
+        dBack_dy = (current.backMotorRotations - posYMinus.backMotorRotations) / h;
+      } else {
+        return ClimbSideVelocityResult.invalid();
+      }
     }
-    double dFront_dy = (posYPlus.frontMotorRotations - posYMinus.frontMotorRotations) / (2.0 * h);
-    double dBack_dy = (posYPlus.backMotorRotations - posYMinus.backMotorRotations) / (2.0 * h);
 
     // Apply chain rule: dθ/dt = (∂θ/∂x)(dx/dt) + (∂θ/∂y)(dy/dt)
     double frontMotorVel = dFront_dx * velocity.getX() + dFront_dy * velocity.getY();

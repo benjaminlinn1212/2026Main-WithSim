@@ -36,20 +36,6 @@ public class IntakeSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to run the intake in reverse (outtake)
-   *
-   * @return A command that runs the intake in reverse
-   */
-  public Command outtake() {
-    return run(() -> {
-          io.setUpperPercent(IntakeConstants.UPPER_OUTTAKE_PERCENT);
-          io.setLowerPercent(IntakeConstants.LOWER_OUTTAKE_PERCENT);
-        })
-        .finallyDo(() -> io.stop())
-        .withName("Outtake");
-  }
-
-  /**
    * Command to stop the intake
    *
    * @return A command that stops the intake
@@ -81,15 +67,6 @@ public class IntakeSubsystem extends SubsystemBase {
   public void applyIntake() {
     io.setUpperPercent(IntakeConstants.UPPER_INTAKE_PERCENT);
     io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
-  }
-
-  /**
-   * Directly apply outtake motor output. Called by Superstructure.periodic() every cycle when the
-   * wanted state requires the intake to eject.
-   */
-  public void applyOuttake() {
-    io.setUpperPercent(IntakeConstants.UPPER_OUTTAKE_PERCENT);
-    io.setLowerPercent(IntakeConstants.LOWER_OUTTAKE_PERCENT);
   }
 
   /**

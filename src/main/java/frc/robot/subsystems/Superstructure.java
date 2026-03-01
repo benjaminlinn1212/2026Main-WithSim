@@ -46,7 +46,6 @@ public class Superstructure extends SubsystemBase {
     ONLY_SHOOTING,
     AIMING_WHILE_INTAKING,
     SHOOTING_WHILE_INTAKING,
-    EJECT,
     EMERGENCY
   }
 
@@ -165,7 +164,6 @@ public class Superstructure extends SubsystemBase {
   //  ONLY_SHOOTING            | aim    | aim    | spinUp  | stow        | stop   | feed     | feed
   //  AIMING_WHILE_INTAKING    | aim    | aim    | spinUp  | deploy      | intake | stop     | stop
   //  SHOOTING_WHILE_INTAKING  | aim    | aim    | spinUp  | deploy      | intake | feed     | feed
-  //  EJECT                    | stow   | stow   | stop    | deploy      | outtake| reverse  | stop
 
   @Override
   public void periodic() {
@@ -296,17 +294,6 @@ public class Superstructure extends SubsystemBase {
         leds.setShooting();
         break;
 
-      case EJECT:
-        turret.applyStow();
-        hood.applyStow();
-        shooter.stopMotor();
-        applyIntakePivotDeploy();
-        intake.applyOuttake();
-        conveyor.applyFeedToBucket();
-        indexer.stopMotor();
-        leds.setError();
-        break;
-
       case EMERGENCY:
         // Emergency is entered via emergencyStop() and doesn't continuously re-apply.
         break;
@@ -392,8 +379,7 @@ public class Superstructure extends SubsystemBase {
   private static boolean isIntakeDeployingState(SuperstructureState state) {
     return state == SuperstructureState.ONLY_INTAKE
         || state == SuperstructureState.AIMING_WHILE_INTAKING
-        || state == SuperstructureState.SHOOTING_WHILE_INTAKING
-        || state == SuperstructureState.EJECT;
+        || state == SuperstructureState.SHOOTING_WHILE_INTAKING;
   }
 
   /** Get whether the intake pivot is currently in half-deployed (shake) mode. */
@@ -503,11 +489,6 @@ public class Superstructure extends SubsystemBase {
   /** Set state to SHOOTING_WHILE_INTAKING (intake + aim + feed simultaneously). Instant. */
   public Command shootingWhileIntaking() {
     return setWantedState(SuperstructureState.SHOOTING_WHILE_INTAKING);
-  }
-
-  /** Set state to EJECT (reverse intake, conveyor to bucket). Instant. */
-  public Command eject() {
-    return setWantedState(SuperstructureState.EJECT);
   }
 
   // ==================== Climb (Independent Subsystem) ====================

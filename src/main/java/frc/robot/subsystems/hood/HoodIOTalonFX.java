@@ -26,19 +26,14 @@ public class HoodIOTalonFX implements HoodIO {
 
     motorConfig.Feedback.RotorToSensorRatio = 1.0;
     motorConfig.Feedback.SensorToMechanismRatio = 1.0;
-    motorConfig.Feedback.FeedbackRotorOffset = Constants.HoodConstants.ROTOR_OFFSET;
 
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitEnable = true;
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitThreshold =
-        Units.radiansToRotations(
-                Constants.HoodConstants.MAX_POSITION_RAD
-                    - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG))
+        Units.radiansToRotations(Constants.HoodConstants.MAX_POSITION_RAD)
             / Constants.HoodConstants.GEAR_RATIO;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitThreshold =
-        Units.radiansToRotations(
-                Constants.HoodConstants.MIN_POSITION_RAD
-                    - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG))
+        Units.radiansToRotations(Constants.HoodConstants.MIN_POSITION_RAD)
             / Constants.HoodConstants.GEAR_RATIO;
 
     motorConfig.Slot0.kP = Constants.HoodConstants.KP;
@@ -62,6 +57,12 @@ public class HoodIOTalonFX implements HoodIO {
     motor.getConfigurator().apply(new TalonFXConfiguration());
     motor.getConfigurator().apply(motorConfig);
 
+    // Seed encoder to stow position (radians from horizontal → motor rotations)
+    double stowMotorRot =
+        Units.radiansToRotations(Constants.HoodConstants.STOW_POSITION)
+            / Constants.HoodConstants.GEAR_RATIO;
+    motor.setPosition(stowMotorRot);
+
     motor.optimizeBusUtilization();
   }
 
@@ -70,9 +71,7 @@ public class HoodIOTalonFX implements HoodIO {
     double motorPositionRot = motor.getPosition().getValueAsDouble();
     double mechanismPositionRot = motorPositionRot * Constants.HoodConstants.GEAR_RATIO;
 
-    inputs.positionRad =
-        Units.rotationsToRadians(mechanismPositionRot)
-            + Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG);
+    inputs.positionRad = Units.rotationsToRadians(mechanismPositionRot);
 
     double motorVelocityRotPerSec = motor.getVelocity().getValueAsDouble();
     inputs.velocityRadPerSec =
@@ -82,8 +81,6 @@ public class HoodIOTalonFX implements HoodIO {
     inputs.currentStatorAmps = motor.getStatorCurrent().getValueAsDouble();
     inputs.currentSupplyAmps = motor.getSupplyCurrent().getValueAsDouble();
     inputs.temperatureCelsius = motor.getDeviceTemp().getValueAsDouble();
-
-    inputs.mechanismPositionBeforeOffsetRot = mechanismPositionRot;
   }
 
   @Override
@@ -94,11 +91,8 @@ public class HoodIOTalonFX implements HoodIO {
             Constants.HoodConstants.MIN_POSITION_RAD,
             Constants.HoodConstants.MAX_POSITION_RAD);
 
-    // Subtract zero offset to get mechanism angle from its zero
-    double mechanismAngleRad =
-        clampedRadians - Units.degreesToRadians(Constants.HoodConstants.MECHANISM_ZERO_ANGLE_DEG);
-
-    double mechanismRotations = Units.radiansToRotations(mechanismAngleRad);
+    // Convert position: radians from horizontal → motor rotations
+    double mechanismRotations = Units.radiansToRotations(clampedRadians);
     double motorRotations = mechanismRotations / Constants.HoodConstants.GEAR_RATIO;
 
     // Convert velocity feedforward: rad/s → motor rot/s → volts (via KV)

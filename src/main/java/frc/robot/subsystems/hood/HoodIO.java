@@ -12,8 +12,6 @@ public interface HoodIO {
     public double currentStatorAmps = 0.0;
     public double currentSupplyAmps = 0.0;
     public double temperatureCelsius = 0.0;
-    public double mechanismPositionBeforeOffsetRot =
-        0.0; // Mechanism position from Phoenix 6 (before adding zero offset)
   }
 
   /** Updates the set of loggable inputs. */

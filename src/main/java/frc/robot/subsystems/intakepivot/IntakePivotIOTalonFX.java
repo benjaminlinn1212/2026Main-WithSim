@@ -19,7 +19,6 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.MotorOutput.NeutralMode = IntakePivotConstants.NEUTRAL_MODE;
 
     config.Feedback.SensorToMechanismRatio = 1.0;
-    config.Feedback.FeedbackRotorOffset = IntakePivotConstants.MOTOR_ROTOR_OFFSET;
 
     config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
     config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = IntakePivotConstants.SOFT_LIMIT_FORWARD;
@@ -43,6 +42,9 @@ public class IntakePivotIOTalonFX implements IntakePivotIO {
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
 
     motor.getConfigurator().apply(config);
+
+    // Seed encoder to 0 (stowed position)
+    motor.setPosition(0.0);
 
     motor.optimizeBusUtilization();
   }

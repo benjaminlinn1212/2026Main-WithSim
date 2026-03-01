@@ -1053,86 +1053,105 @@ public class ClimbSubsystem extends SubsystemBase {
 
   // ─── Command-returning versions for teleop/auto ───
 
-  /** Command: stow all secondary hook servos. Fire-and-forget (runOnce). */
+  /** Command: stow all secondary hook servos. Fire-and-forget (no subsystem requirement). */
   public Command stowAllServosCommand() {
-    return runOnce(this::stowAllServos).withName("ClimbStowAllServos");
+    return Commands.runOnce(this::stowAllServos).withName("ClimbStowAllServos");
   }
 
-  /** Command: release all secondary hook servos. Fire-and-forget (runOnce). */
+  /** Command: release all secondary hook servos. Fire-and-forget (no subsystem requirement). */
   public Command releaseAllServosCommand() {
-    return runOnce(this::releaseAllServos).withName("ClimbReleaseAllServos");
+    return Commands.runOnce(this::releaseAllServos).withName("ClimbReleaseAllServos");
   }
 
-  /** Command: stow left secondary hook servos. Fire-and-forget (runOnce). */
+  /** Command: stow left secondary hook servos. Fire-and-forget (no subsystem requirement). */
   public Command stowLeftServosCommand() {
-    return runOnce(this::stowLeftServos).withName("ClimbStowLeftServos");
+    return Commands.runOnce(this::stowLeftServos).withName("ClimbStowLeftServos");
   }
 
-  /** Command: stow right secondary hook servos. Fire-and-forget (runOnce). */
+  /** Command: stow right secondary hook servos. Fire-and-forget (no subsystem requirement). */
   public Command stowRightServosCommand() {
-    return runOnce(this::stowRightServos).withName("ClimbStowRightServos");
+    return Commands.runOnce(this::stowRightServos).withName("ClimbStowRightServos");
   }
 
-  /** Command: release left secondary hook servos. Fire-and-forget (runOnce). */
+  /** Command: release left secondary hook servos. Fire-and-forget (no subsystem requirement). */
   public Command releaseLeftServosCommand() {
-    return runOnce(this::releaseLeftServos).withName("ClimbReleaseLeftServos");
+    return Commands.runOnce(this::releaseLeftServos).withName("ClimbReleaseLeftServos");
   }
 
-  /** Command: release right secondary hook servos. Fire-and-forget (runOnce). */
+  /** Command: release right secondary hook servos. Fire-and-forget (no subsystem requirement). */
   public Command releaseRightServosCommand() {
-    return runOnce(this::releaseRightServos).withName("ClimbReleaseRightServos");
+    return Commands.runOnce(this::releaseRightServos).withName("ClimbReleaseRightServos");
   }
 
-  /** Command: stow both angle servos (left + right). Fire-and-forget (runOnce). */
+  /** Command: stow both angle servos (left + right). Fire-and-forget (no subsystem requirement). */
   public Command stowAngleServosCommand() {
-    return runOnce(this::stowAngleServos).withName("ClimbStowAngleServos");
+    return Commands.runOnce(this::stowAngleServos).withName("ClimbStowAngleServos");
   }
 
-  /** Command: release both angle servos (left + right). Fire-and-forget (runOnce). */
+  /**
+   * Command: release both angle servos (left + right). Fire-and-forget (no subsystem requirement).
+   */
   public Command releaseAngleServosCommand() {
-    return runOnce(this::releaseAngleServos).withName("ClimbReleaseAngleServos");
+    return Commands.runOnce(this::releaseAngleServos).withName("ClimbReleaseAngleServos");
   }
 
-  /** Command: stow both hardstop servos (left + right). Fire-and-forget (runOnce). */
+  /**
+   * Command: stow both hardstop servos (left + right). Fire-and-forget (no subsystem requirement).
+   */
   public Command stowHardstopServosCommand() {
-    return runOnce(this::stowHardstopServos).withName("ClimbStowHardstopServos");
+    return Commands.runOnce(this::stowHardstopServos).withName("ClimbStowHardstopServos");
   }
 
-  /** Command: release both hardstop servos (left + right). Fire-and-forget (runOnce). */
+  /**
+   * Command: release both hardstop servos (left + right). Fire-and-forget (no subsystem
+   * requirement).
+   */
   public Command releaseHardstopServosCommand() {
-    return runOnce(this::releaseHardstopServos).withName("ClimbReleaseHardstopServos");
+    return Commands.runOnce(this::releaseHardstopServos).withName("ClimbReleaseHardstopServos");
   }
 
-  /** Command: stow left angle servo only (no hardstop change). Fire-and-forget (runOnce). */
+  /**
+   * Command: stow left angle servo only (no hardstop change). Fire-and-forget (no subsystem
+   * requirement).
+   */
   public Command stowLeftAngleServoCommand() {
-    return runOnce(
+    return Commands.runOnce(
             () ->
                 io.setLeftSecondaryHookAnglePosition(
                     ClimbConstants.AngleServo.LEFT_STOWED_POSITION))
         .withName("ClimbStowLeftAngleServo");
   }
 
-  /** Command: release left angle servo only (no hardstop change). Fire-and-forget (runOnce). */
+  /**
+   * Command: release left angle servo only (no hardstop change). Fire-and-forget (no subsystem
+   * requirement).
+   */
   public Command releaseLeftAngleServoCommand() {
-    return runOnce(
+    return Commands.runOnce(
             () ->
                 io.setLeftSecondaryHookAnglePosition(
                     ClimbConstants.AngleServo.LEFT_RELEASED_POSITION))
         .withName("ClimbReleaseLeftAngleServo");
   }
 
-  /** Command: stow left hardstop servo only (no angle change). Fire-and-forget (runOnce). */
+  /**
+   * Command: stow left hardstop servo only (no angle change). Fire-and-forget (no subsystem
+   * requirement).
+   */
   public Command stowLeftHardstopServoCommand() {
-    return runOnce(
+    return Commands.runOnce(
             () ->
                 io.setLeftSecondaryHookHardstopPosition(
                     ClimbConstants.HardstopServo.LEFT_STOWED_POSITION))
         .withName("ClimbStowLeftHardstopServo");
   }
 
-  /** Command: release left hardstop servo only (no angle change). Fire-and-forget (runOnce). */
+  /**
+   * Command: release left hardstop servo only (no angle change). Fire-and-forget (no subsystem
+   * requirement).
+   */
   public Command releaseLeftHardstopServoCommand() {
-    return runOnce(
+    return Commands.runOnce(
             () ->
                 io.setLeftSecondaryHookHardstopPosition(
                     ClimbConstants.HardstopServo.LEFT_RELEASED_POSITION))
@@ -1528,29 +1547,53 @@ public class ClimbSubsystem extends SubsystemBase {
     // Keep state as MANUAL while operator is driving
     currentState = ClimbState.MANUAL;
 
-    // Integrate velocity into target positions (20 ms loop)
+    // Integrate velocity into candidate positions (20 ms loop)
     final double dt = 0.02;
-    Translation2d newLeft =
+    Translation2d candidateLeft =
         new Translation2d(
             leftTargetPosition.getX() + leftVel.getX() * dt,
             leftTargetPosition.getY() + leftVel.getY() * dt);
-    Translation2d newRight =
+    Translation2d candidateRight =
         new Translation2d(
             rightTargetPosition.getX() + rightVel.getX() * dt,
             rightTargetPosition.getY() + rightVel.getY() * dt);
 
     // Clamp to workspace so the operator can't drive the arm out of IK range
-    newLeft = clampToWorkspace(newLeft);
-    newRight = clampToWorkspace(newRight);
+    candidateLeft = clampToWorkspace(candidateLeft);
+    candidateRight = clampToWorkspace(candidateRight);
 
-    leftTargetPosition = newLeft;
-    rightTargetPosition = newRight;
+    // Validate IK before committing — if the new position is unreachable,
+    // reject the move and hold at the last valid position instead of
+    // letting the target drift into an unrecoverable invalid region.
+    boolean leftValid = ClimbIK.calculateIK(candidateLeft, false).isValid;
+    boolean rightValid = ClimbIK.calculateIK(candidateRight, false).isValid;
+
+    if (leftValid) {
+      leftTargetPosition = candidateLeft;
+    }
+    if (rightValid) {
+      rightTargetPosition = candidateRight;
+    }
+
+    // If both sides are invalid, just hold position
+    if (!leftValid && !rightValid) {
+      moveToTargetPositions();
+      return;
+    }
+
+    // Use the (possibly unchanged) target positions with the requested velocities.
+    // Zero out velocity for any axis that was rejected to avoid fighting.
+    Translation2d effectiveLeftVel = leftValid ? leftVel : Translation2d.kZero;
+    Translation2d effectiveRightVel = rightValid ? rightVel : Translation2d.kZero;
 
     Logger.recordOutput("Climb/Manual/LeftVel", new double[] {leftVel.getX(), leftVel.getY()});
     Logger.recordOutput("Climb/Manual/RightVel", new double[] {rightVel.getX(), rightVel.getY()});
+    Logger.recordOutput("Climb/Manual/LeftIKValid", leftValid);
+    Logger.recordOutput("Climb/Manual/RightIKValid", rightValid);
 
     // Use same internal velocity path-following routine (will clamp motor velocities)
-    setTargetVelocitiesInternal(leftTargetPosition, rightTargetPosition, leftVel, rightVel, false);
+    setTargetVelocitiesInternal(
+        leftTargetPosition, rightTargetPosition, effectiveLeftVel, effectiveRightVel, false);
   }
 
   /** Clamp a position to the mechanism workspace limits. */

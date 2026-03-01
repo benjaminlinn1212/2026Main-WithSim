@@ -34,18 +34,6 @@ public class ConveyorSubsystem extends SubsystemBase {
   }
 
   /**
-   * Command to move game piece to bucket (for ejecting)
-   *
-   * @return A command that runs conveyor toward bucket
-   */
-  public Command goToBucket() {
-    return run(() -> {
-          io.setPercent(ConveyorConstants.TO_BUCKET_PERCENT);
-        })
-        .withName("ConveyorToBucket");
-  }
-
-  /**
    * Command to stop the conveyor
    *
    * @return A command that stops the conveyor
@@ -75,11 +63,6 @@ public class ConveyorSubsystem extends SubsystemBase {
    */
   public void applyFeedToShooter() {
     io.setPercent(ConveyorConstants.TO_SHOOTER_PERCENT);
-  }
-
-  /** Directly apply feed-to-bucket output. Called by Superstructure.periodic() for eject state. */
-  public void applyFeedToBucket() {
-    io.setPercent(ConveyorConstants.TO_BUCKET_PERCENT);
   }
 
   /** Toggle the conveyor direction */

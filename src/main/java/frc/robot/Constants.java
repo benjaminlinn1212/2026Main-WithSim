@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2026 Littleton Robotics
+﻿// Copyright (c) 2021-2026 Littleton Robotics
 // http://github.com/Mechanical-Advantage
 //
 // Use of this source code is governed by a BSD
@@ -263,9 +263,7 @@ public final class Constants {
 
     // Intake Percent Output (0.0 to 1.0)
     public static final double UPPER_INTAKE_PERCENT = 0.45;
-    public static final double LOWER_INTAKE_PERCENT = 0.75;
-    public static final double UPPER_OUTTAKE_PERCENT = -0.5;
-    public static final double LOWER_OUTTAKE_PERCENT = -0.5;
+    public static final double LOWER_INTAKE_PERCENT = 0.5;
   }
 
   public static class IntakePivotConstants {
@@ -275,17 +273,16 @@ public final class Constants {
     public static final double GEAR_RATIO = 1.0;
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
-    public static final double MOTOR_ROTOR_OFFSET = 0.048;
 
     // Soft Limits (rotations)
     public static final double SOFT_LIMIT_REVERSE = 0.0;
     public static final double SOFT_LIMIT_FORWARD = 28.0;
 
     // PID and Feedforward Constants
-    public static final double KP = 1.0;
+    public static final double KP = 1.3;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
-    public static final double KS = 0.0;
+    public static final double KS = 0.05;
     public static final double KV = 0.0;
     public static final double KA = 0.0;
 
@@ -302,10 +299,10 @@ public final class Constants {
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0;
     public static final double HALF_DEPLOYED_POSITION = 22.0;
-    public static final double DEPLOYED_POSITION = 27.4;
+    public static final double DEPLOYED_POSITION = 26.0;
 
     // Position Tolerance
-    public static final double POSITION_TOLERANCE = 0.5;
+    public static final double POSITION_TOLERANCE = 0.1;
   }
 
   public static class ConveyorConstants {
@@ -332,7 +329,6 @@ public final class Constants {
 
     // Conveyor Duty Cycle Percentages
     public static final double TO_SHOOTER_PERCENT = -0.5;
-    public static final double TO_BUCKET_PERCENT = 0.5;
   }
 
   public static class IndexerConstants {
@@ -461,10 +457,6 @@ public final class Constants {
         1.0 / 12.6; // mechanism rotations per motor rotation (reduction)
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
-    public static final double ROTOR_OFFSET = 0.228027;
-
-    // Mechanism Zero Angle (degrees from horizontal)
-    public static final double MECHANISM_ZERO_ANGLE_DEG = 20.0;
 
     // Position Limits (radians from horizontal)
     public static final double MIN_POSITION_RAD = Units.degreesToRadians(21.0);
@@ -529,10 +521,10 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 0.0 / 180.0;
-      public static final double LEFT_RELEASED_POSITION = 140.0 / 180.0;
-      public static final double RIGHT_STOWED_POSITION = 0.0 / 180.0;
-      public static final double RIGHT_RELEASED_POSITION = 140.0 / 180.0;
+      public static final double LEFT_STOWED_POSITION = 20.0 / 180.0;
+      public static final double LEFT_RELEASED_POSITION = 160.0 / 180.0;
+      public static final double RIGHT_STOWED_POSITION = 18.0 / 180.0;
+      public static final double RIGHT_RELEASED_POSITION = 158.0 / 180.0;
 
       /** Time (seconds) for the angle servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 1.0;
@@ -545,10 +537,10 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2000;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 0.0 / 100.0;
-      public static final double LEFT_RELEASED_POSITION = 57.0 / 100.0;
-      public static final double RIGHT_STOWED_POSITION = 0.0 / 100.0;
-      public static final double RIGHT_RELEASED_POSITION = 57.0 / 100.0;
+      public static final double LEFT_STOWED_POSITION = 15.0 / 100.0;
+      public static final double LEFT_RELEASED_POSITION = 72.0 / 100.0;
+      public static final double RIGHT_STOWED_POSITION = 16.0 / 100.0;
+      public static final double RIGHT_RELEASED_POSITION = 73.0 / 100.0;
 
       /** Time (seconds) for the hardstop servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 0.7;
@@ -615,9 +607,9 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Calibration Mode Current Limits (lower limits for safe manual motor jogging)
-    public static final double CALIBRATION_FRONT_STATOR_CURRENT_LIMIT = 40.0;
+    public static final double CALIBRATION_FRONT_STATOR_CURRENT_LIMIT = 6.0;
     public static final double CALIBRATION_FRONT_SUPPLY_CURRENT_LIMIT = 30.0;
-    public static final double CALIBRATION_BACK_STATOR_CURRENT_LIMIT = 40.0;
+    public static final double CALIBRATION_BACK_STATOR_CURRENT_LIMIT = 6.0;
     public static final double CALIBRATION_BACK_SUPPLY_CURRENT_LIMIT = 30.0;
 
     // Position Setpoints (rotations) - Legacy direct motor control
@@ -657,12 +649,12 @@ public final class Constants {
     public static final double MAX_MECHANISM_POSITION = 100.0;
 
     // Joint Angle Limits (safety limits in radians)
-    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(85);
-    public static final double MAX_SHOULDER_ANGLE_RAD = Math.toRadians(160);
-    public static final double MIN_ELBOW_ANGLE_RAD = Math.toRadians(-140);
-    public static final double MAX_ELBOW_ANGLE_RAD = Math.toRadians(-30);
+    public static final double MIN_SHOULDER_ANGLE_RAD = Math.toRadians(60);
+    public static final double MAX_SHOULDER_ANGLE_RAD = Math.toRadians(175);
+    public static final double MIN_ELBOW_ANGLE_RAD = Math.toRadians(-160);
+    public static final double MAX_ELBOW_ANGLE_RAD = Math.toRadians(-10);
     // Set false for testing paths outside joint limits
-    public static final boolean ENABLE_JOINT_LIMITS = true;
+    public static final boolean ENABLE_JOINT_LIMITS = false;
 
     // Workspace Limits (for end effector reachability checks)
     public static final double WORKSPACE_MIN_X_METERS = -5.0;

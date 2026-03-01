@@ -60,7 +60,7 @@ All coordinates **blue-alliance origin**. REBUILT uses **point symmetry** (180°
 - `.\gradlew.bat deploy` — deploy to roboRIO
 - `.\gradlew.bat simulateJava` — Maple-Sim arena with FUEL game pieces
 - Spotless auto-runs before compile. Code is formatted on build.
-- Vendor deps: Phoenix6, REVLib, PathplannerLib, AdvantageKit, maple-sim, PhotonLib, Studica
+- Vendor deps: Phoenix6, REVLib, PathplannerLib, AdvantageKit, maple-sim, Studica
 
 ## Conventions
 - **No deprecated APIs.** Never use deprecated methods/classes. Check vendor changelogs when updating deps. The build enables `-Xlint:deprecation` — any deprecated usage is a compile warning. When a library deprecates an API (e.g. PathPlannerLib's `setRotationTargetOverride` → `overrideRotationFeedback`), migrate immediately.

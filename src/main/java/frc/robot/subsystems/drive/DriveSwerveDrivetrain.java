@@ -9,6 +9,7 @@
 package frc.robot.subsystems.drive;
 
 import com.ctre.phoenix6.swerve.SwerveRequest;
+import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
@@ -31,7 +32,11 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   private final Field2d field2d = new Field2d();
 
   // SwerveRequest objects for different drive modes
-  private final SwerveRequest.FieldCentric fieldCentricDrive = new SwerveRequest.FieldCentric();
+  // Use BlueAlliance perspective because teleop code already handles alliance flipping manually
+  // (negating vx/vy for red). OperatorPerspective (default) would apply an additional rotation
+  // via operatorForwardDirection, which is never set and can cause wrong headings in sim.
+  private final SwerveRequest.FieldCentric fieldCentricDrive =
+      new SwerveRequest.FieldCentric().withForwardPerspective(ForwardPerspectiveValue.BlueAlliance);
   private final SwerveRequest.RobotCentric robotCentricDrive = new SwerveRequest.RobotCentric();
 
   // Acceleration tracking (computed from speed deltas each periodic cycle)

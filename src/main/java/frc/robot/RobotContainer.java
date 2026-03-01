@@ -70,7 +70,6 @@ import frc.robot.subsystems.turret.TurretIOSim;
 import frc.robot.subsystems.turret.TurretIOTalonFX;
 import frc.robot.subsystems.turret.TurretSubsystem;
 import frc.robot.subsystems.vision.VisionIOHardwareLimelight;
-import frc.robot.subsystems.vision.VisionIOPhotonSim;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import frc.robot.util.ShooterSetpoint;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
@@ -291,19 +290,8 @@ public class RobotContainer {
                             estimate.getVisionMeasurementStdDevs()));
         break;
       case SIM:
-        // SIM: PhotonVision camera simulation with AprilTag detection
-        vision =
-            new VisionSubsystem(
-                new VisionIOPhotonSim(drive::getPose, robotState),
-                robotState,
-                estimate ->
-                    drive
-                        .getDriveIO()
-                        .addVisionMeasurement(
-                            estimate.getVisionRobotPoseMeters(),
-                            com.ctre.phoenix6.Utils.fpgaToCurrentTime(
-                                estimate.getTimestampSeconds()),
-                            estimate.getVisionMeasurementStdDevs()));
+        // SIM: no-op vision (no PhotonVision sim)
+        vision = new VisionSubsystem(inputs -> {}, robotState, estimate -> {});
         break;
       default:
         // REPLAY: no-op vision IO

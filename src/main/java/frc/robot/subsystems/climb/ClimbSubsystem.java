@@ -324,128 +324,136 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.processInputs("Climb", inputs);
     // State is logged by commands (setState, runPath)
     Logger.recordOutput("Climb/CalibrationMode", calibrationMode);
-    Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
-    Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
     Logger.recordOutput("Climb/OperatorClimbLevel", getOperatorClimbLevel().name());
-    Logger.recordOutput("Climb/AutoLevel/Enabled", autoLevelEnabled);
 
-    // Estimate and log actual end effector positions from motor encoders (FK)
-    Translation2d measuredLeft =
-        ClimbIK.estimateEndEffectorPosition(
-            inputs.leftFrontPositionRotations,
-            inputs.leftBackPositionRotations,
-            leftTargetPosition);
-    Translation2d measuredRight =
-        ClimbIK.estimateEndEffectorPosition(
-            inputs.rightFrontPositionRotations,
-            inputs.rightBackPositionRotations,
-            rightTargetPosition);
-    if (measuredLeft != null) {
-      Logger.recordOutput("Climb/LeftMeasuredPosition", measuredLeft);
-    }
-    if (measuredRight != null) {
-      Logger.recordOutput("Climb/RightMeasuredPosition", measuredRight);
-    }
+    // Skip expensive FK/IK visualization when stowed and not in calibration/manual mode.
+    // At STOWED the arms aren't moving — no need to run 4x IK + 4x FK every 20ms.
+    boolean skipVisualization =
+        currentState == ClimbState.STOWED && !calibrationMode && !manualMode;
 
-    // Log motor rotations directly for debugging
-    Logger.recordOutput("Climb/LeftFrontRotations", inputs.leftFrontPositionRotations);
-    Logger.recordOutput("Climb/LeftBackRotations", inputs.leftBackPositionRotations);
-    Logger.recordOutput("Climb/RightFrontRotations", inputs.rightFrontPositionRotations);
-    Logger.recordOutput("Climb/RightBackRotations", inputs.rightBackPositionRotations);
+    if (!skipVisualization) {
+      Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
+      Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
+      Logger.recordOutput("Climb/AutoLevel/Enabled", autoLevelEnabled);
 
-    // ── Update Mechanism2d ──
-    final double sx = ClimbConstants.SHOULDER_X_METERS;
-    final double sy = ClimbConstants.SHOULDER_Y_METERS;
-    final double wfx = ClimbConstants.FRONT_WINCH_X_METERS;
-    final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
-    final double L1 = ClimbConstants.LINK_1_LENGTH_METERS;
-    final double L2 = ClimbConstants.LINK_2_LENGTH_METERS;
-    final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
-    final double frontAttach = ClimbConstants.FRONT_CABLE_ATTACH_ON_LINK2_METERS;
+      // Estimate and log actual end effector positions from motor encoders (FK)
+      Translation2d measuredLeft =
+          ClimbIK.estimateEndEffectorPosition(
+              inputs.leftFrontPositionRotations,
+              inputs.leftBackPositionRotations,
+              leftTargetPosition);
+      Translation2d measuredRight =
+          ClimbIK.estimateEndEffectorPosition(
+              inputs.rightFrontPositionRotations,
+              inputs.rightBackPositionRotations,
+              rightTargetPosition);
+      if (measuredLeft != null) {
+        Logger.recordOutput("Climb/LeftMeasuredPosition", measuredLeft);
+      }
+      if (measuredRight != null) {
+        Logger.recordOutput("Climb/RightMeasuredPosition", measuredRight);
+      }
 
-    // --- LEFT Target arm (blue) ---
-    ClimbIK.ClimbSideIKResult leftTargetIK = ClimbIK.calculateIK(leftTargetPosition, false);
-    if (leftTargetIK.isValid) {
-      double jx = leftTargetIK.jointX;
-      double jy = leftTargetIK.jointY;
-      double ex = leftTargetPosition.getX();
-      double ey = leftTargetPosition.getY();
+      // Log motor rotations directly for debugging
+      Logger.recordOutput("Climb/LeftFrontRotations", inputs.leftFrontPositionRotations);
+      Logger.recordOutput("Climb/LeftBackRotations", inputs.leftBackPositionRotations);
+      Logger.recordOutput("Climb/RightFrontRotations", inputs.rightFrontPositionRotations);
+      Logger.recordOutput("Climb/RightBackRotations", inputs.rightBackPositionRotations);
 
-      double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
-      targetLink1.setAngle(link1Angle);
-      double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
-      targetLink2.setAngle(link2AbsAngle - link1Angle);
+      // ── Update Mechanism2d ──
+      final double sx = ClimbConstants.SHOULDER_X_METERS;
+      final double sy = ClimbConstants.SHOULDER_Y_METERS;
+      final double wfx = ClimbConstants.FRONT_WINCH_X_METERS;
+      final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
+      final double L1 = ClimbConstants.LINK_1_LENGTH_METERS;
+      final double L2 = ClimbConstants.LINK_2_LENGTH_METERS;
+      final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
+      final double frontAttach = ClimbConstants.FRONT_CABLE_ATTACH_ON_LINK2_METERS;
 
-      double t1 = backAttach / L1;
-      double px = jx + t1 * (sx - jx);
-      double py = jy + t1 * (sy - jy);
-      targetBackCable.setLength(Math.hypot(px, py));
-      targetBackCable.setAngle(Math.toDegrees(Math.atan2(py, px)));
-
-      double t2 = frontAttach / L2;
-      double qx = ex + t2 * (jx - ex);
-      double qy = ey + t2 * (jy - ey);
-      targetFrontCable.setLength(Math.hypot(qx - wfx, qy - wfy));
-      targetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
-    }
-
-    // --- LEFT Measured arm (green) ---
-    if (measuredLeft != null) {
-      ClimbIK.ClimbSideIKResult measIK = ClimbIK.calculateIK(measuredLeft, false);
-      if (measIK.isValid) {
-        double jx = measIK.jointX;
-        double jy = measIK.jointY;
-        double ex = measuredLeft.getX();
-        double ey = measuredLeft.getY();
+      // --- LEFT Target arm (blue) ---
+      ClimbIK.ClimbSideIKResult leftTargetIK = ClimbIK.calculateIK(leftTargetPosition, false);
+      if (leftTargetIK.isValid) {
+        double jx = leftTargetIK.jointX;
+        double jy = leftTargetIK.jointY;
+        double ex = leftTargetPosition.getX();
+        double ey = leftTargetPosition.getY();
 
         double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
-        measuredLink1.setAngle(link1Angle);
+        targetLink1.setAngle(link1Angle);
         double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
-        measuredLink2.setAngle(link2AbsAngle - link1Angle);
+        targetLink2.setAngle(link2AbsAngle - link1Angle);
+
+        double t1 = backAttach / L1;
+        double px = jx + t1 * (sx - jx);
+        double py = jy + t1 * (sy - jy);
+        targetBackCable.setLength(Math.hypot(px, py));
+        targetBackCable.setAngle(Math.toDegrees(Math.atan2(py, px)));
+
+        double t2 = frontAttach / L2;
+        double qx = ex + t2 * (jx - ex);
+        double qy = ey + t2 * (jy - ey);
+        targetFrontCable.setLength(Math.hypot(qx - wfx, qy - wfy));
+        targetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
       }
-    }
 
-    // --- RIGHT Target arm (red) ---
-    ClimbIK.ClimbSideIKResult rightTargetIK = ClimbIK.calculateIK(rightTargetPosition, false);
-    if (rightTargetIK.isValid) {
-      double jx = rightTargetIK.jointX;
-      double jy = rightTargetIK.jointY;
-      double ex = rightTargetPosition.getX();
-      double ey = rightTargetPosition.getY();
+      // --- LEFT Measured arm (green) ---
+      if (measuredLeft != null) {
+        ClimbIK.ClimbSideIKResult measIK = ClimbIK.calculateIK(measuredLeft, false);
+        if (measIK.isValid) {
+          double jx = measIK.jointX;
+          double jy = measIK.jointY;
+          double ex = measuredLeft.getX();
+          double ey = measuredLeft.getY();
 
-      double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
-      rightTargetLink1.setAngle(link1Angle);
-      double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
-      rightTargetLink2.setAngle(link2AbsAngle - link1Angle);
+          double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
+          measuredLink1.setAngle(link1Angle);
+          double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
+          measuredLink2.setAngle(link2AbsAngle - link1Angle);
+        }
+      }
 
-      double t1 = backAttach / L1;
-      double px = jx + t1 * (sx - jx);
-      double py = jy + t1 * (sy - jy);
-      rightTargetBackCable.setLength(Math.hypot(px, py));
-      rightTargetBackCable.setAngle(Math.toDegrees(Math.atan2(py, px)));
-
-      double t2 = frontAttach / L2;
-      double qx = ex + t2 * (jx - ex);
-      double qy = ey + t2 * (jy - ey);
-      rightTargetFrontCable.setLength(Math.hypot(qx - wfx, qy - wfy));
-      rightTargetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
-    }
-
-    // --- RIGHT Measured arm (magenta) ---
-    if (measuredRight != null) {
-      ClimbIK.ClimbSideIKResult measIK = ClimbIK.calculateIK(measuredRight, false);
-      if (measIK.isValid) {
-        double jx = measIK.jointX;
-        double jy = measIK.jointY;
-        double ex = measuredRight.getX();
-        double ey = measuredRight.getY();
+      // --- RIGHT Target arm (red) ---
+      ClimbIK.ClimbSideIKResult rightTargetIK = ClimbIK.calculateIK(rightTargetPosition, false);
+      if (rightTargetIK.isValid) {
+        double jx = rightTargetIK.jointX;
+        double jy = rightTargetIK.jointY;
+        double ex = rightTargetPosition.getX();
+        double ey = rightTargetPosition.getY();
 
         double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
-        rightMeasuredLink1.setAngle(link1Angle);
+        rightTargetLink1.setAngle(link1Angle);
         double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
-        rightMeasuredLink2.setAngle(link2AbsAngle - link1Angle);
+        rightTargetLink2.setAngle(link2AbsAngle - link1Angle);
+
+        double t1 = backAttach / L1;
+        double px = jx + t1 * (sx - jx);
+        double py = jy + t1 * (sy - jy);
+        rightTargetBackCable.setLength(Math.hypot(px, py));
+        rightTargetBackCable.setAngle(Math.toDegrees(Math.atan2(py, px)));
+
+        double t2 = frontAttach / L2;
+        double qx = ex + t2 * (jx - ex);
+        double qy = ey + t2 * (jy - ey);
+        rightTargetFrontCable.setLength(Math.hypot(qx - wfx, qy - wfy));
+        rightTargetFrontCable.setAngle(Math.toDegrees(Math.atan2(qy - wfy, qx - wfx)));
       }
-    }
+
+      // --- RIGHT Measured arm (magenta) ---
+      if (measuredRight != null) {
+        ClimbIK.ClimbSideIKResult measIK = ClimbIK.calculateIK(measuredRight, false);
+        if (measIK.isValid) {
+          double jx = measIK.jointX;
+          double jy = measIK.jointY;
+          double ex = measuredRight.getX();
+          double ey = measuredRight.getY();
+
+          double link1Angle = Math.toDegrees(Math.atan2(jy - sy, jx - sx));
+          rightMeasuredLink1.setAngle(link1Angle);
+          double link2AbsAngle = Math.toDegrees(Math.atan2(ey - jy, ex - jx));
+          rightMeasuredLink2.setAngle(link2AbsAngle - link1Angle);
+        }
+      }
+    } // end if (!skipVisualization)
 
     // Mechanism2d is published via SmartDashboard.putData in constructor — auto-updates
   }

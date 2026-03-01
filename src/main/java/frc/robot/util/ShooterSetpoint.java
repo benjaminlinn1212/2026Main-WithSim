@@ -155,9 +155,12 @@ public class ShooterSetpoint {
         false);
   }
 
+  /** Cached invalid/default setpoint singleton to avoid repeated allocations. */
+  private static final ShooterSetpoint INVALID = new ShooterSetpoint(0, 0, 0, 0, 0, false);
+
   /** Create an invalid/default setpoint (used as supplier default before aiming starts). */
   public static ShooterSetpoint invalid() {
-    return new ShooterSetpoint(0, 0, 0, 0, 0, false);
+    return INVALID;
   }
 
   // ===== Getters =====
@@ -228,10 +231,8 @@ public class ShooterSetpoint {
    * robot's blue-origin X is compared against this boundary — if beyond it, the robot is in the
    * neutral zone and should do a feedback shot towards the alliance wall.
    */
-  private static boolean isInNeutralZone(Pose2d robotPose) {
+  private static boolean isInNeutralZone(Pose2d robotPose, boolean isBlueAlliance) {
     // Convert to blue-origin X for consistent zone checking
-    Optional<Alliance> alliance = DriverStation.getAlliance();
-    boolean isBlueAlliance = alliance.isEmpty() || alliance.get() == Alliance.Blue;
     double blueX =
         isBlueAlliance ? robotPose.getX() : FieldConstants.FIELD_LENGTH - robotPose.getX();
 
@@ -243,19 +244,15 @@ public class ShooterSetpoint {
    * Get the appropriate target based on alliance and robot position. Returns hub target normally,
    * or neutral zone aim target if in neutral zone (upper/lower based on robot Y).
    */
-  private static Translation3d getSmartTarget(Pose2d robotPose) {
-    // Get alliance from DriverStation
-    Optional<Alliance> alliance = DriverStation.getAlliance();
-    boolean isBlueAlliance =
-        alliance.isEmpty() || alliance.get() == Alliance.Blue; // Default to blue if no alliance
-
+  private static Translation3d getSmartTarget(
+      Pose2d robotPose, boolean isBlueAlliance, boolean isNeutralZone) {
     Translation3d hubTarget =
         isBlueAlliance
             ? FieldConstants.BLUE_HUB_TRANSLATION3D
             : FieldConstants.RED_HUB_POSE_TRANSLATION3D;
 
     // Check if in neutral zone
-    if (isInNeutralZone(robotPose)) {
+    if (isNeutralZone) {
       // Aim at upper or lower neutral zone target based on robot Y position
       double robotY = robotPose.getY();
       if (isBlueAlliance) {
@@ -286,6 +283,10 @@ public class ShooterSetpoint {
     ChassisSpeeds fieldRelativeVelocity = robotState.getLatestMeasuredFieldRelativeChassisSpeeds();
     ChassisSpeeds robotRelativeVelocity = robotState.getLatestRobotRelativeChassisSpeed();
 
+    // Cache alliance once per calculation to avoid repeated DriverStation lookups
+    Optional<Alliance> alliance = DriverStation.getAlliance();
+    boolean isBlueAlliance = alliance.isEmpty() || alliance.get() == Alliance.Blue;
+
     // Predict future pose to compensate for system latency
     // IMPORTANT: Pose2d.exp() expects a robot-relative Twist2d (dx = forward, dy = left),
     // NOT field-relative velocities. Using field-relative here caused the predicted heading
@@ -306,8 +307,8 @@ public class ShooterSetpoint {
     Translation2d turretPosition = robotPosition.plus(turretOffsetRotated);
 
     // Select target (hub or alliance wall if in neutral zone)
-    Translation3d target = getSmartTarget(robotPose);
-    boolean isNeutralZoneShot = isInNeutralZone(robotPose);
+    boolean isNeutralZoneShot = isInNeutralZone(robotPose, isBlueAlliance);
+    Translation3d target = getSmartTarget(robotPose, isBlueAlliance, isNeutralZoneShot);
 
     if (isNeutralZoneShot) {
       return calculateNeutralZoneShot(turretPosition, target, robotHeading);

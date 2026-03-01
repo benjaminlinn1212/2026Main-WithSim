@@ -486,8 +486,9 @@ public class RobotContainer {
               //    the nearest cardinal so the robot physically fits through the tunnel.
               // 2. Lateral centering — deflects velocity direction toward the trench's
               //    center Y line, guiding the travel path to the middle of the corridor.
-              Translation2d bluePos = drive.getPose().getTranslation();
-              Rotation2d robotHeading = drive.getPose().getRotation();
+              Pose2d currentPose = drive.getPose();
+              Translation2d bluePos = currentPose.getTranslation();
+              Rotation2d robotHeading = currentPose.getRotation();
               // Convert to blue-origin if on red alliance (field geometry is defined in blue)
               if (isRed) {
                 bluePos = FieldConstants.flipTranslation(bluePos);

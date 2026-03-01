@@ -22,8 +22,7 @@ public class HoodSubsystem extends SubsystemBase {
   private double positionSetpointRad = Constants.HoodConstants.STOW_POSITION;
 
   // ShooterSetpoint supplier for coordinated aiming
-  private Supplier<ShooterSetpoint> setpointSupplier =
-      () -> new ShooterSetpoint(0, 0, 0, 0, 0, false);
+  private Supplier<ShooterSetpoint> setpointSupplier = ShooterSetpoint::invalid;
 
   public enum HoodState {
     STOW,
@@ -76,18 +75,14 @@ public class HoodSubsystem extends SubsystemBase {
               currentState = HoodState.AIM_HUB;
             })
         .andThen(
-            positionSetpointCommand(
+            run(
                 () -> {
-                  // Get setpoint from ShooterSetpoint utility
+                  // Get setpoint once per cycle (cached supplier)
                   ShooterSetpoint setpoint = setpointSupplier.get();
-
-                  // Extract hood angle from setpoint
-                  return setpoint.getHoodAngleRad();
-                },
-                () -> {
-                  // Extract hood feedforward from setpoint
-                  ShooterSetpoint setpoint = setpointSupplier.get();
-                  return setpoint.getHoodFeedforwardRadPerSec();
+                  double angle = setpoint.getHoodAngleRad();
+                  double ff = setpoint.getHoodFeedforwardRadPerSec();
+                  setPositionSetpointImpl(angle, ff);
+                  positionSetpointRad = angle;
                 }))
         .withName("Hood Aim Hub");
   }

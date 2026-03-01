@@ -29,8 +29,7 @@ public class TurretSubsystem extends SubsystemBase {
   private Supplier<Pose2d> robotPoseSupplier = () -> new Pose2d();
 
   // ShooterSetpoint supplier for coordinated aiming
-  private Supplier<ShooterSetpoint> setpointSupplier =
-      () -> new ShooterSetpoint(0, 0, 0, 0, 0, false);
+  private Supplier<ShooterSetpoint> setpointSupplier = ShooterSetpoint::invalid;
 
   public enum TurretState {
     STOW,
@@ -193,24 +192,12 @@ public class TurretSubsystem extends SubsystemBase {
     diff = diff - 2.0 * Math.PI * Math.floor((diff + Math.PI) / (2.0 * Math.PI));
     double closest = currentPos + diff;
 
-    // Log wrapping internals
-    Logger.recordOutput("Turret/Wrap/TargetAngleRad", targetAngle);
+    // Log wrapping result only (internals removed to reduce bandwidth — re-enable for debugging)
     Logger.recordOutput("Turret/Wrap/TargetAngleDeg", Math.toDegrees(targetAngle));
-    Logger.recordOutput("Turret/Wrap/CurrentPosRad", currentPos);
-    Logger.recordOutput("Turret/Wrap/CurrentPosDeg", Math.toDegrees(currentPos));
-    Logger.recordOutput("Turret/Wrap/ClosestRad", closest);
-    Logger.recordOutput("Turret/Wrap/ClosestDeg", Math.toDegrees(closest));
-    Logger.recordOutput("Turret/Wrap/MinLimitRad", minLimit);
-    Logger.recordOutput("Turret/Wrap/MaxLimitRad", maxLimit);
-    Logger.recordOutput("Turret/Wrap/MinLimitDeg", Math.toDegrees(minLimit));
-    Logger.recordOutput("Turret/Wrap/MaxLimitDeg", Math.toDegrees(maxLimit));
-    Logger.recordOutput("Turret/Wrap/ClosestInBounds", closest >= minLimit && closest <= maxLimit);
 
     // 2. Check if the closest candidate is in bounds — if so, use it.
     if (closest >= minLimit && closest <= maxLimit) {
-      Logger.recordOutput("Turret/Wrap/ResultRad", closest);
       Logger.recordOutput("Turret/Wrap/ResultDeg", Math.toDegrees(closest));
-      Logger.recordOutput("Turret/Wrap/UsedFallback", false);
       return closest;
     }
 
@@ -245,16 +232,14 @@ public class TurretSubsystem extends SubsystemBase {
       bestCandidate = Math.max(minLimit, Math.min(maxLimit, bestCandidate));
     }
 
-    Logger.recordOutput("Turret/Wrap/ResultRad", bestCandidate);
     Logger.recordOutput("Turret/Wrap/ResultDeg", Math.toDegrees(bestCandidate));
     Logger.recordOutput("Turret/Wrap/UsedFallback", true);
-    Logger.recordOutput("Turret/Wrap/FallbackFoundInBounds", foundInBounds);
     return bestCandidate;
   }
 
   /** Checks if turret is unwrapped (not currently crossing the wrap boundary). */
   private boolean isUnwrapped(double setpoint) {
-    double timeSinceModeChange = (System.currentTimeMillis() / 1000.0) - lastModeChange;
+    double timeSinceModeChange = Timer.getFPGATimestamp() - lastModeChange;
     return (timeSinceModeChange > 0.5)
         || Math.abs(getCurrentPosition() - setpoint) < Math.toRadians(10.0);
   }
@@ -266,7 +251,7 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   private void updateModeChange() {
-    lastModeChange = System.currentTimeMillis() / 1000.0;
+    lastModeChange = Timer.getFPGATimestamp();
   }
 
   public double getCurrentPosition() {

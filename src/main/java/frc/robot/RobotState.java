@@ -25,6 +25,14 @@ public class RobotState {
   private ChassisSpeeds measuredFieldRelativeChassisSpeeds = new ChassisSpeeds();
   private ChassisSpeeds robotRelativeChassisSpeed = new ChassisSpeeds();
 
+  /**
+   * Counter to throttle cleanUpObservations() — runs once every N additions instead of every call.
+   * At 250Hz odometry + ~50Hz turret updates, cleanup runs ~6 times/sec instead of ~350.
+   */
+  private int cleanupCounter = 0;
+
+  private static final int CLEANUP_INTERVAL = 50;
+
   public RobotState() {
     // Seed with zero pose so getLatestFieldToRobot() is never null (matches 254).
     // The real pose will be set during disabled via the 254-style pre-seeding strategy.
@@ -39,7 +47,7 @@ public class RobotState {
   /** Add a new robot pose observation at a specific timestamp */
   public synchronized void addFieldToRobot(double timestamp, Pose2d pose) {
     fieldToRobot.put(timestamp, pose);
-    cleanUpObservations();
+    maybeCleanUp();
   }
 
   /** Add turret rotation update (robot-relative, raw radians — not wrapped to [-π,π]). */
@@ -47,7 +55,7 @@ public class RobotState {
       double timestamp, double turretAngleRad, double angularVelocityRadsPerS) {
     robotToTurretRad.put(timestamp, turretAngleRad);
     turretAngularVelocity.put(timestamp, angularVelocityRadsPerS);
-    cleanUpObservations();
+    maybeCleanUp();
   }
 
   /** Update the measured chassis speeds */
@@ -98,11 +106,20 @@ public class RobotState {
     return entry.getValue();
   }
 
+  /** Cached 2D turret-to-camera transform (constant — computed once at class load). */
+  private static final Transform2d TURRET_TO_CAMERA_2D;
+
+  static {
+    var transform3d = Constants.Vision.TURRET_TO_CAMERA;
+    TURRET_TO_CAMERA_2D =
+        new Transform2d(
+            transform3d.getTranslation().toTranslation2d(),
+            transform3d.getRotation().toRotation2d());
+  }
+
   /** Get turret-to-camera 2D transform (projects the 3D TURRET_TO_CAMERA constant to 2D). */
   public Transform2d getTurretToCamera() {
-    var transform3d = Constants.Vision.TURRET_TO_CAMERA;
-    return new Transform2d(
-        transform3d.getTranslation().toTranslation2d(), transform3d.getRotation().toRotation2d());
+    return TURRET_TO_CAMERA_2D;
   }
 
   /** Get the field-relative chassis speeds */
@@ -113,6 +130,14 @@ public class RobotState {
   /** Get the robot-relative chassis speeds */
   public ChassisSpeeds getLatestRobotRelativeChassisSpeed() {
     return robotRelativeChassisSpeed;
+  }
+
+  /** Throttled cleanup — only runs the expensive TreeMap trimming every N additions. */
+  private void maybeCleanUp() {
+    if (++cleanupCounter >= CLEANUP_INTERVAL) {
+      cleanupCounter = 0;
+      cleanUpObservations();
+    }
   }
 
   /** Remove old observations outside the buffer window */
@@ -145,9 +170,10 @@ public class RobotState {
           measuredFieldRelativeChassisSpeeds.vyMetersPerSecond);
       Logger.recordOutput(
           "RobotState/AngularVelocity", robotRelativeChassisSpeed.omegaRadiansPerSecond);
-      Logger.recordOutput("RobotState/TurretRotationRad", getLatestRobotToTurret().getValue());
-      Logger.recordOutput(
-          "RobotState/TurretRotationDeg", Math.toDegrees(getLatestRobotToTurret().getValue()));
+      var turretEntry = getLatestRobotToTurret();
+      double turretRad = turretEntry.getValue();
+      Logger.recordOutput("RobotState/TurretRotationRad", turretRad);
+      Logger.recordOutput("RobotState/TurretRotationDeg", Math.toDegrees(turretRad));
       Logger.recordOutput("RobotState/TurretAngularVelocity", getLatestTurretAngularVelocity());
     }
   }

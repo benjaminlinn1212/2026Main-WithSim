@@ -17,8 +17,7 @@ public class ShooterSubsystem extends SubsystemBase {
   private final ShooterIOInputsAutoLogged inputs = new ShooterIOInputsAutoLogged();
 
   // ShooterSetpoint supplier for coordinated aiming
-  private Supplier<ShooterSetpoint> setpointSupplier =
-      () -> new ShooterSetpoint(0, 0, 0, 0, 0, false);
+  private Supplier<ShooterSetpoint> setpointSupplier = ShooterSetpoint::invalid;
 
   // Track current velocity setpoint for logging
   private double velocitySetpointRPS = 0.0;

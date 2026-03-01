@@ -17,7 +17,6 @@ import org.littletonrobotics.junction.Logger;
 public class RobotMonitor {
   // ── Battery / Brownout ──
   private static final double BROWNOUT_VOLTAGE_THRESHOLD = 7.0; // RoboRIO brownouts at 6.8V
-  private static final double LOW_BATTERY_THRESHOLD = 11.0; // Warn when battery is getting low
   private static final double BATTERY_LOG_INTERVAL_SEC = 1.0; // Log battery stats every 1s
   private double lastBatteryLogTime = 0.0;
   private double minVoltage = 13.0;
@@ -67,14 +66,6 @@ public class RobotMonitor {
       brownoutDetected = false;
     }
 
-    // Low battery warning (rumble briefly every 5 seconds)
-    if (voltage < LOW_BATTERY_THRESHOLD && !brownoutDetected) {
-      if ((int) (now * 0.2) % 1 == 0 && (int) ((now - 0.02) * 0.2) % 1 != 0) {
-        // Brief pulse every 5 seconds
-        rumbleBoth(0.3, 0.25);
-      }
-    }
-
     // Periodic battery logging
     if (now - lastBatteryLogTime >= BATTERY_LOG_INTERVAL_SEC) {
       lastBatteryLogTime = now;
@@ -83,12 +74,11 @@ public class RobotMonitor {
       Logger.recordOutput("Monitor/BrownoutCount", brownoutCount);
       Logger.recordOutput("Monitor/IsBrownout", brownoutDetected);
       Logger.recordOutput("Monitor/RoboRIO_CPUTemp", RobotController.getCPUTemp());
-      Logger.recordOutput(
-          "Monitor/CAN_Utilization", RobotController.getCANStatus().percentBusUtilization);
-      Logger.recordOutput("Monitor/CAN_OffCount", RobotController.getCANStatus().busOffCount);
-      Logger.recordOutput(
-          "Monitor/CAN_TxErrors", RobotController.getCANStatus().transmitErrorCount);
-      Logger.recordOutput("Monitor/CAN_RxErrors", RobotController.getCANStatus().receiveErrorCount);
+      var canStatus = RobotController.getCANStatus();
+      Logger.recordOutput("Monitor/CAN_Utilization", canStatus.percentBusUtilization);
+      Logger.recordOutput("Monitor/CAN_OffCount", canStatus.busOffCount);
+      Logger.recordOutput("Monitor/CAN_TxErrors", canStatus.transmitErrorCount);
+      Logger.recordOutput("Monitor/CAN_RxErrors", canStatus.receiveErrorCount);
     }
 
     // Manage rumble timeout

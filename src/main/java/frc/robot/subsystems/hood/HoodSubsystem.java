@@ -77,7 +77,6 @@ public class HoodSubsystem extends SubsystemBase {
         .andThen(
             run(
                 () -> {
-                  // Get setpoint once per cycle (cached supplier)
                   ShooterSetpoint setpoint = setpointSupplier.get();
                   double angle = setpoint.getHoodAngleRad();
                   double ff = setpoint.getHoodFeedforwardRadPerSec();
@@ -130,8 +129,6 @@ public class HoodSubsystem extends SubsystemBase {
     return Math.abs(getCurrentPosition() - positionSetpointRad)
         < Constants.HoodConstants.AIMING_TOLERANCE_RAD;
   }
-
-  // ==================== Direct Apply Methods (for Superstructure periodic) ====================
 
   /**
    * Directly apply the stow position. Called by Superstructure.periodic() every cycle when the

@@ -12,16 +12,11 @@ public class HoodIOSim implements HoodIO {
   private double positionSetpointRad = 0.0;
   private boolean closedLoop = false;
 
-  // Sim-tuned PID gains (different from hardware MotionMagic gains)
-  // Hardware uses MotionMagic with motion profiling; sim uses a simple PD controller
-  // so we tune separately for realistic sim behavior.
+  // Sim-tuned PD gains (hardware uses MotionMagic with motion profiling)
   private static final double SIM_KP = 200.0; // volts per mechanism radian of error
   private static final double SIM_KD = 10.0; // volts per mechanism rad/s
 
   public HoodIOSim() {
-    // Create a simulated hood using SingleJointedArmSim
-    // Parameters: DCMotor, gear ratio, MOI, length, min angle, max angle, simulate gravity,
-    // starting angle
     sim =
         new SingleJointedArmSim(
             DCMotor.getKrakenX44(1),
@@ -38,20 +33,16 @@ public class HoodIOSim implements HoodIO {
 
   @Override
   public void updateInputs(HoodIOInputs inputs) {
-    // Perform closed-loop control in simulation
     if (closedLoop) {
-      // Use sim-tuned PD controller (not hardware Phoenix6 gains)
       double errorRad = positionSetpointRad - sim.getAngleRads();
       double fbVolts = errorRad * SIM_KP - sim.getVelocityRadPerSec() * SIM_KD;
 
       appliedVolts = MathUtil.clamp(fbVolts, -12.0, 12.0);
     }
 
-    // Update simulation
     sim.setInputVoltage(appliedVolts);
-    sim.update(0.02); // 20ms update period
+    sim.update(0.02);
 
-    // Read simulated values
     inputs.positionRad = sim.getAngleRads();
     inputs.velocityRadPerSec = sim.getVelocityRadPerSec();
     inputs.appliedVolts = appliedVolts;

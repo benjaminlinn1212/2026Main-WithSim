@@ -158,14 +158,10 @@ public class DashboardAutoManager {
 
   /** Publish the plan preview to AdvantageKit / NetworkTables. */
   private void logPlanPreview() {
-    // Plan summary string
     String summary = AutoPlanner.summarizePlan(currentPlan);
     Logger.recordOutput("DashboardAuto/PlanSummary", summary);
-
-    // Action count
     Logger.recordOutput("DashboardAuto/ActionCount", currentPlan.size());
 
-    // Estimated total duration
     if (!currentPlan.isEmpty()) {
       double totalDuration =
           AutoPlanner.estimateTotalDuration(currentPlan, settings.getStartPose().getPose());
@@ -173,19 +169,15 @@ public class DashboardAutoManager {
       Logger.recordOutput("DashboardAuto/TimeMargin", FieldConstants.AUTO_DURATION - totalDuration);
     }
 
-    // Pose array for AdvantageScope visualization
     if (planPosePreview.length > 0) {
       Logger.recordOutput("DashboardAuto/PlanPoses", planPosePreview);
     }
 
-    // Individual action descriptions
     String[] descriptions = new String[currentPlan.size()];
     for (int i = 0; i < currentPlan.size(); i++) {
       descriptions[i] = (i + 1) + ". " + currentPlan.get(i).describe();
     }
     Logger.recordOutput("DashboardAuto/ActionList", descriptions);
-
-    // Settings echo
     Logger.recordOutput("DashboardAuto/Settings", settings.toString());
   }
 

@@ -38,11 +38,9 @@ public class DriveIOSim extends DriveIOHardware {
   Consumer<SwerveDriveState> simTelemetryConsumer =
       swerveDriveState -> {
         if (Constants.DriveConstants.USE_MAPLE_SIM && mapleSimSwerveDrivetrain != null) {
-          // Inject Maple-Sim's pose into the telemetry (matches 254)
           swerveDriveState.Pose =
               mapleSimSwerveDrivetrain.mapleSimDrive.getSimulatedDriveTrainPose();
         }
-        // Update RobotState with the pose
         if (robotState != null) {
           robotState.addFieldToRobot(swerveDriveState.Pose);
         }
@@ -55,7 +53,6 @@ public class DriveIOSim extends DriveIOHardware {
       SwerveModuleConstants<?, ?, ?>... modules) {
     super(robotState, driveTrainConstants, modules);
 
-    // Rewrite the telemetry consumer with a consumer for sim
     registerTelemetry(simTelemetryConsumer);
     startSimThread();
   }

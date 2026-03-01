@@ -326,8 +326,7 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/CalibrationMode", calibrationMode);
     Logger.recordOutput("Climb/OperatorClimbLevel", getOperatorClimbLevel().name());
 
-    // Skip expensive FK/IK visualization when stowed and not in calibration/manual mode.
-    // At STOWED the arms aren't moving — no need to run 4x IK + 4x FK every 20ms.
+    // Skip FK/IK visualization when stowed and not in calibration/manual mode
     boolean skipVisualization =
         currentState == ClimbState.STOWED && !calibrationMode && !manualMode;
 
@@ -354,7 +353,7 @@ public class ClimbSubsystem extends SubsystemBase {
         Logger.recordOutput("Climb/RightMeasuredPosition", measuredRight);
       }
 
-      // Log motor rotations directly for debugging
+      // Log motor rotations directly
       Logger.recordOutput("Climb/LeftFrontRotations", inputs.leftFrontPositionRotations);
       Logger.recordOutput("Climb/LeftBackRotations", inputs.leftBackPositionRotations);
       Logger.recordOutput("Climb/RightFrontRotations", inputs.rightFrontPositionRotations);
@@ -833,13 +832,11 @@ public class ClimbSubsystem extends SubsystemBase {
     io.setRightFrontVelocity(rightFrontVel, rightFrontFF);
     io.setRightBackVelocity(rightBackVel, rightBackFF);
 
-    // Log velocities for debugging
     Logger.recordOutput("Climb/VelocityIK/LeftFrontVel", leftFrontVel);
     Logger.recordOutput("Climb/VelocityIK/LeftBackVel", leftBackVel);
     Logger.recordOutput("Climb/VelocityIK/RightFrontVel", rightFrontVel);
     Logger.recordOutput("Climb/VelocityIK/RightBackVel", rightBackVel);
 
-    // Log end effector velocities
     Logger.recordOutput("Climb/VelocityIK/LeftVelX", leftVelocity.getX());
     Logger.recordOutput("Climb/VelocityIK/LeftVelY", leftVelocity.getY());
     Logger.recordOutput("Climb/VelocityIK/RightVelX", rightVelocity.getX());
@@ -988,70 +985,70 @@ public class ClimbSubsystem extends SubsystemBase {
 
   /** Stow all 4 secondary hook servos to their starting position. */
   public void stowAllServos() {
-    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
-    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
-    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
-    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.LEFT_STOWED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RIGHT_STOWED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.LEFT_STOWED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RIGHT_STOWED_POSITION);
   }
 
   /** Stow the left side secondary hook servos (angle + hardstop). */
   public void stowLeftServos() {
-    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
-    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.LEFT_STOWED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.LEFT_STOWED_POSITION);
   }
 
   /** Stow the right side secondary hook servos (angle + hardstop). */
   public void stowRightServos() {
-    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
-    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RIGHT_STOWED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RIGHT_STOWED_POSITION);
   }
 
   // ─── Release (deploy hooks) ───
 
   /** Release all 4 secondary hook servos to their deployed position. */
   public void releaseAllServos() {
-    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
-    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
-    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
-    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.LEFT_RELEASED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RIGHT_RELEASED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.LEFT_RELEASED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RIGHT_RELEASED_POSITION);
   }
 
   /** Release the left side secondary hook servos (angle + hardstop). */
   public void releaseLeftServos() {
-    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
-    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.LEFT_RELEASED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.LEFT_RELEASED_POSITION);
   }
 
   /** Release the right side secondary hook servos (angle + hardstop). */
   public void releaseRightServos() {
-    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
-    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RIGHT_RELEASED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RIGHT_RELEASED_POSITION);
   }
 
   // ─── Individual angle / hardstop setters ───
 
   /** Release both angle servos only (no hardstop change). */
   public void releaseAngleServos() {
-    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
-    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION);
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.LEFT_RELEASED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RIGHT_RELEASED_POSITION);
   }
 
   /** Release both hardstop servos only (no angle change). */
   public void releaseHardstopServos() {
-    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
-    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RELEASED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.LEFT_RELEASED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RIGHT_RELEASED_POSITION);
   }
 
   /** Stow both angle servos only (no hardstop change). */
   public void stowAngleServos() {
-    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
-    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION);
+    io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.LEFT_STOWED_POSITION);
+    io.setRightSecondaryHookAnglePosition(ClimbConstants.AngleServo.RIGHT_STOWED_POSITION);
   }
 
   /** Stow both hardstop servos only (no angle change). */
   public void stowHardstopServos() {
-    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
-    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.STOWED_POSITION);
+    io.setLeftSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.LEFT_STOWED_POSITION);
+    io.setRightSecondaryHookHardstopPosition(ClimbConstants.HardstopServo.RIGHT_STOWED_POSITION);
   }
 
   // ─── Command-returning versions for teleop/auto ───
@@ -1086,17 +1083,41 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(this::releaseRightServos).withName("ClimbReleaseRightServos");
   }
 
+  /** Command: stow both angle servos (left + right). Fire-and-forget (runOnce). */
+  public Command stowAngleServosCommand() {
+    return runOnce(this::stowAngleServos).withName("ClimbStowAngleServos");
+  }
+
+  /** Command: release both angle servos (left + right). Fire-and-forget (runOnce). */
+  public Command releaseAngleServosCommand() {
+    return runOnce(this::releaseAngleServos).withName("ClimbReleaseAngleServos");
+  }
+
+  /** Command: stow both hardstop servos (left + right). Fire-and-forget (runOnce). */
+  public Command stowHardstopServosCommand() {
+    return runOnce(this::stowHardstopServos).withName("ClimbStowHardstopServos");
+  }
+
+  /** Command: release both hardstop servos (left + right). Fire-and-forget (runOnce). */
+  public Command releaseHardstopServosCommand() {
+    return runOnce(this::releaseHardstopServos).withName("ClimbReleaseHardstopServos");
+  }
+
   /** Command: stow left angle servo only (no hardstop change). Fire-and-forget (runOnce). */
   public Command stowLeftAngleServoCommand() {
     return runOnce(
-            () -> io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.STOWED_POSITION))
+            () ->
+                io.setLeftSecondaryHookAnglePosition(
+                    ClimbConstants.AngleServo.LEFT_STOWED_POSITION))
         .withName("ClimbStowLeftAngleServo");
   }
 
   /** Command: release left angle servo only (no hardstop change). Fire-and-forget (runOnce). */
   public Command releaseLeftAngleServoCommand() {
     return runOnce(
-            () -> io.setLeftSecondaryHookAnglePosition(ClimbConstants.AngleServo.RELEASED_POSITION))
+            () ->
+                io.setLeftSecondaryHookAnglePosition(
+                    ClimbConstants.AngleServo.LEFT_RELEASED_POSITION))
         .withName("ClimbReleaseLeftAngleServo");
   }
 
@@ -1105,7 +1126,7 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(
             () ->
                 io.setLeftSecondaryHookHardstopPosition(
-                    ClimbConstants.HardstopServo.STOWED_POSITION))
+                    ClimbConstants.HardstopServo.LEFT_STOWED_POSITION))
         .withName("ClimbStowLeftHardstopServo");
   }
 
@@ -1114,7 +1135,7 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(
             () ->
                 io.setLeftSecondaryHookHardstopPosition(
-                    ClimbConstants.HardstopServo.RELEASED_POSITION))
+                    ClimbConstants.HardstopServo.LEFT_RELEASED_POSITION))
         .withName("ClimbReleaseLeftHardstopServo");
   }
 
@@ -1556,6 +1577,7 @@ public class ClimbSubsystem extends SubsystemBase {
             () -> {
               calibrationMode = true;
               io.stop();
+              io.setCalibrationCurrentLimits();
               Logger.recordOutput("Climb/CalibrationMode", true);
               System.out.println("[Climb] Entered calibration mode");
             })
@@ -1570,6 +1592,7 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(
             () -> {
               io.stop();
+              io.setNormalCurrentLimits();
               io.recalibrateEncoders();
               calibrationMode = false;
               setState(ClimbState.STOWED);

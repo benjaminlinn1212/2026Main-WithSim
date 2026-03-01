@@ -39,7 +39,7 @@ public class ConveyorIOSim implements ConveyorIO {
       feedCooldownTicks--;
     }
 
-    // When feeding toward shooter and we have a fuel in the intake, transfer it
+    // Transfer fuel from intake to shooter when feeding
     if (appliedPercent < Constants.SimConstants.CONVEYOR_FEED_THRESHOLD
         && feedCooldownTicks == 0
         && intakeIOSim != null) {

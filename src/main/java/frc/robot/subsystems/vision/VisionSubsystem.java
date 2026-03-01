@@ -24,7 +24,6 @@ import java.util.function.Consumer;
 import org.littletonrobotics.junction.Logger;
 
 public class VisionSubsystem extends SubsystemBase {
-  // Vision processing constants
   private static final double MIN_TAG_AREA_MULTI_TAG = 0.1;
   private static final double MIN_TAG_AREA_LARGE = 0.8;
   private static final double MAX_POSE_DIFFERENCE_CLOSE = 0.3;
@@ -65,11 +64,9 @@ public class VisionSubsystem extends SubsystemBase {
   @Override
   public void periodic() {
     io.updateInputs(inputs);
-    // Manual logging of important vision data
     Logger.recordOutput("Vision/Front/SeesTarget", inputs.frontCameraSeesTarget);
     Logger.recordOutput("Vision/Turret/SeesTarget", inputs.turretCameraSeesTarget);
 
-    // Process each camera
     if (inputs.frontCameraSeesTarget) {
       updateVision(
           inputs.frontCameraMegatagPoseEstimate,

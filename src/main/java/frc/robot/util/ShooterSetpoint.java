@@ -68,9 +68,7 @@ public class ShooterSetpoint {
 
   // ===== Interpolation Map Initialization =====
   static {
-    // Hood angle vs distance (radians from horizontal, interpolated)
-    // Key: distance from turret to target (meters)
-    // Value: hood angle as Rotation2d (converted to radians via getRadians())
+    // Hood angle vs distance (meters → radians from horizontal)
     hoodAngleMap.put(1.25, Rotation2d.fromDegrees(21.0));
     hoodAngleMap.put(1.5, Rotation2d.fromDegrees(21.0));
     hoodAngleMap.put(1.75, Rotation2d.fromDegrees(22.0));

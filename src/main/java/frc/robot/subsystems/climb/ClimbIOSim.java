@@ -18,7 +18,7 @@ import frc.robot.subsystems.climb.util.ClimbIK;
  */
 public class ClimbIOSim implements ClimbIO {
 
-  // ── Per-motor simulated state ──
+  // Per-motor simulated state
   private double rightFrontPositionRotations;
   private double rightFrontVelocityRotPerSec = 0.0;
   private double rightFrontAppliedVolts = 0.0;
@@ -44,16 +44,14 @@ public class ClimbIOSim implements ClimbIO {
   private double rightSecondaryHookHardstopServoPosition = 0.0;
 
   // ── Simulation timing ──
-  private static final double DT = 0.02; // 20ms loop time
+  private static final double DT = 0.02;
 
-  // ── Motion profile constraints (mechanism rotations) ──
-  // These match ClimbConstants; they are the *mechanism-side* limits.
-  private static final double CRUISE_VEL = ClimbConstants.CRUISE_VELOCITY; // mech rot/s
-  private static final double MAX_ACCEL = ClimbConstants.ACCELERATION; // mech rot/s²
+  // Motion profile constraints (mechanism rotations, matching ClimbConstants)
+  private static final double CRUISE_VEL = ClimbConstants.CRUISE_VELOCITY;
+  private static final double MAX_ACCEL = ClimbConstants.ACCELERATION;
 
   public ClimbIOSim() {
-    // Initialize motor positions to the STOWED cable-length rotations so the sim starts
-    // with the arm in the correct position (not at 0 rotations which is physically wrong).
+    // Initialize to STOWED cable-length rotations so the sim starts at the correct position
     Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
     ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
     if (stowedIK.isValid) {
@@ -106,10 +104,6 @@ public class ClimbIOSim implements ClimbIO {
     // Secondary Hook Hardstop Servos
     inputs.leftSecondaryHookHardstopServoPosition = leftSecondaryHookHardstopServoPosition;
     inputs.rightSecondaryHookHardstopServoPosition = rightSecondaryHookHardstopServoPosition;
-
-    // Update Mechanism2d visualization
-    // Note: Mechanism2d visualization would need to be sent to SmartDashboard separately
-    // For now, the end effector and joint positions logged in ClimbSubsystem are sufficient
   }
 
   @Override

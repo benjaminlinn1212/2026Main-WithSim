@@ -55,29 +55,26 @@ public class ShooterIOSim implements ShooterIO {
     this.turretAngleRadSupplier = turretAngleRadSupplier;
     this.hoodAngleRadSupplier = hoodAngleRadSupplier;
 
-    // Use WPILib DCMotorSim with real motor model and gear ratio from constants
-    // Shooter is direct-drive (GEAR_RATIO = 1.0), MOI ≈ 0.004 kg*m² for a typical flywheel
+    // Direct-drive (GEAR_RATIO = 1.0), flywheel MOI ≈ 0.004 kg·m²
     DCMotor motor = DCMotor.getKrakenX60(1);
-    double gearing = 1.0 / ShooterConstants.GEAR_RATIO; // motor-to-mechanism reduction
-    double jKgMetersSquared = 0.004; // flywheel moment of inertia
+    double gearing = 1.0 / ShooterConstants.GEAR_RATIO;
+    double jKgMetersSquared = 0.004;
     flywheelSim =
         new DCMotorSim(LinearSystemId.createDCMotorSystem(motor, jKgMetersSquared, gearing), motor);
   }
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    // Apply voltage and step the physics sim
     flywheelSim.setInputVoltage(appliedVolts);
-    flywheelSim.update(0.02); // 20ms loop time
+    flywheelSim.update(0.02);
 
-    // Read real simulated outputs
-    inputs.velocityRotPerSec = flywheelSim.getAngularVelocityRPM() / 60.0; // RPM -> RPS
+    inputs.velocityRotPerSec = flywheelSim.getAngularVelocityRPM() / 60.0;
     inputs.positionRot = flywheelSim.getAngularPositionRotations();
     inputs.appliedVolts = appliedVolts;
     inputs.currentAmps = Math.abs(flywheelSim.getCurrentDrawAmps());
-    inputs.temperatureCelsius = 25.0; // constant in sim
+    inputs.temperatureCelsius = 25.0;
 
-    // If there is fuel queued and the shooter is spinning fast enough, launch it
+    // Launch fuel if spinning fast enough
     if (fuelQueuedCount > 0
         && Math.abs(inputs.velocityRotPerSec) > Constants.SimConstants.MIN_LAUNCH_VELOCITY_RPS) {
       launchFuelProjectile(inputs.velocityRotPerSec);
@@ -87,7 +84,6 @@ public class ShooterIOSim implements ShooterIO {
 
   @Override
   public void setVelocity(double velocityRotPerSec) {
-    // Use the real ShooterConstants feedforward gains (same as TalonFX config)
     // V = kS * sign(v) + kV * v
     appliedVolts =
         ShooterConstants.KS * Math.signum(velocityRotPerSec)
@@ -123,25 +119,18 @@ public class ShooterIOSim implements ShooterIO {
     ChassisSpeeds fieldRelativeSpeeds =
         driveSimulation.getDriveTrainSimulatedChassisSpeedsFieldRelative();
 
-    // Get the turret angle (radians, relative to robot heading)
     double turretAngleRad = turretAngleRadSupplier.getAsDouble();
-
-    // Shooter facing = robot heading + turret angle
     Rotation2d shooterFacing = robotPose.getRotation().plus(Rotation2d.fromRadians(turretAngleRad));
-
-    // Shooter exit XY = turret center on the robot
     Translation2d shooterOffsetOnRobot = Constants.TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
 
-    // Get the hood angle (radians from horizontal) and compute launch angle = 90 - hood
     double hoodAngleDeg = Math.toDegrees(hoodAngleRadSupplier.getAsDouble());
     double launchAngleDeg = 90.0 - hoodAngleDeg;
-    // Clamp to a sane range in case hood hasn't been set yet
     launchAngleDeg =
         Math.max(
             Constants.SimConstants.MIN_LAUNCH_ANGLE_DEG,
             Math.min(launchAngleDeg, Constants.SimConstants.MAX_LAUNCH_ANGLE_DEG));
 
-    // Launch speed proportional to actual flywheel RPS, with compression efficiency applied
+    // Launch speed proportional to flywheel RPS with compression efficiency
     double launchSpeedMps =
         Math.abs(currentVelocityRPS)
             / 100.0
@@ -165,10 +154,7 @@ public class ShooterIOSim implements ShooterIO {
         (poses) ->
             Logger.recordOutput("Flywheel/FuelProjectileMissed", poses.toArray(Pose3d[]::new)));
 
-    // Let it become a game piece on the field after touchdown
     fuelOnFly.enableBecomesGamePieceOnFieldAfterTouchGround();
-
-    // Add to the simulated arena
     SimulatedArena.getInstance().addGamePieceProjectile(fuelOnFly);
 
     Logger.recordOutput("Flywheel/LaunchSpeedMps", launchSpeedMps);

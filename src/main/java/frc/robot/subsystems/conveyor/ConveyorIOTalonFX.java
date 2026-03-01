@@ -16,11 +16,9 @@ public class ConveyorIOTalonFX implements ConveyorIO {
 
     TalonFXConfiguration config = new TalonFXConfiguration();
 
-    // Motor Inversion and Neutral Mode
     config.MotorOutput.Inverted = ConveyorConstants.MOTOR_INVERTED;
     config.MotorOutput.NeutralMode = ConveyorConstants.NEUTRAL_MODE;
 
-    // Current Limits
     config.CurrentLimits.StatorCurrentLimit = ConveyorConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = ConveyorConstants.SUPPLY_CURRENT_LIMIT;

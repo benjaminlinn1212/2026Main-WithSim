@@ -22,10 +22,8 @@ import org.littletonrobotics.junction.wpilog.WPILOGReader;
 import org.littletonrobotics.junction.wpilog.WPILOGWriter;
 
 /**
- * The VM is configured to automatically run this class, and to call the functions corresponding to
- * each mode, as described in the TimedRobot documentation. If you change the name of this class or
- * the package after creating this project, you must also update the build.gradle file in the
- * project.
+ * Main robot class. Extends LoggedRobot for AdvantageKit logging. Handles mode transitions,
+ * 254-style pose pre-seeding during disabled, and sim initialization.
  */
 public class Robot extends LoggedRobot {
   private Command autonomousCommand;
@@ -92,37 +90,21 @@ public class Robot extends LoggedRobot {
     // Start AdvantageKit logger
     Logger.start();
 
-    // Instantiate our RobotContainer. This will perform all our button bindings,
-    // and put our autonomous chooser on the dashboard.
+    // Instantiate our RobotContainer
     robotContainer = new RobotContainer();
   }
 
-  /** This function is called periodically during all modes. */
   @Override
   public void robotPeriodic() {
-    // Optionally switch the thread to high priority to improve loop
-    // timing (see the template project documentation for details)
-    // Threads.setCurrentThreadPriority(true, 99);
-
-    // Runs the Scheduler. This is responsible for polling buttons, adding
-    // newly-scheduled commands, running already-scheduled commands, removing
-    // finished or interrupted commands, and running subsystem periodic() methods.
-    // This must be called from the robot's periodic block in order for anything in
-    // the Command-based framework to work.
     CommandScheduler.getInstance().run();
-
-    // Return to non-RT thread priority (do not modify the first argument)
-    // Threads.setCurrentThreadPriority(false, 10);
   }
 
-  /** This function is called once when the robot is disabled. */
   @Override
   public void disabledInit() {
     // Cancel any running commands when disabled
     if (autonomousCommand != null) {
-      System.out.println("[Robot] Canceling autonomous command on disable");
       autonomousCommand.cancel();
-      autonomousCommand = null; // Clear reference so it can be recreated
+      autonomousCommand = null;
     }
 
     // Reset the periodic counter so the first disabledPeriodic immediately pre-seeds
@@ -130,17 +112,11 @@ public class Robot extends LoggedRobot {
   }
 
   /**
-   * This function is called periodically when disabled.
-   *
-   * <p><b>254-style pose pre-seeding:</b> Every N iterations, check if the auto settings changed.
-   * When they do, pre-seed the odometry with the selected auto's starting pose
-   * (alliance-corrected). This allows vision corrections to refine the pose before auto starts.
-   * Also publishes a "Near Auto Starting Pose" boolean so the drive team can verify physical
-   * placement.
+   * 254-style pose pre-seeding: periodically check if auto settings changed, and when they do,
+   * pre-seed odometry with the selected auto's starting pose (alliance-corrected).
    */
   @Override
   public void disabledPeriodic() {
-    // Run warmup for selected auto during disabled
     robotContainer.runAutoWarmup();
 
     // 254-style: Only run the heavy check every N iterations (~1s)
@@ -148,7 +124,7 @@ public class Robot extends LoggedRobot {
     if (disabledPeriodicCount % DISABLED_PERIODIC_CHECK_INTERVAL == 0) {
       var dashboardAutoManager = robotContainer.getDashboardAutoManager();
 
-      // Publish "Near Auto Starting Pose" indicator (254-style, 0.25m / 8° tolerance)
+      // Publish "Near Auto Starting Pose" indicator
       Pose2d startingPose = dashboardAutoManager.getStartingPose();
       if (startingPose != null) {
         boolean nearStartPose = robotContainer.odometryCloseToPose(startingPose);
@@ -156,9 +132,7 @@ public class Robot extends LoggedRobot {
         Logger.recordOutput("Auto/NearAutoStartingPose", nearStartPose);
       }
 
-      // Pre-seed odometry when auto settings change (254-style)
-      // This sets the robot's pose estimate to the selected starting position so that
-      // vision corrections can refine it during the remaining disabled period.
+      // Pre-seed odometry when auto settings change
       if (dashboardAutoManager.didSettingsChange()) {
         if (startingPose != null) {
           robotContainer.getDriveSubsystem().setPose(startingPose);
@@ -171,19 +145,14 @@ public class Robot extends LoggedRobot {
   }
 
   /**
-   * This autonomous runs the autonomous command selected by your {@link RobotContainer} class.
-   *
-   * <p><b>254-style:</b> NO hard pose reset here. The pose was pre-seeded during disabled and
-   * refined by vision. We just schedule the command and trust the existing pose estimate.
+   * 254-style: No hard pose reset here. The pose was pre-seeded during disabled and refined by
+   * vision. In SIM, hard-reset since there is no physical placement or vision.
    */
   @Override
   public void autonomousInit() {
     hasBeenEnabled = true;
 
-    // SIM-only: Always hard-reset pose to the selected auto's starting pose.
-    // On real hardware the pose is pre-seeded during disabled and refined by vision,
-    // but in simulation there is no physical placement or vision — the robot needs
-    // to be teleported to the correct start before the auto command runs.
+    // SIM-only: Hard-reset pose to the selected auto's starting pose
     if (Constants.currentMode == Constants.Mode.SIM) {
       Pose2d startingPose = robotContainer.getDashboardAutoManager().getStartingPose();
       if (startingPose != null) {
@@ -192,33 +161,24 @@ public class Robot extends LoggedRobot {
         Logger.recordOutput("Auto/SimResetPose", startingPose);
       }
 
-      // Reset the climb to STOWED so the Mechanism2d re-initializes properly
+      // Reset climb to STOWED so Mechanism2d re-initializes properly
       robotContainer.getClimbSubsystem().resetToStowed();
-      System.out.println("[Robot] SIM: Reset climb to STOWED");
     }
 
     // Always get a fresh command from the chooser
     autonomousCommand = robotContainer.getAutonomousCommand();
 
-    // schedule the autonomous command
     if (autonomousCommand != null) {
-      System.out.println("[Robot] Scheduling autonomous command: " + autonomousCommand.getName());
       CommandScheduler.getInstance().schedule(autonomousCommand);
-    } else {
-      System.out.println("[Robot] WARNING: No autonomous command selected!");
     }
   }
 
-  /** This function is called periodically during autonomous. */
   @Override
   public void autonomousPeriodic() {}
 
   /**
-   * This function is called once when teleop is enabled.
-   *
-   * <p><b>254-style:</b> If the robot has never been enabled (e.g. skipped auto, or went straight
-   * to teleop from power-on), reset the heading to alliance wall orientation. This ensures
-   * field-relative driving works correctly even without a proper auto pose seed.
+   * 254-style: If the robot has never been enabled (skipped auto), reset heading to alliance wall
+   * orientation for correct field-relative driving.
    */
   @Override
   public void teleopInit() {
@@ -234,37 +194,25 @@ public class Robot extends LoggedRobot {
       boolean isRed = FieldConstants.isRedAlliance();
       Pose2d resetPose =
           new Pose2d(
-              currentPose.getTranslation(), // Keep current translation (from vision or pre-seed)
+              currentPose.getTranslation(),
               isRed ? Rotation2d.fromDegrees(180) : Rotation2d.fromDegrees(0));
       robotContainer.getDriveSubsystem().setPose(resetPose);
-      System.out.println(
-          "[Robot] 254-style: First enable heading reset to "
-              + (isRed ? "180°" : "0°")
-              + " (alliance: "
-              + (isRed ? "Red" : "Blue")
-              + ")");
     }
   }
 
-  /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {}
 
-  /** This function is called once when test mode is enabled. */
   @Override
   public void testInit() {
-    // Cancels all running commands at the start of test mode.
     CommandScheduler.getInstance().cancelAll();
   }
 
-  /** This function is called periodically during test mode. */
   @Override
   public void testPeriodic() {}
 
-  /** This function is called once when the robot is first started up. */
   @Override
   public void simulationInit() {
-    // Set starting pose for simulation (0.5m, 0.5m, 0°)
     robotContainer.setSwerveStartingPose(
         new edu.wpi.first.math.geometry.Pose2d(
             0.5, 0.5, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0)));
@@ -281,7 +229,6 @@ public class Robot extends LoggedRobot {
   /** This function is called periodically whilst in simulation. */
   @Override
   public void simulationPeriodic() {
-    // Log game piece positions for visualization
     if (Constants.DriveConstants.USE_MAPLE_SIM) {
       Logger.recordOutput(
           "FieldSimulation/Fuel", SimulatedArena.getInstance().getGamePiecesArrayByType("Fuel"));

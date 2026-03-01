@@ -104,7 +104,7 @@ public class ShooterSubsystem extends SubsystemBase {
 
   /** Check if shooter is stopped (for climb readiness) */
   public boolean atSetpoint() {
-    return atVelocity(0.0); // Check if at zero velocity (stopped)
+    return atVelocity(0.0);
   }
 
   /** Stops the shooter motors */

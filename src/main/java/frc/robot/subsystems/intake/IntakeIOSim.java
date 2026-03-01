@@ -18,8 +18,6 @@ public class IntakeIOSim implements IntakeIO {
   private final IntakeSimulation intakeSimulation;
 
   public IntakeIOSim(SwerveDriveSimulation driveTrainSimulation) {
-    // Create an Over-The-Bumper intake on the BACK side of the chassis
-    // Rebuilt fuel balls are small — the robot can carry many at once
     this.intakeSimulation =
         IntakeSimulation.OverTheBumperIntake(
             "Fuel", // Game piece type for 2026 Rebuilt
@@ -32,13 +30,11 @@ public class IntakeIOSim implements IntakeIO {
 
   @Override
   public void updateInputs(IntakeIOInputs inputs) {
-    // Upper motor
     inputs.upperAppliedVolts = upperAppliedPercent * 12.0;
     inputs.upperVelocityRotPerSec = upperAppliedPercent * 80.0;
     inputs.upperCurrentAmps = Math.abs(upperAppliedPercent) * 10.0;
     inputs.upperTemperatureCelsius = 25.0;
 
-    // Lower motor
     inputs.lowerAppliedVolts = lowerAppliedPercent * 12.0;
     inputs.lowerVelocityRotPerSec = lowerAppliedPercent * 80.0;
     inputs.lowerCurrentAmps = Math.abs(lowerAppliedPercent) * 10.0;

@@ -177,15 +177,8 @@ public class Superstructure extends SubsystemBase {
     Logger.recordOutput("Superstructure/State", currentState.toString());
 
     // ===== Trench Zone Detection (with exit hysteresis) =====
-    // Compute trench zone FIRST so the main switch can use it to avoid calling
-    // turret.applyAiming() when the turret must stay stowed. This eliminates the
-    // wasteful applyAiming() → applyStow() double-call each cycle, which caused
-    // turret state flip-flopping inside the trench.
-    //
-    // Exit hysteresis: once inTrenchZone goes true, keep it latched for
-    // TRENCH_EXIT_HOLDOFF_SECONDS after the geometric check goes false. This prevents
-    // turret stutter from pose noise at the trench boundary causing rapid stow↔aim
-    // oscillation on exit.
+    // Compute trench zone FIRST so the main switch can stow the turret/hood as needed.
+    // Exit hysteresis prevents turret stutter from pose noise at the trench boundary.
     Pose2d robotPose = robotPoseSupplier.get();
     boolean geometricTrench = FieldConstants.isNearTrench(robotPose.getTranslation());
     double now = Timer.getFPGATimestamp();
@@ -203,18 +196,13 @@ public class Superstructure extends SubsystemBase {
     }
     Logger.recordOutput("Superstructure/InTrenchZone", inTrenchZone);
 
-    // When in the trench zone, the hood MUST be stowed (trench is only 22.25in / 56.5cm tall).
-    // The turret can still aim in the trench since it's lower-profile.
-    // Feeding is blocked until the hood reaches its aiming setpoint (checked by auto commands).
+    // When in the trench zone, stow the hood (trench is 22.25in tall)
     boolean trenchStowHood =
         inTrenchZone
             && wantedState != SuperstructureState.IDLE
             && wantedState != SuperstructureState.EMERGENCY;
 
     // ===== FUEL Detection (current-based, gated by state) =====
-    // Intake detection: only runs when intake rollers are active (deploying states).
-    // Shooter detection: only runs when conveyor is feeding (shooting states).
-    // This avoids noisy logs and false triggers from idle motor current.
     if (isIntakeDeployingState(wantedState)) {
       updateIntakeDetection(now);
     }
@@ -223,9 +211,7 @@ public class Superstructure extends SubsystemBase {
       updateShooterDetection(now);
     }
 
-    // Apply the wanted state to all subsystems every cycle.
-    // EMERGENCY is handled specially — it doesn't continuously re-apply.
-    // Climb is independent and not managed by this switch.
+    // Apply the wanted state to all subsystems every cycle
     Logger.recordOutput("Superstructure/IntakeHalfDeployed", intakeHalfDeployed);
     switch (wantedState) {
       case IDLE:

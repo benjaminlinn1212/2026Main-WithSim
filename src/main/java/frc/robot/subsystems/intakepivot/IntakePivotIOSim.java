@@ -21,20 +21,20 @@ public class IntakePivotIOSim implements IntakePivotIO {
   private double appliedVolts = 0.0;
   private boolean closedLoop = false;
 
-  // --- Sim-only PID gains (separate from real robot) ---
+  // Sim-only PID gains
   private static final double SIM_KP = 1.5;
   private static final double SIM_KI = 0.0;
   private static final double SIM_KD = 0.4;
 
-  // --- Sim-only feedforward gains ---
+  // Sim-only feedforward gains
   private static final double SIM_KS = 0.0;
   private static final double SIM_KG = 0.05;
   private static final double SIM_KV = 0.0;
   private static final double SIM_KA = 0.0;
 
-  // --- Sim-only Motion Magic constraints ---
-  private static final double SIM_CRUISE_VELOCITY = 100.0; // rot/s
-  private static final double SIM_ACCELERATION = 300.0; // rot/s^2
+  // Sim-only Motion Magic constraints
+  private static final double SIM_CRUISE_VELOCITY = 100.0;
+  private static final double SIM_ACCELERATION = 300.0;
 
   public IntakePivotIOSim() {
     sim =

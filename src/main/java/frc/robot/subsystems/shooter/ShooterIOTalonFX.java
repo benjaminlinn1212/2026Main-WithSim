@@ -47,22 +47,13 @@ public class ShooterIOTalonFX implements ShooterIO {
     motor.setControl(voltageControl.withOutput(volts));
   }
 
-  /**
-   * Gets the {@link TalonFXConfiguration} for the shooter motor
-   *
-   * @return The {@link TalonFXConfiguration} for the shooter motor
-   */
+  /** Gets the {@link TalonFXConfiguration} for the shooter motor. */
   private TalonFXConfiguration shooterConfiguration() {
     TalonFXConfiguration configuration = new TalonFXConfiguration();
 
-    // Per CTRE recommendation, set to 1.0 and handle conversions in code
-    // For Shooter: GEAR_RATIO = 1.0 (direct drive), so motor rotations = mechanism rotations
     configuration.Feedback.SensorToMechanismRatio = 1.0;
-
-    // Motor Inversion
     configuration.MotorOutput.Inverted = ShooterConstants.MOTOR_INVERTED;
 
-    // PID and Feedforward (VelocityVoltage control)
     configuration.Slot0 =
         new Slot0Configs()
             .withKP(ShooterConstants.KP)
@@ -72,7 +63,6 @@ public class ShooterIOTalonFX implements ShooterIO {
             .withKV(ShooterConstants.KV)
             .withKA(ShooterConstants.KA);
 
-    // Current Limits
     configuration.CurrentLimits.StatorCurrentLimit = ShooterConstants.STATOR_CURRENT_LIMIT;
     configuration.CurrentLimits.StatorCurrentLimitEnable = true;
     configuration.CurrentLimits.SupplyCurrentLimit = ShooterConstants.SUPPLY_CURRENT_LIMIT;

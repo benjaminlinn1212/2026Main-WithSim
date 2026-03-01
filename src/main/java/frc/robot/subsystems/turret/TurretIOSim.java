@@ -16,11 +16,8 @@ public class TurretIOSim implements TurretIO {
   private boolean closedLoop = false;
 
   public TurretIOSim() {
-    // Create a simulated turret using SingleJointedArmSim
-    // Parameters: DCMotor, gear ratio, MOI, length, min angle, max angle, simulate gravity,
-    // starting angle
-    // NOTE: WPILib expects gear ratio as motor_rotations/mechanism_rotation (reduction)
-    // Our GEAR_RATIO is mechanism/motor, so we need the reciprocal
+    // WPILib expects gear ratio as motor_rot/mechanism_rot (reduction);
+    // our GEAR_RATIO is mechanism/motor, so invert it.
     sim =
         new SingleJointedArmSim(
             DCMotor.getKrakenX60(1),
@@ -35,9 +32,7 @@ public class TurretIOSim implements TurretIO {
 
   @Override
   public void updateInputs(TurretIOInputs inputs) {
-    // Perform closed-loop control in simulation
     if (closedLoop) {
-      // Simple P controller for simulation
       double error = positionSetpointRad - sim.getAngleRads();
       // KV is in volts per (mechanism rotations/sec), convert rad/s to rot/s
       double ffVolts =
@@ -50,9 +45,8 @@ public class TurretIOSim implements TurretIO {
 
     // Update simulation
     sim.setInputVoltage(appliedVolts);
-    sim.update(0.02); // 20ms update period
+    sim.update(0.02);
 
-    // Read simulated values (convert from radians to rotations)
     inputs.positionRot = Units.radiansToRotations(sim.getAngleRads());
     inputs.velocityRotPerSec = Units.radiansToRotations(sim.getVelocityRadPerSec());
     inputs.absolutePosition = sim.getAngleRads();
@@ -65,7 +59,6 @@ public class TurretIOSim implements TurretIO {
   @Override
   public void setPositionSetpoint(double rotationsFromCenter, double feedforwardVolts) {
     closedLoop = true;
-    // Convert rotations to radians for internal sim calculations
     double rawRad = Units.rotationsToRadians(rotationsFromCenter);
     positionSetpointRad =
         MathUtil.clamp(
@@ -77,8 +70,6 @@ public class TurretIOSim implements TurretIO {
     Logger.recordOutput("Turret/Sim/ClampedSetpointDeg", Math.toDegrees(positionSetpointRad));
     Logger.recordOutput("Turret/Sim/SimAngleDeg", Math.toDegrees(sim.getAngleRads()));
     Logger.recordOutput("Turret/Sim/WasClamped", rawRad != positionSetpointRad);
-    // In sim, we can derive feedforward velocity from voltage if needed
-    // For now, just use the position setpoint (sim doesn't need perfect FF)
     velocitySetpointRadPerSec = 0.0;
   }
 

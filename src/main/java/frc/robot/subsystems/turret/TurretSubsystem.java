@@ -67,21 +67,17 @@ public class TurretSubsystem extends SubsystemBase {
     Logger.recordOutput("Turret/State", currentState.toString());
     Logger.recordOutput("Turret/SetpointRad", positionSetpointRad);
 
-    // Report turret rotation to RobotState so vision can use it.
-    // Use raw radians (not Rotation2d) to avoid wrapping to [-π, π] — the turret
-    // can travel beyond ±180° with the current asymmetric limits.
+    // Report turret rotation to RobotState so vision can use it
     double turretPositionRad = Units.rotationsToRadians(inputs.positionRot);
     double turretVelocityRadPerSec = Units.rotationsToRadians(inputs.velocityRotPerSec);
     robotState.addTurretUpdates(
         Timer.getFPGATimestamp(), turretPositionRad, turretVelocityRadPerSec);
 
-    // Calculate turret absolute field heading (robot heading + turret position)
     double robotHeadingRad = robotPoseSupplier.get().getRotation().getRadians();
     double turretFieldHeadingRad = robotHeadingRad + turretPositionRad;
     Logger.recordOutput("Turret/FieldHeadingRad", turretFieldHeadingRad);
     Logger.recordOutput("Turret/FieldHeadingDeg", Math.toDegrees(turretFieldHeadingRad));
 
-    // Calculate and log position error
     double errorRad = positionSetpointRad - turretPositionRad;
     Logger.recordOutput("Turret/ErrorRad", errorRad);
     Logger.recordOutput("Turret/ErrorDeg", Math.toDegrees(errorRad));
@@ -114,24 +110,15 @@ public class TurretSubsystem extends SubsystemBase {
         .andThen(
             run(
                 () -> {
-                  // Get setpoint from ShooterSetpoint utility
                   ShooterSetpoint setpoint = setpointSupplier.get();
-
-                  // Extract turret angle and feedforward from setpoint
                   double targetRad = setpoint.getTurretAngleRad();
                   double feedforwardRadPerSec = setpoint.getTurretFeedforwardRadPerSec();
-
-                  // Apply wrapping logic to target
                   double wrappedTarget = adjustSetpointForWrap(targetRad);
 
-                  // Log setpoint validity and shot type
                   Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.isValid());
                   Logger.recordOutput(
                       "Turret/Aiming/IsNeutralZoneShot", setpoint.isNeutralZoneShot());
 
-                  // Convert feedforward velocity to volts for motor control
-                  // Phoenix 6 SensorToMechanismRatio handles unit conversion automatically
-                  // KV is in volts per (mechanism rotations/second)
                   double feedforwardVolts = feedforwardRadPerSec * Constants.TurretConstants.KV;
 
                   setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
@@ -245,8 +232,6 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   private void setPositionSetpointImpl(double radiansFromCenter, double feedforwardVolts) {
-    // Convert radians to rotations for hardware interface
-    // feedforwardVolts is already in volts, pass directly
     io.setPositionSetpoint(Units.radiansToRotations(radiansFromCenter), feedforwardVolts);
   }
 
@@ -271,8 +256,6 @@ public class TurretSubsystem extends SubsystemBase {
     return Math.abs(getCurrentPosition() - positionSetpointRad)
         < Constants.TurretConstants.AIMING_TOLERANCE_RAD;
   }
-
-  // ==================== Direct Apply Methods (for Superstructure periodic) ====================
 
   /**
    * Directly apply the stow position. Called by Superstructure.periodic() every cycle when the

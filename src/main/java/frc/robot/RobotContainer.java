@@ -18,8 +18,6 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.GenericHID;
-import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -78,13 +76,10 @@ import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
- * This class is where the bulk of the robot should be declared. Since Command-based is a
- * "declarative" paradigm, very little robot logic should actually be handled in the {@link Robot}
- * periodic methods (other than the scheduler calls). Instead, the structure of the robot (including
- * subsystems, commands, and button mappings) should be declared here.
+ * Subsystem construction (REAL/SIM/REPLAY switch), auto chooser, PathPlanner config, and button
+ * bindings.
  */
 public class RobotContainer {
-  // Robot state (matches 254)
   private final RobotState robotState = new RobotState();
 
   // Subsystems
@@ -125,7 +120,7 @@ public class RobotContainer {
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
-    // Regulate module constants for simulation (254's approach)
+    // Regulate module constants for simulation
     if (Constants.currentMode == Constants.Mode.SIM) {
       MapleSimSwerveDrivetrain.regulateModuleConstantsForSimulation(
           new com.ctre.phoenix6.swerve.SwerveModuleConstants<?, ?, ?>[] {
@@ -138,7 +133,6 @@ public class RobotContainer {
 
     switch (Constants.currentMode) {
       case REAL:
-        // Real robot, use CTRE SwerveDrivetrain directly (254's approach)
         drive =
             new DriveSwerveDrivetrain(
                 new DriveIOHardware(
@@ -152,7 +146,6 @@ public class RobotContainer {
         break;
 
       case SIM:
-        // Sim robot, use DriveIOSim with Maple-Sim integration (254's approach)
         drive =
             new DriveSwerveDrivetrain(
                 new DriveIOSim(
@@ -166,7 +159,6 @@ public class RobotContainer {
         break;
 
       default:
-        // For replay, create minimal DriveIOHardware
         drive =
             new DriveSwerveDrivetrain(
                 new DriveIOHardware(
@@ -180,7 +172,7 @@ public class RobotContainer {
         break;
     }
 
-    // Set up auto routines under SmartDashboard/Auto subtable
+    // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto/Auto Choices");
     autoChooser.addDefaultOption("Do Nothing", Commands.none());
 
@@ -261,9 +253,7 @@ public class RobotContainer {
         new Superstructure(
             shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb, leds);
 
-    // ===== OPERATOR CLIMB LEVEL CHOOSER =====
-    // L1 = auto L1 sequence (EXTEND_L1_AUTO → RETRACT_L1_AUTO), quick climb
-    // L2L3 = full teleop sequence through all rungs with servo operations
+    // Operator climb level chooser
     operatorClimbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.OperatorClimbLevel.L2L3);
     operatorClimbLevelChooser.addOption("L1", ClimbSubsystem.OperatorClimbLevel.L1);
     SmartDashboard.putData("Operator/Climb Level", operatorClimbLevelChooser);
@@ -273,13 +263,13 @@ public class RobotContainer {
           return selected != null ? selected : ClimbSubsystem.OperatorClimbLevel.L2L3;
         });
 
-    // Wire IMU roll supplier for auto-level climb assist (only when feature is enabled)
+    // Wire IMU roll supplier for auto-level climb assist
     if (Constants.ClimbConstants.ImuAssist.ENABLED) {
       climb.setRollDegreesSupplier(
           () -> drive.getDriveIO().getPigeon2().getRoll().getValueAsDouble());
     }
 
-    // Instantiate Vision with pose consumer that feeds into the drive's pose estimator
+    // Instantiate Vision with pose consumer feeding into the drive's pose estimator
     switch (Constants.currentMode) {
       case REAL:
         vision =
@@ -296,46 +286,37 @@ public class RobotContainer {
                             estimate.getVisionMeasurementStdDevs()));
         break;
       case SIM:
-        // SIM: no-op vision (no PhotonVision sim)
         vision = new VisionSubsystem(inputs -> {}, robotState, estimate -> {});
         break;
       default:
-        // REPLAY: no-op vision IO
         vision = new VisionSubsystem(inputs -> {}, robotState, estimate -> {});
         break;
     }
 
     // ===== CONFIGURE PATHPLANNER AUTOBUILDER =====
-    // Must be done BEFORE creating any auto commands
     configureAutoBuilder();
 
-    // ===== CONFIGURE AUTO MODE SELECTOR (254-style) =====
-    // Single source of truth: DashboardAutoManager owns all auto planning.
-    // The planner reads field-aware settings from Shuffleboard, generates an
-    // optimal action sequence, and builds the command tree at autonomousInit().
-    // Configure settings in the "Auto Settings" Shuffleboard tab before each match.
+    // ===== CONFIGURE AUTO MODE SELECTOR =====
     dashboardAutoManager = new DashboardAutoManager(drive, superstructure, climb);
     autoChooser.addOption(
         "Dashboard Auto",
         Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(drive)));
 
-    // Hardcoded fallback autos — reads Start Pose from dashboard auto settings
+    // Hardcoded fallback autos
     hardcodedAutos = new HardcodedAutos(drive, superstructure, dashboardAutoManager);
     autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
 
-    // Sweep auto — rush to midfield, S-shape sweep while shoot-while-intaking
+    // Sweep auto
     SweepAuto sweepAuto = new SweepAuto(drive, superstructure, climb, dashboardAutoManager);
     autoChooser.addOption("Sweep Auto", sweepAuto.getCommand());
 
     // ===== ORCHESTRA (Play Music) AUTO =====
-    // Only create on real robot — Orchestra requires real TalonFX hardware
     if (Constants.currentMode == Constants.Mode.REAL) {
       orchestraManager = new OrchestraManager();
       autoChooser.addOption("Play Music", orchestraManager.playMusicCommand());
     }
 
     // ===== INTEGRATE SHOOTERSETPOINT UTILITY =====
-    // Create a ShooterSetpoint supplier that uses robotState for calculations
     var shooterSetpointSupplier = ShooterSetpoint.createSupplier(robotState);
 
     // Connect all aiming subsystems to use the same ShooterSetpoint
@@ -343,10 +324,7 @@ public class RobotContainer {
     hood.setShooterSetpointSupplier(shooterSetpointSupplier);
     shooter.setShooterSetpointSupplier(shooterSetpointSupplier);
 
-    // Provide robot pose for turret's field-relative tracking
     turret.setRobotPoseSupplier(() -> drive.getPose());
-
-    // Provide robot pose for trench detection (hood stow override)
     superstructure.setRobotPoseSupplier(() -> drive.getPose());
 
     // Configure the button bindings
@@ -356,52 +334,29 @@ public class RobotContainer {
   /** Configure PathPlanner AutoBuilder for pathfinding and auto paths. */
   private void configureAutoBuilder() {
     try {
-      // Use AD* pathfinder (PathPlannerLib's LocalADStar) for real-time pathfinding
-      // This uses the navgrid.json for obstacle avoidance
       Pathfinding.setPathfinder(new LocalADStar());
-      System.out.println("[RobotContainer] AD* pathfinder set (LocalADStar)");
 
-      // Load RobotConfig from GUI settings (now that settings.json is complete)
       RobotConfig config = RobotConfig.fromGUISettings();
-      System.out.println("[RobotContainer] Loaded RobotConfig from GUI settings");
 
       // Configure AutoBuilder with swerve drive
       AutoBuilder.configure(
-          drive::getPose, // Pose supplier
-          drive::setPose, // Pose reset consumer
-          drive::getChassisSpeeds, // ChassisSpeeds supplier
-          (speeds, feedforwards) ->
-              drive.runVelocity(speeds), // Drive output consumer (ignore feedforwards)
+          drive::getPose,
+          drive::setPose,
+          drive::getChassisSpeeds,
+          (speeds, feedforwards) -> drive.runVelocity(speeds),
           new PPHolonomicDriveController(
-              new PIDConstants(
-                  Constants.AutoConstants.PATH_FOLLOWING_TRANSLATION_KP,
-                  0.0,
-                  0.0), // Translation PID
-              new PIDConstants(
-                  Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0.0, 0.0) // Rotation PID
-              ),
-          config, // Robot configuration
+              new PIDConstants(Constants.AutoConstants.PATH_FOLLOWING_TRANSLATION_KP, 0.0, 0.0),
+              new PIDConstants(Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0.0, 0.0)),
+          config,
           () -> {
-            // Flip paths for red alliance
             var alliance = DriverStation.getAlliance();
             return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
           },
-          drive // Drive subsystem requirement
-          );
-
-      System.out.println("[RobotContainer] AutoBuilder configured successfully");
+          drive);
 
       // ===== Trench Heading Override =====
-      // When the robot is inside/near a TRENCH, override PathPlanner's rotation feedback
-      // to snap the heading to the nearest cardinal direction (0/90/180/270°). This ensures
-      // the robot maintains the correct heading DURING transit through the 22.25in tunnel.
-      //
-      // Uses overrideRotationFeedback (replaces deprecated setRotationTargetOverride):
-      // we supply our own PID controller output (rad/s) instead of a target angle.
-      // A Trigger dynamically installs/clears the override on trench entry/exit so
-      // PathPlanner's internal rotation PID is used normally outside trenches.
-      @SuppressWarnings(
-          "resource") // PIDController implements AutoCloseable but is never closed in FRC
+      // Override PathPlanner's rotation feedback inside trenches to snap heading to cardinal.
+      @SuppressWarnings("resource")
       PIDController trenchRotationPID =
           new PIDController(Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0, 0);
       trenchRotationPID.enableContinuousInput(-Math.PI, Math.PI);
@@ -425,7 +380,6 @@ public class RobotContainer {
                   }))
           .onFalse(
               Commands.runOnce(() -> PPHolonomicDriveController.clearRotationFeedbackOverride()));
-      System.out.println("[RobotContainer] Trench rotation override configured");
     } catch (Exception e) {
       System.err.println("[RobotContainer] CRITICAL: Failed to configure AutoBuilder!");
       System.err.println("  Pathfinding and auto commands will NOT work.");
@@ -434,29 +388,21 @@ public class RobotContainer {
     }
   }
 
-  /**
-   * Use this method to define your button->command mappings. Buttons can be created by
-   * instantiating a {@link GenericHID} or one of its subclasses ({@link
-   * edu.wpi.first.wpilibj.Joystick} or {@link XboxController}), and then passing it to a {@link
-   * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
-   */
   private void configureButtonBindings() {
     configureTeleopBindings();
     configureOperatorBindings();
   }
 
-  /** Configure button bindings for teleop mode. This is the normal driving configuration. */
+  /** Configure button bindings for teleop mode. */
   private void configureTeleopBindings() {
     System.out.println("[RobotContainer] Configuring teleop bindings...");
 
     // ===== DRIVE CONTROLS =====
-    // Default command, field-relative drive
-    // In WPILib blue-origin coordinates, +X = toward red wall, +Y = toward left (from blue DS).
-    // On red alliance the driver faces the opposite direction, so we negate vx and vy.
+    // Field-relative drive. On red alliance, flip vx/vy so "forward" = away from driver.
     drive.setDefaultCommand(
         Commands.run(
             () -> {
-              // Apply deadband to prevent drift from joystick noise
+              // Apply deadband
               double leftY =
                   edu.wpi.first.math.MathUtil.applyDeadband(
                       -controller.getLeftY(), Constants.DriveConstants.JOYSTICK_DEADBAND);
@@ -467,8 +413,7 @@ public class RobotContainer {
                   edu.wpi.first.math.MathUtil.applyDeadband(
                       -controller.getRightX(), Constants.DriveConstants.JOYSTICK_DEADBAND);
 
-              // Flip field-relative directions for red alliance so "forward" on the
-              // joystick always means "away from the driver" regardless of alliance.
+              // Flip field-relative directions for red alliance
               var alliance = DriverStation.getAlliance();
               boolean isRed = alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
               double allianceFlip = isRed ? -1.0 : 1.0;
@@ -481,23 +426,16 @@ public class RobotContainer {
                   rightX * Constants.DriveConstants.MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC;
 
               // ===== Trench Assist =====
-              // Two effects when near a trench:
-              // 1. Chassis orientation alignment — injects omega to rotate bumpers toward
-              //    the nearest cardinal so the robot physically fits through the tunnel.
-              // 2. Lateral centering — deflects velocity direction toward the trench's
-              //    center Y line, guiding the travel path to the middle of the corridor.
               Pose2d currentPose = drive.getPose();
               Translation2d bluePos = currentPose.getTranslation();
               Rotation2d robotHeading = currentPose.getRotation();
-              // Convert to blue-origin if on red alliance (field geometry is defined in blue)
+              // Convert to blue-origin if on red alliance
               if (isRed) {
                 bluePos = FieldConstants.flipTranslation(bluePos);
-                // Flip heading too: red heading is 180° offset from blue
                 robotHeading = robotHeading.plus(Rotation2d.fromDegrees(180));
               }
 
-              // 1. Orientation alignment — adds omega correction to rotate chassis to cardinal
-              //    Reuses DriveToPose.ROTATION_KP — no separate heading gain needed.
+              // 1. Orientation alignment
               double trenchBuffer = Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER;
               double orientationOmega =
                   FieldConstants.getTrenchOrientationOmega(
@@ -514,8 +452,7 @@ public class RobotContainer {
                       superstructure.isIntakeDeployed());
               omegaRadPerSec += orientationOmega;
 
-              // 2. Lateral centering — deflects velocity toward trench center Y
-              //    + Wall avoidance — prevents bumpers from touching trench walls
+              // 2. Lateral centering + wall avoidance
               double[] assisted =
                   FieldConstants.applyTrenchAssist(
                       bluePos,
@@ -549,8 +486,6 @@ public class RobotContainer {
             drive));
 
     // Left bumper: Reset orientation (REAL) or full pose (SIM)
-    // SIM: reset to DEFAULT_RESET_POSE for repeatable testing
-    // REAL/REPLAY: zero heading alliance-aware (0° blue, 180° red) but preserve XY
     controller
         .leftBumper()
         .onTrue(
@@ -574,21 +509,19 @@ public class RobotContainer {
 
     // ===== SUPERSTRUCTURE STATE CONTROLS =====
 
-    // Right bumper: IDLE — stow everything, stop all scoring mechanisms
+    // Right bumper: IDLE
     controller.rightBumper().onTrue(superstructure.idle());
 
-    // A button: ONLY_INTAKE — deploy intake, everything else stowed
+    // A button: ONLY_INTAKE
     controller.a().onTrue(superstructure.onlyIntake());
 
-    // Y button: ONLY_AIMING — turret/hood/shooter aim at target, intake stowed
+    // Y button: ONLY_AIMING
     controller.y().onTrue(superstructure.onlyAiming());
 
-    // X button: AIMING_WHILE_INTAKING — intake + aim simultaneously
+    // X button: AIMING_WHILE_INTAKING
     controller.x().onTrue(superstructure.aimingWhileIntaking());
 
-    // Right trigger: While held, feed to shooter (convey + index) when in aiming modes.
-    // ONLY_AIMING → ONLY_SHOOTING, AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING.
-    // On release, reverts to the aiming-only state.
+    // Right trigger: Feed to shooter while held (ONLY_AIMING→ONLY_SHOOTING, etc.)
     controller
         .rightTrigger(0.2)
         .onTrue(Commands.runOnce(superstructure::resetShooterDetection))
@@ -620,45 +553,13 @@ public class RobotContainer {
   }
 
   /**
-   * Configure button bindings for the operator controller (port 1). Controls climb state machine,
-   * intake shake (dislodge stuck fuel), and climb calibration / manual modes.
-   *
-   * <p>Climb is an independent subsystem — operator can control it at any time without entering a
-   * special mode. Superstructure continues running (intake, aiming, etc.) in parallel.
-   *
-   * <p>MODE TOGGLES:
-   *
-   * <ul>
-   *   <li>LB (left bumper): Toggle calibration mode — press to enter, press again to exit. On exit,
-   *       encoder positions are re-seeded to match the initial STOWED end-effector pose.
-   *   <li>RB (right bumper): Toggle manual control mode — press to enter, press again to exit.
-   *       While in manual mode the left and right mushroom-head sticks command the left and right
-   *       climb end-effector velocities respectively (stick up = EE up, stick right = EE forward).
-   * </ul>
-   *
-   * <p>Calibration controls (while in calibration mode):
-   *
-   * <ul>
-   *   <li>POV Up/Down: Left front motor ±3V
-   *   <li>POV Left/Right: Left back motor ±3V
-   *   <li>Y/A: Right front motor ±3V
-   *   <li>X/B: Right back motor ±3V
-   * </ul>
-   *
-   * <p>Non-calibration controls:
-   *
-   * <ul>
-   *   <li>X: Left angle servo stow
-   *   <li>B: Left angle servo release
-   *   <li>LT: Left hardstop servo stow
-   *   <li>RT: Left hardstop servo release
-   * </ul>
+   * Configure operator controller bindings (port 1). Controls climb state machine, intake shake,
+   * and climb calibration/manual modes. Climb is independent from Superstructure.
    */
   private void configureOperatorBindings() {
     System.out.println("[RobotContainer] Configuring operator bindings...");
 
     // ===== CLIMB CALIBRATION MODE =====
-    // Left bumper: Toggle calibration mode (press to enter, press again to exit)
     operator
         .leftBumper()
         .onTrue(
@@ -667,7 +568,7 @@ public class RobotContainer {
                 climb.enterCalibrationMode(),
                 climb::isInCalibrationMode));
 
-    // Right bumper: Toggle manual control mode (press to enter manual, press again to exit)
+    // Right bumper: Toggle manual control mode
     operator
         .rightBumper()
         .onTrue(
@@ -675,7 +576,6 @@ public class RobotContainer {
                 climb.exitManualMode(), climb.enterManualMode(), climb::isInManualMode));
 
     // ===== CALIBRATION MOTOR CONTROLS (only active in calibration mode) =====
-    // POV Up/Down: Left front motor ±3V (whileTrue in cal mode, onTrue in normal mode)
     operator.povUp().and(climb::isInCalibrationMode).whileTrue(climb.calibrationLeftFrontForward());
     operator.povUp().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseFromAutoL1());
 
@@ -683,8 +583,7 @@ public class RobotContainer {
         .povDown()
         .and(climb::isInCalibrationMode)
         .whileTrue(climb.calibrationLeftFrontReverse());
-    // POV Down (normal mode): Stow climb.
-    // L1 auto states use stowPathOnly() (no servos); all others use stowFromCurrentState().
+    // POV Down (normal mode): Stow climb
     operator
         .povDown()
         .and(() -> !climb.isInCalibrationMode())
@@ -698,7 +597,6 @@ public class RobotContainer {
                             || climb.getState() == ClimbState.RETRACT_L1_AUTO
                             || climb.getState() == ClimbState.STOWED)));
 
-    // POV Left/Right: Left back motor ±3V (whileTrue in cal mode, onTrue in normal mode)
     operator
         .povLeft()
         .and(climb::isInCalibrationMode)
@@ -711,7 +609,7 @@ public class RobotContainer {
         .whileTrue(climb.calibrationLeftBackForward());
     operator.povRight().and(() -> !climb.isInCalibrationMode()).onTrue(climb.nextClimbStep());
 
-    // Y/A: Right front motor ±3V
+    // Y/A: Right front motor (cal mode) / intake shake toggle (normal mode)
     operator
         .y()
         .whileTrue(
@@ -734,37 +632,31 @@ public class RobotContainer {
                     superstructure::isIntakeDeployed),
                 climb::isInCalibrationMode));
 
-    // X/B: Right back motor ±3V (whileTrue) in calibration mode;
-    //       X: left angle servo stow (onTrue) in normal mode
+    // X/B: Right back motor (cal mode) / angle servo stow/release (normal mode)
     operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
-    operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowLeftAngleServoCommand());
+    operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowAngleServosCommand());
 
-    //       B: left angle servo release (onTrue) in normal mode
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
-    operator
-        .b()
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.releaseLeftAngleServoCommand());
+    operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseAngleServosCommand());
 
-    // LT/RT: Left hardstop servo stow/release (onTrue) in normal mode
+    // LT/RT: Hardstop servo stow/release (normal) / all servos stow/release (cal mode)
     operator
         .leftTrigger(0.3)
         .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.stowLeftHardstopServoCommand());
+        .onTrue(climb.stowHardstopServosCommand());
+    operator.leftTrigger(0.3).and(climb::isInCalibrationMode).onTrue(climb.stowAllServosCommand());
     operator
         .rightTrigger(0.3)
         .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.releaseLeftHardstopServoCommand());
+        .onTrue(climb.releaseHardstopServosCommand());
+    operator
+        .rightTrigger(0.3)
+        .and(climb::isInCalibrationMode)
+        .onTrue(climb.releaseAllServosCommand());
 
-    // ===== MANUAL CONTROL: operator mushroom heads control EE velocity while in manual mode =====
-    // Operator faces the back of the robot.
-    //   Left stick  → robot-left  climb arm (leftEE)
-    //   Right stick → robot-right climb arm (rightEE)
-    //
-    // Climb coordinate system: X = forward (away from robot), Y = up.
-    // Mapping (from operator's perspective):
-    //   Stick UP   (-getLeftY / -getRightY)  → climb +Y  (EE moves up)
-    //   Stick RIGHT (getLeftX / getRightX)   → climb +X  (EE moves forward / away from robot)
+    // ===== MANUAL CONTROL: mushroom heads control EE velocity in manual mode =====
+    // Left stick → left climb arm, Right stick → right climb arm
+    // Stick up → EE up (+Y), Stick right → EE forward (+X)
     new edu.wpi.first.wpilibj2.command.button.Trigger(climb::isInManualMode)
         .whileTrue(
             Commands.run(
@@ -772,16 +664,14 @@ public class RobotContainer {
                   double maxVel = frc.robot.Constants.ClimbConstants.PATH_MAX_VELOCITY_MPS;
                   double db = Constants.DriveConstants.JOYSTICK_DEADBAND;
 
-                  // Left stick → left climb EE
-                  double leftEeX = // climb X (forward) ← stick right
+                  double leftEeX =
                       edu.wpi.first.math.MathUtil.applyDeadband(operator.getLeftX(), db) * maxVel;
-                  double leftEeY = // climb Y (up)      ← stick up
+                  double leftEeY =
                       edu.wpi.first.math.MathUtil.applyDeadband(-operator.getLeftY(), db) * maxVel;
 
-                  // Right stick → right climb EE
-                  double rightEeX = // climb X (forward) ← stick right
+                  double rightEeX =
                       edu.wpi.first.math.MathUtil.applyDeadband(operator.getRightX(), db) * maxVel;
-                  double rightEeY = // climb Y (up)      ← stick up
+                  double rightEeY =
                       edu.wpi.first.math.MathUtil.applyDeadband(-operator.getRightY(), db) * maxVel;
 
                   climb.manualControl(
@@ -799,14 +689,7 @@ public class RobotContainer {
     drive.setPose(pose);
   }
 
-  /**
-   * Check if the current odometry pose is close to a target pose (254-style). Used during disabled
-   * to show a dashboard indicator confirming the robot is physically placed near the expected auto
-   * starting position.
-   *
-   * @param pose The target pose to compare against
-   * @return true if within 0.25m translation and 8° rotation
-   */
+  /** Check if the current odometry pose is close to a target pose (254-style). */
   public boolean odometryCloseToPose(Pose2d pose) {
     Pose2d current = drive.getPose();
     double distance = current.getTranslation().getDistance(pose.getTranslation());
@@ -833,27 +716,15 @@ public class RobotContainer {
     return dashboardAutoManager;
   }
 
-  /**
-   * Use this to pass the autonomous command to the main {@link Robot} class.
-   *
-   * @return the command to run in autonomous
-   */
+  /** Get the autonomous command selected on the dashboard. */
   public Command getAutonomousCommand() {
-    Command selectedCommand = autoChooser.get();
-    if (selectedCommand != null) {
-      System.out.println("[RobotContainer] Auto command selected: " + selectedCommand.getName());
-    } else {
-      System.out.println("[RobotContainer] WARNING: No auto command selected!");
-    }
-    return selectedCommand;
+    return autoChooser.get();
   }
 
   /**
-   * Called during disabled periodic to keep the dashboard auto manager up to date. Reads settings
-   * from the dashboard and replans if anything changed. Also handles PathPlanner warmup.
+   * Called during disabled periodic to update dashboard auto manager and handle PathPlanner warmup.
    */
   public void runAutoWarmup() {
-    // Update dashboard auto manager — reads settings and replans if changed
     dashboardAutoManager.update();
   }
 }

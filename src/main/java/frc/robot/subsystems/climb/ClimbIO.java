@@ -110,4 +110,13 @@ public interface ClimbIO {
    * positions.
    */
   public default void recalibrateEncoders() {}
+
+  /**
+   * Apply reduced current limits for calibration mode. Front and back motors may have different
+   * limits.
+   */
+  public default void setCalibrationCurrentLimits() {}
+
+  /** Restore normal current limits after exiting calibration mode. */
+  public default void setNormalCurrentLimits() {}
 }

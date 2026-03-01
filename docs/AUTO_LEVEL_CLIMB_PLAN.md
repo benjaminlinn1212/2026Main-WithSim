@@ -1,7 +1,7 @@
 # Auto-Level Climb Design Plan
 
 **Team 10922 — Amped (REBUILT 2026)**
-**Status:** Design Document — Not Yet Implemented
+**Status:** Implemented — Feature-flagged off (`ClimbConstants.ImuAssist.ENABLED = false`)
 
 ---
 
@@ -74,26 +74,24 @@ This ensures:
 ## Implementation Plan
 
 ### 1. Feature Flag
-Add `USE_IMU_CLIMB_ASSIST` to `ClimbConstants` — a compile-time constant that gates all auto-level behavior. When `false`, no PID is created, no supplier is wired, no velocity modification occurs.
+`ClimbConstants.ImuAssist.ENABLED` — a compile-time constant that gates all auto-level behavior. When `false`, no supplier is wired, no velocity modification occurs.
 
 ### 2. IMU Roll Access
-- The Pigeon2 is already on the drivetrain (CTRE swerve). Access via `drive.getPigeon2().getRoll()` or through RobotState.
-- Pass a `DoubleSupplier` to ClimbSubsystem: `climb.setRollDegreesSupplier(...)`.
+- The Pigeon2 is already on the drivetrain (CTRE swerve). Access via `drive.getDriveIO().getPigeon2().getRoll()`.
+- A `DoubleSupplier` is wired to ClimbSubsystem in RobotContainer: `climb.setRollDegreesSupplier(...)`.
 - **Sign convention:** Positive roll = robot tilting toward the LEFT (looking from behind). Verify on real hardware and flip sign if needed.
 
-### 3. New Constants
-Add to `ClimbConstants`:
+### 3. Constants — `ClimbConstants.ImuAssist`
+Nested class in `ClimbConstants` (consistent with `AngleServo`/`HardstopServo` pattern):
 ```java
-// ==================== IMU Climb Assist ====================
-/** Master enable for IMU-based auto-level during climb retract paths. */
-public static final boolean USE_IMU_CLIMB_ASSIST = false; // Enable after tuning on real robot
-
-// Auto-level velocity PID (roll degrees → velocity correction m/s)
-public static final double AUTO_LEVEL_KP = 0.005; // m/s per degree of roll
-public static final double AUTO_LEVEL_KI = 0.0;
-public static final double AUTO_LEVEL_KD = 0.001; // dampen oscillation
-public static final double AUTO_LEVEL_MAX_VEL_CORRECTION_MPS = 0.03; // max ±30mm/s correction
-public static final double AUTO_LEVEL_DEADBAND_DEGREES = 1.0; // don't correct below this
+public static class ImuAssist {
+    public static final boolean ENABLED = false;
+    public static final double KP = 0.003;                    // m/s per degree of roll
+    public static final double KI = 0.0;
+    public static final double KD = 0.001;                    // dampen oscillation
+    public static final double MAX_VEL_CORRECTION_MPS = 0.015; // max ±15mm/s (~33% of path speed)
+    public static final double DEADBAND_DEGREES = 1.0;        // ignore roll below this
+}
 ```
 
 ### 4. ClimbSubsystem Changes
@@ -101,34 +99,34 @@ public static final double AUTO_LEVEL_DEADBAND_DEGREES = 1.0; // don't correct b
 **New fields:**
 ```java
 private DoubleSupplier rollDegreesSupplier = () -> 0.0;
-private boolean autoLevelEnabled = ClimbConstants.USE_IMU_CLIMB_ASSIST;
+private boolean autoLevelEnabled = ClimbConstants.ImuAssist.ENABLED;
 private final PIDController autoLevelPID = new PIDController(
-    ClimbConstants.AUTO_LEVEL_KP,
-    ClimbConstants.AUTO_LEVEL_KI,
-    ClimbConstants.AUTO_LEVEL_KD);
+    ClimbConstants.ImuAssist.KP,
+    ClimbConstants.ImuAssist.KI,
+    ClimbConstants.ImuAssist.KD);
 ```
 
 **New method — velocity correction from IMU roll:**
 ```java
-/**
- * Compute a velocity correction (m/s) to counteract robot tilt during climb.
- * Positive output = speed up left side / slow down right side.
- * Returns 0 when disabled, not pulling, or within deadband.
- */
 private double getAutoLevelVelocityCorrection() {
-    if (!autoLevelEnabled || !ClimbConstants.USE_IMU_CLIMB_ASSIST) return 0.0;
-    if (!currentState.isPulling()) return 0.0;
+    if (!autoLevelEnabled || !ClimbConstants.ImuAssist.ENABLED) return 0.0;
+    if (!currentState.isPulling()) {
+        autoLevelPID.reset();
+        return 0.0;
+    }
 
     double rollDeg = rollDegreesSupplier.getAsDouble();
-    if (Math.abs(rollDeg) < ClimbConstants.AUTO_LEVEL_DEADBAND_DEGREES) {
+    Logger.recordOutput("Climb/AutoLevel/RollDegrees", rollDeg);
+
+    if (Math.abs(rollDeg) < ClimbConstants.ImuAssist.DEADBAND_DEGREES) {
         autoLevelPID.reset();
         return 0.0;
     }
 
     double correction = autoLevelPID.calculate(rollDeg, 0.0);
     return MathUtil.clamp(correction,
-        -ClimbConstants.AUTO_LEVEL_MAX_VEL_CORRECTION_MPS,
-        ClimbConstants.AUTO_LEVEL_MAX_VEL_CORRECTION_MPS);
+        -ClimbConstants.ImuAssist.MAX_VEL_CORRECTION_MPS,
+        ClimbConstants.ImuAssist.MAX_VEL_CORRECTION_MPS);
 }
 ```
 
@@ -178,12 +176,15 @@ public void execute() {
 
         // ── IMU auto-level: adjust Y velocities differentially ──
         double velCorrection = getAutoLevelVelocityCorrection();
-        if (velCorrection != 0.0) {
+        if (velCorrection != 0.0 && params.isPulling()) {
             double maxVel = ClimbConstants.PATH_MAX_VELOCITY_MPS;
             double[] adjustedY = applyClampedVelocityCorrection(
                 velocities[0].getY(), velCorrection, maxVel);
             velocities[0] = new Translation2d(velocities[0].getX(), adjustedY[0]);
             velocities[1] = new Translation2d(velocities[1].getX(), adjustedY[1]);
+            Logger.recordOutput("Climb/AutoLevel/VelCorrectionMPS", velCorrection);
+            Logger.recordOutput("Climb/AutoLevel/LeftAdjustedVelY", adjustedY[0]);
+            Logger.recordOutput("Climb/AutoLevel/RightAdjustedVelY", adjustedY[1]);
         }
 
         setTargetVelocitiesInternal(
@@ -197,14 +198,15 @@ Note: positions (`targets[0]`, `targets[1]`) are **never modified** — both sid
 ### 5. Wiring in RobotContainer
 ```java
 // Only wire the IMU supplier if the feature is enabled
-if (ClimbConstants.USE_IMU_CLIMB_ASSIST) {
-    climb.setRollDegreesSupplier(() -> drive.getPigeon2().getRoll().getValueAsDouble());
+if (Constants.ClimbConstants.ImuAssist.ENABLED) {
+    climb.setRollDegreesSupplier(
+        () -> drive.getDriveIO().getPigeon2().getRoll().getValueAsDouble());
 }
 ```
 
 ### 6. Operator Controls
-- **Toggle auto-level:** Bind to an unused operator button (e.g., `operator.leftStick().onTrue(...)`)
-- Only visible/functional when `USE_IMU_CLIMB_ASSIST` is `true`
+- **Toggle auto-level:** `climb.toggleAutoLevelCommand()` — bind to an unused operator button
+- Only functional when `ImuAssist.ENABLED` is `true`
 
 ### 7. Logging
 ```java
@@ -217,24 +219,24 @@ Logger.recordOutput("Climb/AutoLevel/RightAdjustedVelY", adjustedRightVelY);
 
 ## Safety Considerations
 
-1. **Feature flag:** `USE_IMU_CLIMB_ASSIST = false` by default — no auto-level behavior until explicitly enabled and tuned on real hardware.
-2. **Max velocity correction clamp:** `AUTO_LEVEL_MAX_VEL_CORRECTION_MPS` (±30mm/s) bounds the PID output before it reaches the clamp-then-bias logic.
+1. **Feature flag:** `ImuAssist.ENABLED = false` by default — no auto-level behavior until explicitly enabled and tuned on real hardware.
+2. **Max velocity correction clamp:** `ImuAssist.MAX_VEL_CORRECTION_MPS` (±30mm/s) bounds the PID output before it reaches the clamp-then-bias logic.
 3. **Clamp-then-bias:** Neither side's velocity can exceed `PATH_MAX_VELOCITY_MPS`. The relative speed difference degrades gracefully at the limits.
 4. **Motor limits respected:** After Jacobian conversion, motor velocities are still clamped to `CRUISE_VELOCITY` in `setTargetVelocitiesInternal()` (existing code, unchanged).
 5. **Only during RETRACT:** Auto-level is disabled during EXTEND (robot on ground) and servo-only states.
 6. **Deadband:** The 1.0° deadband prevents constant micro-corrections that waste energy and cause vibration.
-7. **Operator override:** Auto-level can be toggled off at any time.
+7. **Operator override:** Auto-level can be toggled off at any time via `toggleAutoLevelCommand()`.
 8. **Emergency stop:** The existing `EMERGENCY_STOP` state bypasses auto-level (stops all motors).
 9. **Same final position:** Both arms always target the same end-effector position — no risk of asymmetric final pose.
 
 ## Tuning Procedure
 
 1. **Verify roll sign convention:** Tilt robot left by hand, confirm roll reads positive (or negative — flip sign in the velocity correction accordingly).
-2. **Enable feature:** Set `USE_IMU_CLIMB_ASSIST = true`, deploy.
+2. **Enable feature:** Set `ImuAssist.ENABLED = true`, deploy.
 3. **Start with P-only:** Set KP = 0.002, KD = 0. Climb L1, observe if tilt is reduced.
 4. **Increase KP** until tilt is corrected within ~0.5s during retract. Typical range: 0.003–0.01.
 5. **Add D-term if needed:** If the robot oscillates side-to-side, add KD ≈ 0.001 to dampen.
-6. **Test max correction:** Deliberately introduce tilt (shim one side). Verify the correction saturates cleanly at `AUTO_LEVEL_MAX_VEL_CORRECTION_MPS` without jerking.
+6. **Test max correction:** Deliberately introduce tilt (shim one side). Verify the correction saturates cleanly at `ImuAssist.MAX_VEL_CORRECTION_MPS` without jerking.
 7. **Verify final pose:** After retract completes, confirm both sides hold the same position (check `Climb/LeftTargetPosition` == `Climb/RightTargetPosition` in logs).
 8. **Test at velocity limits:** Run a retract path at max speed and introduce tilt. Verify the clamp-then-bias keeps both sides within limits (check `Climb/VelocityIK/*Vel` logs).
 
@@ -254,14 +256,14 @@ Using pitch + roll + angular rates for a full model-based controller. Way too co
 
 ## Dependencies
 
-- `USE_IMU_CLIMB_ASSIST` constant in `ClimbConstants` (feature flag)
-- IMU roll data accessible from ClimbSubsystem (via `DoubleSupplier`)
+- `ClimbConstants.ImuAssist` nested class (feature flag + PID gains)
+- IMU roll data accessible from ClimbSubsystem (via `DoubleSupplier`, wired in RobotContainer)
 - No new hardware required
 - No changes to ClimbState waypoints, ClimbIK math, or target positions
 - Minimal impact on existing climb control flow — only the velocity vector in `execute()` is modified
 
-## Estimated Implementation Time
+## Remaining Work
 
-- 2–3 hours to implement
-- 1–2 hours to tune on practice field
-- Total: Half a day
+- Set `ImuAssist.ENABLED = true` and tune PID gains on real hardware
+- Bind `climb.toggleAutoLevelCommand()` to an operator button
+- Verify roll sign convention on physical robot

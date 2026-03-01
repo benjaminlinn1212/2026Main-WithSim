@@ -1,6 +1,7 @@
 package frc.robot.subsystems.climb;
 
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
@@ -17,6 +18,7 @@ import frc.robot.subsystems.climb.util.ClimbIK.ClimbIKResult;
 import frc.robot.subsystems.climb.util.ClimbPathPlanner;
 import java.util.List;
 import java.util.Set;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
@@ -62,6 +64,13 @@ public class ClimbSubsystem extends SubsystemBase {
   private boolean calibrationMode = false;
   // ─── Manual control mode (operator mushroom heads) ───
   private boolean manualMode = false;
+
+  // ─── IMU Climb Assist (auto-level during retract) ───
+  private DoubleSupplier rollDegreesSupplier = () -> 0.0;
+  private boolean autoLevelEnabled = ClimbConstants.ImuAssist.ENABLED;
+  private final PIDController autoLevelPID =
+      new PIDController(
+          ClimbConstants.ImuAssist.KP, ClimbConstants.ImuAssist.KI, ClimbConstants.ImuAssist.KD);
 
   // ─── Mechanism2d visualization ───
   // Canvas origin is the back winch (0,0). Canvas sized to contain workspace.
@@ -318,6 +327,7 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
     Logger.recordOutput("Climb/RightTargetPosition", rightTargetPosition);
     Logger.recordOutput("Climb/OperatorClimbLevel", getOperatorClimbLevel().name());
+    Logger.recordOutput("Climb/AutoLevel/Enabled", autoLevelEnabled);
 
     // Estimate and log actual end effector positions from motor encoders (FK)
     Translation2d measuredLeft =
@@ -645,6 +655,20 @@ public class ClimbSubsystem extends SubsystemBase {
         if (executor != null) {
           Translation2d[] targets = executor.getCurrentTargets();
           Translation2d[] velocities = executor.getCurrentVelocities();
+
+          // ── IMU auto-level: adjust Y velocities differentially ──
+          double velCorrection = getAutoLevelVelocityCorrection();
+          if (velCorrection != 0.0 && params.isPulling()) {
+            double maxVel = ClimbConstants.PATH_MAX_VELOCITY_MPS;
+            double[] adjustedY =
+                applyClampedVelocityCorrection(velocities[0].getY(), velCorrection, maxVel);
+            velocities[0] = new Translation2d(velocities[0].getX(), adjustedY[0]);
+            velocities[1] = new Translation2d(velocities[1].getX(), adjustedY[1]);
+            Logger.recordOutput("Climb/AutoLevel/VelCorrectionMPS", velCorrection);
+            Logger.recordOutput("Climb/AutoLevel/LeftAdjustedVelY", adjustedY[0]);
+            Logger.recordOutput("Climb/AutoLevel/RightAdjustedVelY", adjustedY[1]);
+          }
+
           setTargetVelocitiesInternal(
               targets[0], targets[1], velocities[0], velocities[1], params.isPulling());
         }
@@ -825,6 +849,93 @@ public class ClimbSubsystem extends SubsystemBase {
           "Climb/IK/RightJoint",
           new double[] {ikResult.rightSide.jointX, ikResult.rightSide.jointY});
     }
+  }
+
+  // ===========================================================================
+  // IMU CLIMB ASSIST (Auto-Level)
+  // ===========================================================================
+
+  /**
+   * Set the IMU roll supplier for auto-level during climb. Called from RobotContainer when {@link
+   * ClimbConstants.ImuAssist#ENABLED} is true.
+   */
+  public void setRollDegreesSupplier(DoubleSupplier supplier) {
+    this.rollDegreesSupplier = supplier;
+  }
+
+  /** Toggle auto-level on/off at runtime (operator override). */
+  public void setAutoLevelEnabled(boolean enabled) {
+    this.autoLevelEnabled = enabled;
+    if (!enabled) {
+      autoLevelPID.reset();
+    }
+  }
+
+  /** Command: toggle auto-level enabled state. */
+  public Command toggleAutoLevelCommand() {
+    return runOnce(() -> setAutoLevelEnabled(!autoLevelEnabled)).withName("ClimbToggleAutoLevel");
+  }
+
+  /**
+   * Compute a velocity correction (m/s) to counteract robot tilt during climb. Positive output =
+   * speed up left side / slow down right side. Returns 0 when disabled, not pulling, or within
+   * deadband.
+   */
+  @SuppressWarnings("unused") // Feature-flagged off until tuned on real hardware
+  private double getAutoLevelVelocityCorrection() {
+    if (!ClimbConstants.ImuAssist.ENABLED || !autoLevelEnabled) return 0.0;
+    if (!currentState.isPulling()) {
+      autoLevelPID.reset();
+      return 0.0;
+    }
+
+    double rollDeg = rollDegreesSupplier.getAsDouble();
+    Logger.recordOutput("Climb/AutoLevel/RollDegrees", rollDeg);
+
+    if (Math.abs(rollDeg) < ClimbConstants.ImuAssist.DEADBAND_DEGREES) {
+      autoLevelPID.reset();
+      return 0.0;
+    }
+
+    double correction = autoLevelPID.calculate(rollDeg, 0.0);
+    return MathUtil.clamp(
+        correction,
+        -ClimbConstants.ImuAssist.MAX_VEL_CORRECTION_MPS,
+        ClimbConstants.ImuAssist.MAX_VEL_CORRECTION_MPS);
+  }
+
+  /**
+   * Apply a velocity correction differentially while respecting velocity limits. Returns {leftVelY,
+   * rightVelY} with the relative speed difference preserved even when one side saturates at the
+   * limit.
+   *
+   * <p>Uses clamp-then-bias: if one side is clamped, the other side is shifted to maintain the
+   * relative speed difference (rather than losing the correction).
+   *
+   * @param nominalVelY Base trajectory Y velocity (m/s), same for both sides
+   * @param correction Desired speed difference (m/s). Positive = left faster.
+   * @param maxVel Maximum allowed Y velocity magnitude (m/s)
+   */
+  private double[] applyClampedVelocityCorrection(
+      double nominalVelY, double correction, double maxVel) {
+    double rawLeft = nominalVelY + correction;
+    double rawRight = nominalVelY - correction;
+
+    double clampedLeft = MathUtil.clamp(rawLeft, -maxVel, maxVel);
+    double clampedRight = MathUtil.clamp(rawRight, -maxVel, maxVel);
+
+    // If one side was clamped, shift the other to preserve relative difference
+    double leftClipAmount = rawLeft - clampedLeft;
+    double rightClipAmount = rawRight - clampedRight;
+
+    clampedRight -= leftClipAmount;
+    clampedLeft -= rightClipAmount;
+
+    // Final safety clamp
+    clampedLeft = MathUtil.clamp(clampedLeft, -maxVel, maxVel);
+    clampedRight = MathUtil.clamp(clampedRight, -maxVel, maxVel);
+
+    return new double[] {clampedLeft, clampedRight};
   }
 
   // ===========================================================================

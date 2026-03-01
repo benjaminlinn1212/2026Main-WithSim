@@ -273,6 +273,12 @@ public class RobotContainer {
           return selected != null ? selected : ClimbSubsystem.OperatorClimbLevel.L2L3;
         });
 
+    // Wire IMU roll supplier for auto-level climb assist (only when feature is enabled)
+    if (Constants.ClimbConstants.ImuAssist.ENABLED) {
+      climb.setRollDegreesSupplier(
+          () -> drive.getDriveIO().getPigeon2().getRoll().getValueAsDouble());
+    }
+
     // Instantiate Vision with pose consumer that feeds into the drive's pose estimator
     switch (Constants.currentMode) {
       case REAL:

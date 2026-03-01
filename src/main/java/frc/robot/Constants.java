@@ -812,15 +812,18 @@ public final class Constants {
     // during RETRACT paths, keeping the robot level while pulling up.
     // See docs/AUTO_LEVEL_CLIMB_PLAN.md for full design.
 
-    /** Master enable for IMU-based auto-level during climb retract paths. */
-    public static final boolean USE_IMU_CLIMB_ASSIST = false;
+    /** IMU-based auto-level config for climb retract paths. */
+    public static class ImuAssist {
+      /** Master enable — set true after tuning on real robot. */
+      public static final boolean ENABLED = false;
 
-    // Auto-level velocity PID (input: roll degrees, output: velocity correction m/s)
-    public static final double AUTO_LEVEL_KP = 0.005; // m/s per degree of roll
-    public static final double AUTO_LEVEL_KI = 0.0;
-    public static final double AUTO_LEVEL_KD = 0.001; // dampen oscillation
-    public static final double AUTO_LEVEL_MAX_VEL_CORRECTION_MPS = 0.03; // max ±30mm/s correction
-    public static final double AUTO_LEVEL_DEADBAND_DEGREES = 1.0; // ignore roll below this
+      // Velocity PID (input: roll degrees, output: velocity correction m/s)
+      public static final double KP = 0.003; // m/s per degree of roll
+      public static final double KI = 0.0;
+      public static final double KD = 0.001; // dampen oscillation
+      public static final double MAX_VEL_CORRECTION_MPS = 0.015; // max ±15mm/s (~33% of path speed)
+      public static final double DEADBAND_DEGREES = 1.0; // ignore roll below this
+    }
 
     // Test Mode Tuning
     public static final double TEST_MODE_POSITION_INCREMENT =

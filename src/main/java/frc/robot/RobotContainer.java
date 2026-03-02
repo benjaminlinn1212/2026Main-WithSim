@@ -426,60 +426,62 @@ public class RobotContainer {
                   rightX * Constants.DriveConstants.MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC;
 
               // ===== Trench Assist =====
-              Pose2d currentPose = drive.getPose();
-              Translation2d bluePos = currentPose.getTranslation();
-              Rotation2d robotHeading = currentPose.getRotation();
-              // Convert to blue-origin if on red alliance
-              if (isRed) {
-                bluePos = FieldConstants.flipTranslation(bluePos);
-                robotHeading = robotHeading.plus(Rotation2d.fromDegrees(180));
+              if (Constants.DriveConstants.TrenchAssist.ENABLED) {
+                Pose2d currentPose = drive.getPose();
+                Translation2d bluePos = currentPose.getTranslation();
+                Rotation2d robotHeading = currentPose.getRotation();
+                // Convert to blue-origin if on red alliance
+                if (isRed) {
+                  bluePos = FieldConstants.flipTranslation(bluePos);
+                  robotHeading = robotHeading.plus(Rotation2d.fromDegrees(180));
+                }
+
+                // 1. Orientation alignment
+                double trenchBuffer = Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER;
+                double orientationOmega =
+                    FieldConstants.getTrenchOrientationOmega(
+                        bluePos,
+                        robotHeading,
+                        vxMetersPerSec,
+                        vyMetersPerSec,
+                        Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
+                        Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
+                        Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
+                        Constants.DriveConstants.DriveToPose.ROTATION_KP,
+                        Constants.DriveConstants.TrenchAssist.MAX_ORIENTATION_OMEGA_RAD_PER_SEC,
+                        trenchBuffer,
+                        superstructure.isIntakeDeployed());
+                omegaRadPerSec += orientationOmega;
+
+                // 2. Lateral centering + wall avoidance
+                double[] assisted =
+                    FieldConstants.applyTrenchAssist(
+                        bluePos,
+                        vxMetersPerSec,
+                        vyMetersPerSec,
+                        Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
+                        Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
+                        Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
+                        Constants.DriveConstants.TrenchAssist.CENTERING_DEG_PER_METER,
+                        Constants.DriveConstants.TrenchAssist.MAX_CENTERING_DEG,
+                        trenchBuffer,
+                        Constants.DriveConstants.TrenchAssist.ROBOT_HALF_WIDTH_M,
+                        Constants.DriveConstants.TrenchAssist.WALL_REPULSION_MPS_PER_METER,
+                        Constants.DriveConstants.TrenchAssist.WALL_DANGER_ZONE_M);
+                vxMetersPerSec = assisted[0];
+                vyMetersPerSec = assisted[1];
+
+                // Log trench assist telemetry
+                double blendFactor =
+                    FieldConstants.getTrenchBlendFactor(
+                        bluePos,
+                        Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
+                        trenchBuffer);
+                Logger.recordOutput("Drive/TrenchAssist/BlendFactor", blendFactor);
+                Logger.recordOutput("Drive/TrenchAssist/Active", blendFactor > 1e-4);
+                Logger.recordOutput("Drive/TrenchAssist/CenteringDeg", assisted[2]);
+                Logger.recordOutput("Drive/TrenchAssist/OrientationOmega", orientationOmega);
               }
-
-              // 1. Orientation alignment
-              double trenchBuffer = Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER;
-              double orientationOmega =
-                  FieldConstants.getTrenchOrientationOmega(
-                      bluePos,
-                      robotHeading,
-                      vxMetersPerSec,
-                      vyMetersPerSec,
-                      Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
-                      Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
-                      Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
-                      Constants.DriveConstants.DriveToPose.ROTATION_KP,
-                      Constants.DriveConstants.TrenchAssist.MAX_ORIENTATION_OMEGA_RAD_PER_SEC,
-                      trenchBuffer,
-                      superstructure.isIntakeDeployed());
-              omegaRadPerSec += orientationOmega;
-
-              // 2. Lateral centering + wall avoidance
-              double[] assisted =
-                  FieldConstants.applyTrenchAssist(
-                      bluePos,
-                      vxMetersPerSec,
-                      vyMetersPerSec,
-                      Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
-                      Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
-                      Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
-                      Constants.DriveConstants.TrenchAssist.CENTERING_DEG_PER_METER,
-                      Constants.DriveConstants.TrenchAssist.MAX_CENTERING_DEG,
-                      trenchBuffer,
-                      Constants.DriveConstants.TrenchAssist.ROBOT_HALF_WIDTH_M,
-                      Constants.DriveConstants.TrenchAssist.WALL_REPULSION_MPS_PER_METER,
-                      Constants.DriveConstants.TrenchAssist.WALL_DANGER_ZONE_M);
-              vxMetersPerSec = assisted[0];
-              vyMetersPerSec = assisted[1];
-
-              // Log trench assist telemetry
-              double blendFactor =
-                  FieldConstants.getTrenchBlendFactor(
-                      bluePos,
-                      Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
-                      trenchBuffer);
-              Logger.recordOutput("Drive/TrenchAssist/BlendFactor", blendFactor);
-              Logger.recordOutput("Drive/TrenchAssist/Active", blendFactor > 1e-4);
-              Logger.recordOutput("Drive/TrenchAssist/CenteringDeg", assisted[2]);
-              Logger.recordOutput("Drive/TrenchAssist/OrientationOmega", orientationOmega);
 
               drive.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },
@@ -639,20 +641,19 @@ public class RobotContainer {
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
     operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseAngleServosCommand());
 
-    // LT/RT: Hardstop servo stow/release (normal) / all servos stow/release (cal mode)
+    // LT/RT: Hardstop servo stow/release (cal mode only)
     operator
         .leftTrigger(0.3)
-        .and(() -> !climb.isInCalibrationMode())
+        .and(climb::isInCalibrationMode)
         .onTrue(climb.stowHardstopServosCommand());
-    operator.leftTrigger(0.3).and(climb::isInCalibrationMode).onTrue(climb.stowAllServosCommand());
-    operator
-        .rightTrigger(0.3)
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(climb.releaseHardstopServosCommand());
     operator
         .rightTrigger(0.3)
         .and(climb::isInCalibrationMode)
-        .onTrue(climb.releaseAllServosCommand());
+        .onTrue(climb.releaseHardstopServosCommand());
+
+    // Left/Right joystick buttons: Angle servo stow/release (cal mode only)
+    operator.leftStick().and(climb::isInCalibrationMode).onTrue(climb.stowAngleServosCommand());
+    operator.rightStick().and(climb::isInCalibrationMode).onTrue(climb.releaseAngleServosCommand());
 
     // ===== MANUAL CONTROL: mushroom heads control EE velocity in manual mode =====
     // Left stick → left climb arm, Right stick → right climb arm

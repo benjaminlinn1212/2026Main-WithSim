@@ -166,6 +166,9 @@ public final class Constants {
      */
     public static class TrenchAssist {
 
+      /** Master enable for teleop trench assist. Set to false to disable all trench effects. */
+      public static final boolean ENABLED = false;
+
       public static final double MAX_BLEND_FACTOR = 0.9;
 
       /**
@@ -607,10 +610,10 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Calibration Mode Current Limits (lower limits for safe manual motor jogging)
-    public static final double CALIBRATION_FRONT_STATOR_CURRENT_LIMIT = 6.0;
-    public static final double CALIBRATION_FRONT_SUPPLY_CURRENT_LIMIT = 30.0;
-    public static final double CALIBRATION_BACK_STATOR_CURRENT_LIMIT = 6.0;
-    public static final double CALIBRATION_BACK_SUPPLY_CURRENT_LIMIT = 30.0;
+    public static final double CALIBRATION_FRONT_STATOR_CURRENT_LIMIT = 80.0;
+    public static final double CALIBRATION_FRONT_SUPPLY_CURRENT_LIMIT = 60.0;
+    public static final double CALIBRATION_BACK_STATOR_CURRENT_LIMIT = 80.0;
+    public static final double CALIBRATION_BACK_SUPPLY_CURRENT_LIMIT = 60.0;
 
     // Position Setpoints (rotations) - Legacy direct motor control
     public static final double STOWED_POSITION = 0.0;
@@ -679,7 +682,7 @@ public final class Constants {
     public static final double PATH_MAX_ACCELERATION_MPS2 =
         ACCELERATION * MID_LAYER_CIRCUMFERENCE_M;
 
-    public static final double VELOCITY_KG_PULLING = 0.15;
+    public static final double VELOCITY_KG_PULLING = 0.0;
 
     // ==================== IMU Climb Assist (Auto-Level) ====================
     // Uses IMU roll to differentially adjust left/right end-effector velocities

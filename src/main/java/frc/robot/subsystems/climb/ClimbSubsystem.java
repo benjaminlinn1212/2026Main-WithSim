@@ -1556,16 +1556,30 @@ public class ClimbSubsystem extends SubsystemBase {
     // Keep state as MANUAL while operator is driving
     currentState = ClimbState.MANUAL;
 
+    // Use measured (FK) positions as the integration base so the target doesn't
+    // drift away from reality on the real robot. If FK fails, fall back to the
+    // previous target so we don't lose the position entirely.
+    Translation2d leftBase =
+        ClimbIK.estimateEndEffectorPosition(
+            inputs.leftFrontPositionRotations,
+            inputs.leftBackPositionRotations,
+            leftTargetPosition);
+    Translation2d rightBase =
+        ClimbIK.estimateEndEffectorPosition(
+            inputs.rightFrontPositionRotations,
+            inputs.rightBackPositionRotations,
+            rightTargetPosition);
+    if (leftBase == null) leftBase = leftTargetPosition;
+    if (rightBase == null) rightBase = rightTargetPosition;
+
     // Integrate velocity into candidate positions (20 ms loop)
     final double dt = 0.02;
     Translation2d candidateLeft =
         new Translation2d(
-            leftTargetPosition.getX() + leftVel.getX() * dt,
-            leftTargetPosition.getY() + leftVel.getY() * dt);
+            leftBase.getX() + leftVel.getX() * dt, leftBase.getY() + leftVel.getY() * dt);
     Translation2d candidateRight =
         new Translation2d(
-            rightTargetPosition.getX() + rightVel.getX() * dt,
-            rightTargetPosition.getY() + rightVel.getY() * dt);
+            rightBase.getX() + rightVel.getX() * dt, rightBase.getY() + rightVel.getY() * dt);
 
     // Clamp to workspace so the operator can't drive the arm out of IK range
     candidateLeft = clampToWorkspace(candidateLeft);
@@ -1648,6 +1662,21 @@ public class ClimbSubsystem extends SubsystemBase {
               io.recalibrateEncoders();
               calibrationMode = false;
               setState(ClimbState.STOWED);
+              initializeMechanism2dToStowed();
+              // Log stowed values so outputs don't freeze at calibration values
+              // (periodic skips visualization when stowed + not in calibration/manual)
+              Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
+              Logger.recordOutput("Climb/LeftTargetPosition", stowedPos);
+              Logger.recordOutput("Climb/RightTargetPosition", stowedPos);
+              Logger.recordOutput("Climb/LeftMeasuredPosition", stowedPos);
+              Logger.recordOutput("Climb/RightMeasuredPosition", stowedPos);
+              ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
+              double stowedFrontRot = stowedIK.isValid ? stowedIK.frontMotorRotations : 0.0;
+              double stowedBackRot = stowedIK.isValid ? stowedIK.backMotorRotations : 0.0;
+              Logger.recordOutput("Climb/LeftFrontRotations", stowedFrontRot);
+              Logger.recordOutput("Climb/LeftBackRotations", stowedBackRot);
+              Logger.recordOutput("Climb/RightFrontRotations", stowedFrontRot);
+              Logger.recordOutput("Climb/RightBackRotations", stowedBackRot);
               Logger.recordOutput("Climb/CalibrationMode", false);
               System.out.println("[Climb] Exited calibration mode — encoders recalibrated");
             })

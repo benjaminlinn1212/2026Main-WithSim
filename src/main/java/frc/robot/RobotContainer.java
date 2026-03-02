@@ -509,8 +509,8 @@ public class RobotContainer {
 
     // ===== SUPERSTRUCTURE STATE CONTROLS =====
 
-    // Right bumper: IDLE
-    controller.rightBumper().onTrue(superstructure.idle());
+    // B button: IDLE
+    controller.b().onTrue(superstructure.idle());
 
     // A button: ONLY_INTAKE
     controller.a().onTrue(superstructure.onlyIntake());

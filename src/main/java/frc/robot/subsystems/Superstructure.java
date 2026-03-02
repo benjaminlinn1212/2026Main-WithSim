@@ -216,7 +216,7 @@ public class Superstructure extends SubsystemBase {
         hood.applyStow();
         shooter.stopMotor();
         applyIntakePivotDeploy();
-        intake.applyIntake();
+        applyIntakeRollers();
         conveyor.stopMotor();
         indexer.stopMotor();
         leds.setIntaking();
@@ -261,7 +261,7 @@ public class Superstructure extends SubsystemBase {
         }
         shooter.applySpinUp();
         applyIntakePivotDeploy();
-        intake.applyIntake();
+        applyIntakeRollers();
         conveyor.stopMotor();
         indexer.stopMotor();
         leds.setAiming();
@@ -276,7 +276,7 @@ public class Superstructure extends SubsystemBase {
         }
         shooter.applySpinUp();
         applyIntakePivotDeploy();
-        intake.applyIntake();
+        applyIntakeRollers();
         conveyor.applyFeedToShooter();
         indexer.applyFeedToShooter();
         leds.setShooting();
@@ -329,6 +329,18 @@ public class Superstructure extends SubsystemBase {
       intakePivot.applyHalfDeploy();
     } else {
       intakePivot.applyDeploy();
+    }
+  }
+
+  /**
+   * Apply the correct intake roller output based on the half-deploy flags. When half-deployed, only
+   * the lower roller runs (upper stops at 0%) to avoid ejecting FUEL while the pivot oscillates.
+   */
+  private void applyIntakeRollers() {
+    if (intakeHalfDeployed || autoShootingHalfDeploy) {
+      intake.applyIntakeLowerOnly();
+    } else {
+      intake.applyIntake();
     }
   }
 

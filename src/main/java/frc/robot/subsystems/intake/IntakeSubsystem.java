@@ -70,6 +70,16 @@ public class IntakeSubsystem extends SubsystemBase {
   }
 
   /**
+   * Directly apply intake motor output with the upper roller stopped. Called by
+   * Superstructure.periodic() when intake half-deploy is active — the pivot oscillates to dislodge
+   * stuck FUEL while the upper roller is disabled to avoid ejecting game pieces.
+   */
+  public void applyIntakeLowerOnly() {
+    io.setUpperPercent(0.0);
+    io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
+  }
+
+  /**
    * Get the stator current of the upper intake roller (amps). Used for current-based FUEL pickup
    * detection in auto — a current spike above a threshold indicates FUEL has contacted the rollers.
    *

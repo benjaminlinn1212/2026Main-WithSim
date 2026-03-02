@@ -289,7 +289,7 @@ public final class Constants {
     // Motion Magic Constants
     public static final double CRUISE_VELOCITY = 100.0;
     public static final double ACCELERATION = 300.0;
-    public static final double JERK = 2000.0;
+    public static final double JERK = 4000.0;
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
@@ -298,8 +298,8 @@ public final class Constants {
 
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0;
-    public static final double HALF_DEPLOYED_POSITION = 22.0;
-    public static final double DEPLOYED_POSITION = 26.0;
+    public static final double HALF_DEPLOYED_POSITION = 25.0;
+    public static final double DEPLOYED_POSITION = 27.0;
 
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.1;
@@ -385,8 +385,8 @@ public final class Constants {
         new Translation2d(0.1909, 0.0);
 
     // Position Limits (radians - mechanism angle limits)
-    public static final double MIN_POSITION_RAD = Units.rotationsToRadians(-1.0);
-    public static final double MAX_POSITION_RAD = Units.rotationsToRadians(0.2777);
+    public static final double MIN_POSITION_RAD = Units.degreesToRadians(-300.0);
+    public static final double MAX_POSITION_RAD = Units.degreesToRadians(110.0);
 
     // PID and Feedforward Constants (MotionMagicVoltage mode)
     public static final double KP = 10.0;
@@ -408,7 +408,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Position Tolerance (radians)
-    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(2.0);
+    public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(1.0);
 
     // Boot Position (radians) Ã¢â‚¬â€ the mechanism angle when the robot powers on.
     // The turret physically starts at -90Ã‚Â° (facing right when viewed from above).

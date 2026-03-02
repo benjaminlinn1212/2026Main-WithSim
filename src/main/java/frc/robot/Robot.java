@@ -13,6 +13,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.auto.dashboard.FieldConstants;
+import frc.robot.subsystems.shooter.ShooterIOSim;
 import org.ironmaple.simulation.SimulatedArena;
 import org.littletonrobotics.junction.LogFileUtil;
 import org.littletonrobotics.junction.LoggedRobot;
@@ -163,6 +164,21 @@ public class Robot extends LoggedRobot {
 
       // Reset climb to STOWED so Mechanism2d re-initializes properly
       robotContainer.getClimbSubsystem().resetToStowed();
+
+      // Reset the simulated field: clear all game pieces and re-place them at starting positions
+      if (Constants.DriveConstants.USE_MAPLE_SIM) {
+        SimulatedArena.getInstance().resetFieldForAuto();
+        System.out.println("[Robot] SIM: Reset MapleSimField game pieces for auto");
+      }
+
+      // If scoring preload, give the simulated robot 8 FUEL so it has ammo to shoot
+      ShooterIOSim.resetFuelCount();
+      if (robotContainer.getDashboardAutoManager().getSettings().isScorePreload()) {
+        for (int i = 0; i < 8; i++) {
+          ShooterIOSim.notifyFuelReady();
+        }
+        System.out.println("[Robot] SIM: Preloaded 8 FUEL for score-preload auto");
+      }
     }
 
     // Always get a fresh command from the chooser

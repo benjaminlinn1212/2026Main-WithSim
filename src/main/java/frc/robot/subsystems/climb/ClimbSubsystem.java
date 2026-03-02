@@ -238,7 +238,7 @@ public class ClimbSubsystem extends SubsystemBase {
             new MechanismLigament2d("FrontCable", 0.1, 90, 1, new Color8Bit(Color.kOrange)));
 
     // ── Initialize both Mechanism2d to the STOWED pose ──
-    initializeMechanism2dToStowed(sx, sy, wfx, wfy);
+    initializeMechanism2dToStowed();
 
     // Publish both — separate widgets in AdvantageScope
     SmartDashboard.putData("Climb/LeftMechanism2d", leftMechanism);
@@ -250,10 +250,15 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
-   * Set all Mechanism2d ligament angles/lengths to match the initial STOWED position so the
-   * visualization is correct before the first periodic() call.
+   * Set all Mechanism2d ligament angles/lengths to match the STOWED position so the visualization
+   * is correct. Called from the constructor and from {@link #resetToStowed()} to re-initialize the
+   * visualization when auto restarts.
    */
-  private void initializeMechanism2dToStowed(double sx, double sy, double wfx, double wfy) {
+  private void initializeMechanism2dToStowed() {
+    final double sx = ClimbConstants.SHOULDER_X_METERS;
+    final double sy = ClimbConstants.SHOULDER_Y_METERS;
+    final double wfx = ClimbConstants.FRONT_WINCH_X_METERS;
+    final double wfy = ClimbConstants.FRONT_WINCH_Y_METERS;
     final double L1 = ClimbConstants.LINK_1_LENGTH_METERS;
     final double L2 = ClimbConstants.LINK_2_LENGTH_METERS;
     final double backAttach = ClimbConstants.BACK_CABLE_ATTACH_ON_LINK1_METERS;
@@ -462,13 +467,17 @@ public class ClimbSubsystem extends SubsystemBase {
   // =============================================================================
 
   /**
-   * Reset the climb to STOWED — resets both the subsystem state and the IO-layer motor positions.
-   * In SIM this teleports the simulated motors back to STOWED cable lengths; on real hardware this
-   * is a no-op at the IO layer (the real encoders already reflect reality).
+   * Reset the climb to STOWED — resets both the subsystem state, the IO-layer motor positions, and
+   * the Mechanism2d visualization. In SIM this teleports the simulated motors back to STOWED cable
+   * lengths; on real hardware this is a no-op at the IO layer (the real encoders already reflect
+   * reality).
    */
   public void resetToStowed() {
     io.resetToStowed();
     setState(ClimbState.STOWED);
+    // Re-initialize Mechanism2d ligaments to stowed angles so the visualization resets
+    // when auto restarts (periodic() skips visualization updates while STOWED).
+    initializeMechanism2dToStowed();
   }
 
   public void setState(ClimbState state) {

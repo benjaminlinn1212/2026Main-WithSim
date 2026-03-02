@@ -120,6 +120,16 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   }
 
   /**
+   * Get the robot's current linear (translational) speed in m/s. This is the magnitude of the
+   * velocity vector, ignoring rotation. Use this for gating decisions that depend on whether the
+   * robot is moving or stopped (e.g. stop-and-shoot feeding).
+   */
+  public double getLinearSpeedMps() {
+    ChassisSpeeds speeds = getChassisSpeeds();
+    return Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+  }
+
+  /**
    * Get the magnitude of the robot's linear acceleration (m/s²). Computed from field-relative speed
    * deltas each periodic cycle. Used by the Superstructure to gate conveyor/indexer feeding — FUEL
    * should only be fed to the shooter when the robot is at low acceleration (steady-state driving).

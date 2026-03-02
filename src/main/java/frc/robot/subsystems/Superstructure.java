@@ -70,6 +70,16 @@ public class Superstructure extends SubsystemBase {
   private boolean intakeHalfDeployed = false;
 
   /**
+   * Whether the intake pivot should half-deploy instead of full-deploy in intake-deployed states
+   * during auto. When true, {@link #applyIntakePivotDeploy()} always uses {@code
+   * applyHalfDeploy()}, overriding the operator {@link #intakeHalfDeployed} toggle. This keeps the
+   * intake partially extended (oscillating) while shooting-while-intaking in auto, helping dislodge
+   * stuck FUEL. Set via {@link #setAutoShootingHalfDeploy(boolean)}, cleared on {@link
+   * #forceIdleState()}.
+   */
+  private boolean autoShootingHalfDeploy = false;
+
+  /**
    * Robot pose supplier — used to detect when the robot is near a TRENCH so we can override the
    * hood to stow (the trench is only 22.25in tall, hood must be down to fit).
    */
@@ -211,6 +221,7 @@ public class Superstructure extends SubsystemBase {
 
     // Apply the wanted state to all subsystems every cycle
     Logger.recordOutput("Superstructure/IntakeHalfDeployed", intakeHalfDeployed);
+    Logger.recordOutput("Superstructure/AutoShootingHalfDeploy", autoShootingHalfDeploy);
     switch (wantedState) {
       case IDLE:
         turret.applyStow();
@@ -332,12 +343,12 @@ public class Superstructure extends SubsystemBase {
   // ==================== Intake Pivot Deploy Helper ====================
 
   /**
-   * Apply the correct intake pivot position based on the {@link #intakeHalfDeployed} flag. When the
-   * operator toggles intake shake, this switches between full deploy and half deploy, causing the
-   * intake to oscillate and dislodge stuck fuel.
+   * Apply the correct intake pivot position based on the {@link #intakeHalfDeployed} and {@link
+   * #autoShootingHalfDeploy} flags. When either flag is true, uses half deploy (oscillating the
+   * pivot to dislodge stuck FUEL). Otherwise uses full deploy.
    */
   private void applyIntakePivotDeploy() {
-    if (intakeHalfDeployed) {
+    if (intakeHalfDeployed || autoShootingHalfDeploy) {
       intakePivot.applyHalfDeploy();
     } else {
       intakePivot.applyDeploy();
@@ -385,6 +396,18 @@ public class Superstructure extends SubsystemBase {
   /** Get whether the intake pivot is currently in half-deployed (shake) mode. */
   public boolean isIntakeHalfDeployed() {
     return intakeHalfDeployed;
+  }
+
+  /**
+   * Enable or disable auto shooting half-deploy. When enabled, all intake-deployed states
+   * (AIMING_WHILE_INTAKING, SHOOTING_WHILE_INTAKING) use half-deploy instead of full deploy,
+   * causing the intake to oscillate and help dislodge stuck FUEL during auto scoring.
+   *
+   * @param enabled true to force half-deploy in intake-deployed states
+   */
+  public void setAutoShootingHalfDeploy(boolean enabled) {
+    this.autoShootingHalfDeploy = enabled;
+    Logger.recordOutput("Superstructure/AutoShootingHalfDeploy", enabled);
   }
 
   // ==================== Release from Auto Climb ====================
@@ -505,6 +528,7 @@ public class Superstructure extends SubsystemBase {
     Logger.recordOutput("Superstructure/StateTransition", currentState + " -> IDLE (forced)");
     this.wantedState = SuperstructureState.IDLE;
     this.currentState = SuperstructureState.IDLE;
+    this.autoShootingHalfDeploy = false;
   }
 
   /**

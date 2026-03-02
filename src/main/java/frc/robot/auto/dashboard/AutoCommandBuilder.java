@@ -64,12 +64,24 @@ public class AutoCommandBuilder {
   private final ClimbSubsystem climb;
 
   /**
-   * Hysteresis latch for the zone-aware acceleration gate. When true, the robot is currently
-   * feeding (SHOOTING_WHILE_INTAKING). It stays true until acceleration exceeds
-   * MAX_FEED_ACCELERATION + FEED_ACCEL_HYSTERESIS. When false, it stays false until acceleration
-   * drops below MAX_FEED_ACCELERATION. Prevents state stutter when accel oscillates near threshold.
+   * Latch for the zone-aware feeding gate. When true, the robot is currently feeding
+   * (SHOOTING_WHILE_INTAKING or ONLY_SHOOTING). It latches on once the hood first reaches its
+   * setpoint, and only resets when leaving the aiming zone or starting a new command phase.
    */
   private boolean zoneAwareFeeding = false;
+
+  /**
+   * Arming flag for the zone-aware feeding latch. When false, the latch cannot engage even if the
+   * hood is at setpoint. Becomes true when the robot passes through the neutral zone (outside the
+   * aiming zone). Reset to false alongside {@link #zoneAwareFeeding}.
+   *
+   * <p>This prevents immediate re-latching after a stop-and-shoot: the hood is still at its aiming
+   * setpoint when the next command starts, so without this flag, {@code updateZoneAwareFeeding}
+   * would latch feeding on within 1-2 frames. Requiring a zone exit forces the robot to drive
+   * through the neutral zone first (picking up FUEL at the intake), then re-enter the aiming zone,
+   * at which point the hood settles on a fresh trajectory and feeding engages naturally.
+   */
+  private boolean zoneAwareFeedingArmed = false;
 
   /**
    * Runtime flag set when a cycle's SWD score is merged with the post-cycle DriveTo+Climb at
@@ -122,11 +134,14 @@ public class AutoCommandBuilder {
   public Command buildAutoCommand(List<AutoAction> actions, AutoSettings settings) {
     // Reset mutable state from any previous auto run
     zoneAwareFeeding = false;
+    zoneAwareFeedingArmed = false;
     climbMergedAtRuntime = false;
     autoStartTimestamp = 0.0;
 
     if (actions.isEmpty()) {
-      return Commands.print("[DashboardAuto] Empty action list — doing nothing.")
+      return Commands.sequence(
+              Commands.runOnce(() -> autoStartTimestamp = Timer.getFPGATimestamp()),
+              Commands.print("[DashboardAuto] Empty action list — doing nothing."))
           .withName("DashboardAuto_Empty");
     }
 
@@ -257,11 +272,6 @@ public class AutoCommandBuilder {
                   Commands.runOnce(
                       () -> {
                         climbMergedAtRuntime = true;
-                        Logger.recordOutput(
-                            "DashboardAuto/CycleTimeCheck",
-                            String.format(
-                                "StopShoot Cycle %d (last): merging with climb (%.1fs remaining)",
-                                cycleNum, getAutoTimeRemaining()));
                       }),
                   climbMerged);
         } else if (climbTarget != null) {
@@ -273,25 +283,12 @@ public class AutoCommandBuilder {
                   intakeCmd,
                   Commands.either(
                       // Enough time → normal stop-and-shoot
-                      Commands.sequence(
-                          Commands.runOnce(
-                              () ->
-                                  Logger.recordOutput(
-                                      "DashboardAuto/CycleTimeCheck",
-                                      String.format(
-                                          "StopShoot Cycle %d: scoring (%.1fs remaining)",
-                                          cycleNum, getAutoTimeRemaining()))),
-                          normalScoreCmd),
+                      normalScoreCmd,
                       // Not enough time → SWD to tower + climb
                       Commands.sequence(
                           Commands.runOnce(
                               () -> {
                                 climbMergedAtRuntime = true;
-                                Logger.recordOutput(
-                                    "DashboardAuto/CycleTimeCheck",
-                                    String.format(
-                                        "StopShoot Cycle %d: skip → SWD to climb (%.1fs remaining)",
-                                        cycleNum, getAutoTimeRemaining()));
                               }),
                           climbMerged),
                       // Condition: enough time for THIS score + climb?
@@ -324,11 +321,6 @@ public class AutoCommandBuilder {
                   Commands.runOnce(
                       () -> {
                         climbMergedAtRuntime = true;
-                        Logger.recordOutput(
-                            "DashboardAuto/CycleTimeCheck",
-                            String.format(
-                                "SWD Cycle %d (last): merging with climb (%.1fs remaining)",
-                                cycleNum, getAutoTimeRemaining()));
                       }),
                   climbMerged);
         } else if (climbTarget != null) {
@@ -339,25 +331,12 @@ public class AutoCommandBuilder {
                   intakeCmd,
                   Commands.either(
                       // Enough time for this SWD + climb → normal SWD score
-                      Commands.sequence(
-                          Commands.runOnce(
-                              () ->
-                                  Logger.recordOutput(
-                                      "DashboardAuto/CycleTimeCheck",
-                                      String.format(
-                                          "SWD Cycle %d: normal SWD (%.1fs remaining)",
-                                          cycleNum, getAutoTimeRemaining()))),
-                          normalScoreCmd),
+                      normalScoreCmd,
                       // Not enough → merge this SWD with climb
                       Commands.sequence(
                           Commands.runOnce(
                               () -> {
                                 climbMergedAtRuntime = true;
-                                Logger.recordOutput(
-                                    "DashboardAuto/CycleTimeCheck",
-                                    String.format(
-                                        "SWD Cycle %d: merging SWD with climb (%.1fs remaining)",
-                                        cycleNum, getAutoTimeRemaining()));
                               }),
                           mergedCmd),
                       // Condition: enough time for THIS SWD score + climb?
@@ -439,16 +418,41 @@ public class AutoCommandBuilder {
     sequence.addCommands(superstructure.idle());
     sequence.addCommands(Commands.print("[DashboardAuto] Auto sequence complete!"));
 
-    sequence.setName("DashboardAuto");
+    sequence.setName("DashboardAutoSequence");
 
-    // Wrap the sequence with a background command that continuously logs the auto timer
-    // every robot cycle (20ms). The deadline ends when the sequence finishes.
-    return Commands.deadline(
-            sequence,
-            Commands.run(
-                () ->
-                    Logger.recordOutput("DashboardAuto/AutoTimeRemaining", getAutoTimeRemaining())))
-        .withName("DashboardAuto");
+    // Return a thin wrapper that delegates to the ChezySequenceCommandGroup while logging
+    // the auto timer every execute cycle.  The previous Commands.deadline() wrapper caused
+    // registerComposedCommands conflicts with ChezySequenceCommandGroup, so we use a simple
+    // forwarding Command instead.
+    return new Command() {
+      {
+        addRequirements(
+            sequence.getRequirements().toArray(new edu.wpi.first.wpilibj2.command.Subsystem[0]));
+        setName("DashboardAuto");
+      }
+
+      @Override
+      public void initialize() {
+        sequence.initialize();
+      }
+
+      @Override
+      public void execute() {
+        sequence.execute();
+        Logger.recordOutput("DashboardAuto/AutoTimeRemaining", getAutoTimeRemaining());
+      }
+
+      @Override
+      public void end(boolean interrupted) {
+        sequence.end(interrupted);
+        Logger.recordOutput("DashboardAuto/AutoTimeRemaining", 0.0);
+      }
+
+      @Override
+      public boolean isFinished() {
+        return sequence.isFinished();
+      }
+    };
   }
 
   // ===== Runtime Time Management =====
@@ -492,8 +496,8 @@ public class AutoCommandBuilder {
     double driveToTower =
         FieldConstants.estimateDriveTime(fromPose, settings.getClimbPose().getPose())
             * RUNTIME_DRIVE_TIME_MULTIPLIER;
-    // Drive time (corrected for PathPlanner pathing) + climb duration + 0.5s safety margin
-    return driveToTower + cl.estimatedClimbDuration + 0.5;
+    // Drive time (corrected for PathPlanner pathing) + climb duration + safety margin
+    return driveToTower + cl.estimatedClimbDuration + 0.25;
   }
 
   /**
@@ -522,13 +526,6 @@ public class AutoCommandBuilder {
 
     double needed = driveToScore + shootDuration + climbReserve;
 
-    Logger.recordOutput("DashboardAuto/AutoTimeRemaining", remaining);
-    Logger.recordOutput("DashboardAuto/ULScoreEstimate", needed);
-    Logger.recordOutput(
-        "DashboardAuto/ULScoreBreakdown",
-        String.format(
-            "drive=%.1f shoot=%.1f climb=%.1f", driveToScore, shootDuration, climbReserve));
-
     return remaining > needed;
   }
 
@@ -550,9 +547,6 @@ public class AutoCommandBuilder {
     double climbReserve = estimateClimbReserve(currentPose, settings);
 
     double needed = swdScoreTime + climbReserve;
-
-    Logger.recordOutput("DashboardAuto/AutoTimeRemaining", remaining);
-    Logger.recordOutput("DashboardAuto/DOLastCycleEstimate", needed);
 
     return remaining > needed;
   }
@@ -584,46 +578,24 @@ public class AutoCommandBuilder {
    */
   private Command waitForIntakePickup(Pose2d intakePose) {
     if (Constants.currentMode == Constants.Mode.SIM) {
-      return Commands.runOnce(
-              () -> Logger.recordOutput("DashboardAuto/IntakeDetect", "SIM: instant success"))
-          .withName("IntakeDetect_Sim");
+      return Commands.none().withName("IntakeDetect_Sim");
     }
 
     // Real robot: check Superstructure detection upon arrival
     return Commands.either(
             // FUEL detected during the drive — continue immediately
-            Commands.runOnce(
-                () ->
-                    Logger.recordOutput(
-                        "DashboardAuto/IntakeDetect", "FUEL detected during drive — continuing")),
+            Commands.none(),
             // No FUEL detected — nudge + retry
             Commands.sequence(
-                Commands.runOnce(
-                    () ->
-                        Logger.recordOutput(
-                            "DashboardAuto/IntakeDetect",
-                            "No FUEL during drive — nudging 1m toward center Y")),
                 // Drive 1m toward field center Y with intake still running
                 pathfindTo(computeNudgePose(intakePose)),
                 // After nudge: check again
                 Commands.either(
-                    Commands.runOnce(
-                        () ->
-                            Logger.recordOutput(
-                                "DashboardAuto/IntakeDetect",
-                                "FUEL detected during nudge — continuing")),
+                    Commands.none(),
                     // Still nothing — wait briefly with timeout, then give up
-                    Commands.sequence(
-                        Commands.race(
-                            Commands.waitUntil(() -> superstructure.intakeHasFuel()),
-                            Commands.waitSeconds(INTAKE_NUDGE_TIMEOUT_SECONDS)),
-                        Commands.runOnce(
-                            () ->
-                                Logger.recordOutput(
-                                    "DashboardAuto/IntakeDetect",
-                                    superstructure.intakeHasFuel()
-                                        ? "FUEL detected after nudge wait"
-                                        : "No FUEL after nudge — giving up"))),
+                    Commands.race(
+                        Commands.waitUntil(() -> superstructure.intakeHasFuel()),
+                        Commands.waitSeconds(INTAKE_NUDGE_TIMEOUT_SECONDS)),
                     () -> superstructure.intakeHasFuel())),
             // Condition: does the Superstructure detect FUEL?
             () -> superstructure.intakeHasFuel())
@@ -708,30 +680,15 @@ public class AutoCommandBuilder {
    */
   private Command waitForShooterEmpty() {
     if (Constants.currentMode == Constants.Mode.SIM) {
-      return Commands.sequence(
-              Commands.waitSeconds(SIM_SHOOTER_DONE_SECONDS),
-              Commands.runOnce(
-                  () -> Logger.recordOutput("DashboardAuto/ShooterDetect", "SIM: fixed delay")))
-          .withName("ShooterDetect_Sim");
+      return Commands.waitSeconds(SIM_SHOOTER_DONE_SECONDS).withName("ShooterDetect_Sim");
     }
 
     // Real robot: reset detection, then wait for Superstructure to declare "done"
     return Commands.sequence(
-            Commands.runOnce(
-                () -> {
-                  superstructure.resetShooterDetection();
-                  Logger.recordOutput("DashboardAuto/ShooterDetect", "Waiting for FUEL to exit");
-                }),
+            Commands.runOnce(() -> superstructure.resetShooterDetection()),
             Commands.race(
                 Commands.waitUntil(() -> superstructure.isShooterFinishedFiring()),
                 Commands.waitSeconds(SHOOTER_DETECT_TIMEOUT_SECONDS)))
-        .finallyDo(
-            () ->
-                Logger.recordOutput(
-                    "DashboardAuto/ShooterDetect",
-                    superstructure.isShooterFinishedFiring()
-                        ? "All FUEL fired"
-                        : "Timeout — moving on"))
         .withName("ShooterDetect");
   }
 
@@ -809,8 +766,9 @@ public class AutoCommandBuilder {
       Pose2d target = action.getLocation().toPose();
       return Commands.sequence(
               Commands.print("[DashboardAuto] Scoring preload at " + action.getLocation().name()),
-              // Drive to scoring waypoint with zone-aware intake (aims when in alliance/hub zone)
-              Commands.deadline(pathfindTo(target), zoneAwareIntake()),
+              // Drive to scoring waypoint — aim only (no feeding) so preload fires after stopping
+              Commands.runOnce(() -> zoneAwareFeeding = false),
+              Commands.deadline(pathfindTo(target), zoneAwareAimOnly()),
               buildStopAndShootSequence())
           .withName("ScorePreload_" + action.getLocation().name());
     }
@@ -855,8 +813,11 @@ public class AutoCommandBuilder {
   private Command buildStopAndScore(Pose2d target, ScoringWaypoint location) {
     return Commands.sequence(
             Commands.print("[DashboardAuto] Stop-and-shoot at " + location.name()),
-            // Drive to scoring waypoint with zone-aware intake (aims when in alliance/hub zone)
-            Commands.deadline(pathfindTo(target), zoneAwareIntake()),
+            // Drive to scoring waypoint — aim only (no feeding) so all FUEL is saved for the
+            // stationary shot. Uses AIMING_WHILE_INTAKING in the aiming zone so the turret
+            // tracks the HUB during the approach, then fires after stopping.
+            Commands.runOnce(() -> zoneAwareFeeding = false),
+            Commands.deadline(pathfindTo(target), zoneAwareAimOnly()),
             buildStopAndShootSequence())
         .withName("ScoreAt_" + location.name());
   }
@@ -885,15 +846,13 @@ public class AutoCommandBuilder {
    *   <li><b>Neutral/opponent zone:</b> ONLY_INTAKE (turret stowed, just collect FUEL)
    *   <li><b>Aiming zone, hood not at setpoint:</b> AIMING_WHILE_INTAKING (turret tracks, hood
    *       deploying, no feed)
-   *   <li><b>Aiming zone, hood ready, high accel:</b> AIMING_WHILE_INTAKING (turret tracks, no
-   *       feed)
-   *   <li><b>Aiming zone, hood ready, low accel:</b> SHOOTING_WHILE_INTAKING (turret tracks + feed)
+   *   <li><b>Aiming zone, hood ready:</b> SHOOTING_WHILE_INTAKING (turret tracks + feed, latches
+   *       on)
    * </ul>
    *
-   * <p>Acceleration gating uses hysteresis ({@link #FEED_ACCEL_HYSTERESIS}) to prevent stutter. The
-   * robot shoots whenever acceleration is low AND hood is settled — not just once — and pauses
-   * feeding when accelerating hard or hood leaves setpoint. When the path ends, a zone-aware
-   * default state is applied.
+   * <p>Once feeding starts (hood reaches setpoint), it stays latched on to avoid stutter from sim
+   * PID oscillation. Feeding only resets when leaving the aiming zone. When the path ends, a
+   * zone-aware default state is applied.
    *
    * @param destination Where the robot is actually driving to
    * @param logLabel Label for logging (scoring waypoint name or "TOWER_TRANSIT")
@@ -901,23 +860,21 @@ public class AutoCommandBuilder {
   private Command buildShootWhileDrivingCore(Pose2d destination, String logLabel) {
     return Commands.sequence(
         Commands.print("[DashboardAuto] Shoot-while-driving (" + logLabel + ")"),
+        // Reset feeding latch so we don't inherit stale state from a previous command
+        Commands.runOnce(() -> zoneAwareFeeding = false),
         // Drive at full speed to destination while continuously shooting when possible
         Commands.deadline(
             // Deadline: the path finishing is what ends this group
             pathfindTo(destination),
-            // Continuous zone-aware shooting: every cycle, check zone + hood + accel and
-            // toggle between AIMING_WHILE_INTAKING and SHOOTING_WHILE_INTAKING. This
-            // ensures the robot shoots whenever accel is low and hood is settled (not just
-            // once) and stops shooting when accel spikes, hood leaves setpoint, or when
-            // in neutral/opponent zone.
+            // Continuous zone-aware shooting: every cycle, check zone + hood and
+            // switch between AIMING_WHILE_INTAKING and SHOOTING_WHILE_INTAKING. Once
+            // hood reaches setpoint, feeding latches on. Resets when leaving aiming zone.
             Commands.run(
                 () -> {
                   updateZoneAwareFeeding(
                       Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
                       Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
                       Superstructure.SuperstructureState.ONLY_INTAKE);
-                  Logger.recordOutput("DashboardAuto/SWD/Label", logLabel);
-                  Logger.recordOutput("DashboardAuto/SWD/Feeding", zoneAwareFeeding);
                 },
                 superstructure))
         // No zoneAwareDefaultState here — the next command (IntakeAt, StopAndScore, etc.)
@@ -998,69 +955,81 @@ public class AutoCommandBuilder {
   }
 
   /**
-   * Combined DriveTo + Climb: drive toward the TOWER while overlapping shooting, intake stow, climb
-   * extend, and scoring idle — then retract once both drive and extend are complete.
+   * Combined DriveTo + Climb: drive toward the TOWER while overlapping shooting, intake stow, and
+   * climb extend — then approach the tower only after hooks are extended, and retract.
    *
-   * <p>Uses {@link Commands#parallel} (not deadline) so the climb extend can finish its full motion
-   * path even if the drivetrain arrives first. Two groups run simultaneously:
+   * <p><b>Timeline (overlapped):</b>
    *
    * <ol>
-   *   <li><b>Drive + shoot group (deadline):</b> Pathfind to climb pose while continuously shooting
-   *       with accel gating. Intake is stowed (ONLY_AIMING / ONLY_SHOOTING) since we're heading to
-   *       climb. When within 1m, idle all scoring. Ends when drive arrives.
-   *   <li><b>Climb extend:</b> Waits for intake to physically reach stow, then runs the full extend
-   *       motion path. NOT inside a deadline, so the motion completes even if the drive arrives
-   *       first.
+   *   <li><b>Immediately:</b> Switch superstructure to ONLY_AIMING/ONLY_SHOOTING (stows intake
+   *       while keeping turret/hood/shooter active). Zone-aware shooting continues the entire
+   *       drive.
+   *   <li><b>Intake stowed:</b> Climb hooks start extending (runs in parallel with driving +
+   *       shooting). The arms extend mid-transit so they're ready before the robot arrives.
+   *   <li><b>Drivetrain reaches standoff:</b> Pathfinding ends. Superstructure goes IDLE (stops
+   *       shooting). If hooks aren't fully extended yet, wait for them.
+   *   <li><b>Phase 2:</b> PID drive-to-pose — straight-line approach into the tower with hooks
+   *       extended and ready to latch.
+   *   <li><b>Phase 3:</b> Retract to pull the robot up.
    * </ol>
-   *
-   * <p>Both groups must finish before retract begins (parallel semantics).
    *
    * @param climbTarget The TOWER climb pose to pathfind to
    * @param climbAction The Climb action (for level and logging)
    */
   private Command buildDriveAndClimb(Pose2d climbTarget, AutoAction.Climb climbAction) {
+    // Compute the standoff pose: offset away from the wall by CLIMB_APPROACH_DISTANCE_M
+    double approachDist = Constants.AutoConstants.CLIMB_APPROACH_DISTANCE_M;
+    Translation2d standoffOffset =
+        new Translation2d(approachDist, climbTarget.getRotation().plus(Rotation2d.k180deg));
+    Pose2d standoffPose =
+        new Pose2d(climbTarget.getTranslation().plus(standoffOffset), climbTarget.getRotation());
+
     return Commands.sequence(
             Commands.print(
                 "[DashboardAuto] Driving to TOWER & climbing "
                     + climbAction.getClimbLevel().name()),
-            // Parallel: both drive+shoot AND climb extend must finish before retract
+            // Phase 1: Drive to standoff while shooting + extending climb arms (all parallel)
+            // The pathfind is the deadline — when it finishes, the shooting parallel is killed.
+            // The climb extend runs independently (not killed by pathfind ending).
             Commands.parallel(
-                // Group 1: Drive to climb pose with continuous accel-gated shooting
+                // Group 1: Drive to standoff with zone-aware shooting en route.
+                // Uses ONLY_SHOOTING/ONLY_AIMING (intake stowed, turret active) so the
+                // intake retracts immediately and the climb arms can start extending.
                 Commands.deadline(
-                    pathfindThenDriveStraight(climbTarget),
-                    // Continuous zone-aware shooting loop: ONLY_AIMING when accel high,
-                    // ONLY_SHOOTING when accel low. No intake (stowing for climb).
-                    // IDLE when outside alliance zone (turret stowed — can't score from
-                    // neutral zone) or within 1m of climb pose (final approach).
+                    Commands.defer(
+                        () -> AutoBuilder.pathfindToPose(standoffPose, getPathConstraints(), 0.0),
+                        Set.of(drive)),
                     Commands.run(
                         () -> {
-                          double distToTarget =
-                              drive
-                                  .getPose()
-                                  .getTranslation()
-                                  .getDistance(climbTarget.getTranslation());
-                          if (distToTarget <= 1.0) {
-                            // Within 1m of climb pose — stow everything for final approach
-                            zoneAwareFeeding = false;
-                            superstructure.forceWantedState(
-                                Superstructure.SuperstructureState.IDLE);
-                          } else {
-                            updateZoneAwareFeeding(
-                                Superstructure.SuperstructureState.ONLY_SHOOTING,
-                                Superstructure.SuperstructureState.ONLY_AIMING,
-                                Superstructure.SuperstructureState.IDLE);
-                          }
-                          Logger.recordOutput(
-                              "DashboardAuto/ClimbTransit/Feeding", zoneAwareFeeding);
+                          updateZoneAwareFeeding(
+                              Superstructure.SuperstructureState.ONLY_SHOOTING,
+                              Superstructure.SuperstructureState.ONLY_AIMING,
+                              Superstructure.SuperstructureState.IDLE);
                         },
                         superstructure)),
-                // Group 2: Climb extend — waits for stow, then runs full motion path
+                // Group 2: Climb extend — starts as soon as intake is physically stowed.
+                // Runs in parallel with Group 1 so the arms extend mid-transit.
                 Commands.sequence(
                     Commands.waitUntil(() -> superstructure.isIntakeStowed()),
                     Commands.print("[DashboardAuto] Intake stowed — extending climb"),
                     climb.setStateCommand(ClimbState.EXTEND_L1_AUTO))),
-            // Both drive and extend complete — retract to pull robot up
-            Commands.print("[DashboardAuto] Reached climb pose & extended — retracting"),
+            // Pathfinding done — idle superstructure (stop shooting for final approach)
+            Commands.runOnce(
+                () -> {
+                  zoneAwareFeeding = false;
+                  superstructure.setAutoShootingHalfDeploy(false);
+                  superstructure.forceWantedState(Superstructure.SuperstructureState.IDLE);
+                }),
+            // Phase 2: Hooks extended, robot at standoff — drive straight into tower
+            Commands.print("[DashboardAuto] At standoff — approaching tower"),
+            buildDriveToPose(
+                climbTarget,
+                Constants.AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS,
+                Constants.AutoConstants.CLIMB_APPROACH_TOLERANCE_M,
+                Constants.AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD),
+            Commands.runOnce(() -> drive.stop(), drive),
+            // Phase 3: Retract to pull robot up
+            Commands.print("[DashboardAuto] Reached tower — retracting"),
             climb.setStateCommand(ClimbState.RETRACT_L1_AUTO))
         .withName("DriveAndClimb_" + climbAction.getClimbLevel().name());
   }
@@ -1086,29 +1055,53 @@ public class AutoCommandBuilder {
   // ===== Shared Helpers =====
 
   /**
-   * Build the stop-and-shoot sequence: shoot immediately → wait for all FUEL to exit → resume.
+   * Build the stop-and-shoot sequence: shoot only while stopped → wait for all FUEL to exit →
+   * resume.
    *
    * <p>By the time this runs, the turret/hood/shooter have been continuously tracking the HUB via
-   * {@link #zoneAwareIntake()} during the entire drive approach. The robot is already stationary
-   * (stop-and-shoot pattern) and the mechanisms are already stabilized — no additional aim+settle
-   * is needed. Going straight to SHOOTING avoids a SHOOTING→AIMING→SHOOTING flicker that was
-   * visible when the robot was already feeding via zoneAwareIntake before the pathfind ended.
+   * {@link #zoneAwareAimOnly()} during the entire drive approach. The robot is already stationary
+   * (stop-and-shoot pattern) and the mechanisms are already stabilized.
    *
-   * <p><b>Current-based shot detection:</b> Instead of a fixed 0.15s wait, we now use {@link
-   * #waitForShooterEmpty()} which delegates to the Superstructure's conveyor current monitoring.
-   * When the conveyor current drops below the threshold for a sustained period, all FUEL has been
-   * fired. A timeout fallback prevents getting stuck.
+   * <p><b>Velocity guard:</b> Feeding is gated on the robot being stopped (linear speed below
+   * {@link AutoTuning#STOP_AND_SHOOT_MAX_SPEED_MPS}). If the robot moves (e.g. bumped or still
+   * decelerating), feeding pauses (AIMING_WHILE_INTAKING) until the robot is stationary again. This
+   * ensures FUEL is only fired when the robot is stopped and aiming is stable.
    *
    * @return Command sequence to fire FUEL at the HUB while stationary
    */
   private Command buildStopAndShootSequence() {
     return Commands.sequence(
-        // Fire immediately — turret was already tracking via zoneAwareIntake during the drive
-        superstructure.shootingWhileIntaking(),
-        // Wait for all FUEL to exit (current-based detection with timeout fallback)
-        waitForShooterEmpty(),
-        // Return to zone-aware default (aim in alliance zone, intake-only outside)
-        zoneAwareDefaultState());
+        // Half-deploy intake while shooting to dislodge stuck FUEL
+        Commands.runOnce(() -> superstructure.setAutoShootingHalfDeploy(true)),
+        // Feed only while stopped. Every cycle: check robot speed and toggle between
+        // SHOOTING_WHILE_INTAKING (stopped) and AIMING_WHILE_INTAKING (moving).
+        Commands.deadline(
+            waitForShooterEmpty(),
+            Commands.run(
+                () -> {
+                  if (drive.getLinearSpeedMps() > STOP_AND_SHOOT_MAX_SPEED_MPS) {
+                    // Robot is moving — stop feeding, keep aiming
+                    superstructure.forceWantedState(
+                        Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
+                  } else {
+                    // Robot is stopped — feed
+                    superstructure.forceWantedState(
+                        Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
+                  }
+                },
+                superstructure)),
+        // Shooting done — disarm the feeding gate and stow the hood.
+        // Disarming prevents the next zoneAwareIntake() from immediately re-latching
+        // (the gate can only re-arm when the robot passes through the neutral zone).
+        // ONLY_INTAKE stows the hood as a belt-and-suspenders measure — the robot just
+        // emptied all FUEL, so there's nothing to shoot.
+        Commands.runOnce(
+            () -> {
+              zoneAwareFeeding = false;
+              zoneAwareFeedingArmed = false;
+              superstructure.setAutoShootingHalfDeploy(false);
+              superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_INTAKE);
+            }));
   }
 
   /**
@@ -1131,49 +1124,6 @@ public class AutoCommandBuilder {
     return Commands.defer(
         () -> AutoBuilder.pathfindToPose(trenchAwarePose(target), getPathConstraints(), 0.0),
         Set.of(drive));
-  }
-
-  /**
-   * Build a command that pathfinds to a standoff point near the target, then drives in a perfectly
-   * straight line toward the alliance wall to reach the final target. This ensures the climb hook
-   * approaches the tower dead-straight in the alliance direction for a clean latch.
-   *
-   * <p>The standoff point is {@link Constants.AutoConstants#CLIMB_APPROACH_DISTANCE_M} meters in
-   * front of the target (opposite to the target's heading). The robot pathfinds there, then uses a
-   * 2910-style PID drive-to-pose controller to approach the target with feedback control:
-   *
-   * <ul>
-   *   <li>PID on linear distance computes a scalar velocity toward the target
-   *   <li>Static friction feedforward overcomes drivetrain friction at small distances
-   *   <li>Heading PID holds the target rotation throughout the approach
-   *   <li>Velocity is clamped to a max approach speed for controlled docking
-   * </ul>
-   *
-   * @param target The final climb pose (alliance-corrected, facing the alliance wall)
-   * @return A command sequence: pathfind to standoff → PID drive-to-pose → stop
-   */
-  private Command pathfindThenDriveStraight(Pose2d target) {
-    // Compute the standoff pose: offset away from the wall by CLIMB_APPROACH_DISTANCE_M
-    // For a 180° target (facing -X), the standoff is in the +X direction (into the field)
-    double approachDist = Constants.AutoConstants.CLIMB_APPROACH_DISTANCE_M;
-    Translation2d standoffOffset =
-        new Translation2d(approachDist, target.getRotation().plus(Rotation2d.k180deg));
-    Pose2d standoffPose =
-        new Pose2d(target.getTranslation().plus(standoffOffset), target.getRotation());
-
-    double maxVel = Constants.AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS;
-    double tolerance = Constants.AutoConstants.CLIMB_APPROACH_TOLERANCE_M;
-    double thetaTolerance = Constants.AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD;
-
-    return Commands.sequence(
-        // Step 1: Pathfind to the standoff point (stop there)
-        Commands.defer(
-            () -> AutoBuilder.pathfindToPose(standoffPose, getPathConstraints(), 0.0),
-            Set.of(drive)),
-        // Step 2: PID drive-to-pose (2910-style)
-        buildDriveToPose(target, maxVel, tolerance, thetaTolerance),
-        // Step 3: Stop
-        Commands.runOnce(() -> drive.stop(), drive));
   }
 
   /**
@@ -1237,17 +1187,6 @@ public class AutoCommandBuilder {
                       currentPose.getRotation().getRadians(), target.getRotation().getRadians());
 
               drive.driveFieldRelative(vx, vy, omega);
-
-              // Logging
-              Logger.recordOutput("Auto/DriveToPose/DistanceToTarget", linearDistance);
-              Logger.recordOutput("Auto/DriveToPose/VelocityOutput", velocityOutput);
-              Logger.recordOutput(
-                  "Auto/DriveToPose/HeadingError",
-                  Math.abs(
-                      MathUtil.angleModulus(
-                          currentPose.getRotation().getRadians()
-                              - target.getRotation().getRadians())));
-              Logger.recordOutput("Auto/DriveToPose/TargetPose", target);
             },
             drive)
         .until(
@@ -1308,14 +1247,21 @@ public class AutoCommandBuilder {
   /**
    * Shared zone-aware feeding logic used by {@link #zoneAwareIntake()}, {@link
    * #buildShootWhileDrivingCore}, and {@link #buildDriveAndClimb}. Updates the {@link
-   * #zoneAwareFeeding} hysteresis latch and applies the appropriate superstructure state.
+   * #zoneAwareFeeding} latch and applies the appropriate superstructure state.
    *
-   * <p>When outside the aiming zone, applies {@code outsideState} and resets the latch. Inside the
-   * aiming zone, uses acceleration + hood readiness with hysteresis to decide between {@code
-   * feedingState} and {@code aimingState}.
+   * <p>When outside the aiming zone, applies {@code outsideState}, resets the latch, and arms the
+   * feeding gate (so the latch can re-engage when the robot re-enters the aiming zone). Inside the
+   * aiming zone, feeds whenever the hood is at its setpoint AND the gate is armed. Once feeding
+   * starts it stays latched on (no re-gating) to avoid stutter from sim PID oscillation around the
+   * hood tolerance.
    *
-   * @param feedingState State to apply when feeding (low accel + hood ready)
-   * @param aimingState State to apply when aiming but not feeding
+   * <p>The arming requirement prevents immediate re-latching after a stop-and-shoot: the hood is
+   * still at its aiming setpoint, so without the gate the latch would engage within 1-2 frames. By
+   * requiring a zone exit first, the robot must drive through the neutral zone (picking up FUEL)
+   * before feeding can resume.
+   *
+   * @param feedingState State to apply when feeding (hood ready)
+   * @param aimingState State to apply when aiming but not yet feeding
    * @param outsideState State to apply when outside the aiming zone
    */
   private void updateZoneAwareFeeding(
@@ -1324,19 +1270,19 @@ public class AutoCommandBuilder {
       Superstructure.SuperstructureState outsideState) {
     if (isOutsideAimingZone()) {
       zoneAwareFeeding = false;
+      zoneAwareFeedingArmed = true; // Arm the gate — next aiming-zone entry can latch
+      superstructure.setAutoShootingHalfDeploy(false);
       superstructure.forceWantedState(outsideState);
     } else {
-      boolean hoodReady = superstructure.isHoodAtSetpoint();
-      double accel = drive.getFilteredAcceleration();
-      if (zoneAwareFeeding) {
-        if (accel > MAX_FEED_ACCELERATION + FEED_ACCEL_HYSTERESIS || !hoodReady) {
-          zoneAwareFeeding = false;
-        }
-      } else {
-        if (accel <= MAX_FEED_ACCELERATION && hoodReady) {
-          zoneAwareFeeding = true;
-        }
+      // Once feeding starts, stay latched on — don't stop for brief hood oscillations.
+      // Only gate the initial transition: hood must be at setpoint AND the gate must be
+      // armed (robot has been outside the aiming zone since the last reset).
+      if (!zoneAwareFeeding && zoneAwareFeedingArmed && superstructure.isHoodAtSetpoint()) {
+        zoneAwareFeeding = true;
       }
+      // Half-deploy the intake while feeding so it oscillates and dislodges stuck FUEL.
+      // Full deploy resumes as soon as feeding stops.
+      superstructure.setAutoShootingHalfDeploy(zoneAwareFeeding);
       superstructure.forceWantedState(zoneAwareFeeding ? feedingState : aimingState);
     }
   }
@@ -1365,8 +1311,34 @@ public class AutoCommandBuilder {
   }
 
   /**
+   * Zone-aware aim-only command for stop-and-shoot approach drives. Aims the turret/hood at the HUB
+   * while intaking, but <b>never feeds</b> — all FUEL is saved for the stationary shot after
+   * arrival.
+   *
+   * <ul>
+   *   <li><b>Outside aiming zone:</b> ONLY_INTAKE (turret stowed)
+   *   <li><b>In aiming zone:</b> AIMING_WHILE_INTAKING (turret tracks HUB, hood deploys, no feed)
+   * </ul>
+   *
+   * <p>This command runs forever (use as a parallel with a deadline like pathfindTo).
+   */
+  private Command zoneAwareAimOnly() {
+    return Commands.run(
+            () -> {
+              if (isOutsideAimingZone()) {
+                superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_INTAKE);
+              } else {
+                superstructure.forceWantedState(
+                    Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
+              }
+            },
+            superstructure)
+        .withName("ZoneAwareAimOnly");
+  }
+
+  /**
    * Build a zone-aware intake command that continuously manages the superstructure state based on
-   * the robot's field zone, acceleration, and hood readiness:
+   * the robot's field zone and hood readiness:
    *
    * <ul>
    *   <li><b>Outside aiming zone (neutral/opponent):</b> ONLY_INTAKE — turret stowed, just collect
@@ -1389,18 +1361,18 @@ public class AutoCommandBuilder {
    * <p>This command runs forever (use as a parallel with a deadline like pathfindTo).
    */
   private Command zoneAwareIntake() {
-    return Commands.run(
-            () -> {
-              updateZoneAwareFeeding(
-                  Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
-                  Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
-                  Superstructure.SuperstructureState.ONLY_INTAKE);
-
-              Logger.recordOutput(
-                  "DashboardAuto/ZoneAware/OutsideAimingZone", isOutsideAimingZone());
-              Logger.recordOutput("DashboardAuto/ZoneAware/Feeding", zoneAwareFeeding);
-            },
-            superstructure) // Require superstructure — prevents other commands from overwriting
+    return Commands.sequence(
+            // Reset feeding latch so we don't immediately resume feeding from a previous
+            // command's stale state (e.g. hood was at setpoint after stop-and-shoot).
+            Commands.runOnce(() -> zoneAwareFeeding = false),
+            Commands.run(
+                () -> {
+                  updateZoneAwareFeeding(
+                      Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
+                      Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
+                      Superstructure.SuperstructureState.ONLY_INTAKE);
+                },
+                superstructure))
         .withName("ZoneAwareIntake");
   }
 }

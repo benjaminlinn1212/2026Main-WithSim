@@ -9,8 +9,11 @@ import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.IntakeLocation;
 import frc.robot.auto.dashboard.FieldConstants.ScoringWaypoint;
 import frc.robot.auto.dashboard.FieldConstants.StartPose;
+import frc.robot.auto.dashboard.FieldConstants.Trench;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
@@ -32,16 +35,6 @@ import org.littletonrobotics.junction.Logger;
  */
 public class AutoSettings {
 
-  // ===== Risk Level =====
-  public enum RiskLevel {
-    /** Conservative: stick to safe lanes, extra time margins, avoid NEUTRAL ZONE. */
-    CONSERVATIVE,
-    /** Balanced: normal pathing, reasonable margins. */
-    BALANCED,
-    /** Aggressive: tight time budgets, willing to cross into contested NEUTRAL ZONE. */
-    AGGRESSIVE
-  }
-
   // ===== Backing fields (read from dashboard each cycle) =====
   private StartPose startPose = StartPose.CENTER;
   private final List<ScoringWaypoint> scoringPriority = new ArrayList<>();
@@ -49,7 +42,7 @@ public class AutoSettings {
   private boolean attemptClimb = true;
   private ClimbPose climbPose = ClimbPose.DEPOT_SIDE;
   private boolean scorePreload = true;
-  private RiskLevel riskLevel = RiskLevel.BALANCED;
+  private final EnumSet<Trench> availableTrenches = EnumSet.allOf(Trench.class);
 
   // ===== SmartDashboard Keys (under "Auto/" subtable for Elastic) =====
   private static final String PREFIX = "Auto/";
@@ -57,7 +50,6 @@ public class AutoSettings {
   // ===== SendableChoosers for dropdown settings in Elastic =====
   private final SendableChooser<StartPose> startPoseChooser = new SendableChooser<>();
   private final SendableChooser<ClimbPose> climbPoseChooser = new SendableChooser<>();
-  private final SendableChooser<RiskLevel> riskLevelChooser = new SendableChooser<>();
 
   // Fingerprint for change detection
   private String lastFingerprint = "";
@@ -96,16 +88,6 @@ public class AutoSettings {
     }
     SmartDashboard.putData(PREFIX + "Climb Pose", climbPoseChooser);
 
-    // --- Dropdown: Risk Level ---
-    for (RiskLevel rl : RiskLevel.values()) {
-      if (rl == RiskLevel.BALANCED) {
-        riskLevelChooser.setDefaultOption(rl.name(), rl);
-      } else {
-        riskLevelChooser.addOption(rl.name(), rl);
-      }
-    }
-    SmartDashboard.putData(PREFIX + "Risk Level", riskLevelChooser);
-
     // --- Multi-value boolean toggles ---
     // Shooting Priority: one toggle per scoring waypoint (enabled = included in priority list)
     for (ScoringWaypoint sl : ScoringWaypoint.values()) {
@@ -116,6 +98,12 @@ public class AutoSettings {
     // --- Boolean toggles ---
     SmartDashboard.putBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
     SmartDashboard.putBoolean(PREFIX + "Score Preload", scorePreload);
+
+    // --- Trench availability (disabling blocks PathPlanner pathfinding through that trench) ---
+    // One toggle per trench (enabled = pathfinder may cross it)
+    for (Trench t : Trench.values()) {
+      SmartDashboard.putBoolean(PREFIX + "Trench/" + t.name(), true);
+    }
   }
 
   // ===== Read from Dashboard =====
@@ -155,16 +143,18 @@ public class AutoSettings {
     attemptClimb = SmartDashboard.getBoolean(PREFIX + "Attempt TOWER Climb", attemptClimb);
     scorePreload = SmartDashboard.getBoolean(PREFIX + "Score Preload", scorePreload);
 
+    // Trench availability
+    availableTrenches.clear();
+    for (Trench t : Trench.values()) {
+      if (SmartDashboard.getBoolean(PREFIX + "Trench/" + t.name(), true)) {
+        availableTrenches.add(t);
+      }
+    }
+
     // Climb Pose (dropdown)
     ClimbPose selectedClimbPose = climbPoseChooser.getSelected();
     if (selectedClimbPose != null) {
       climbPose = selectedClimbPose;
-    }
-
-    // Risk Level (dropdown)
-    RiskLevel selectedRisk = riskLevelChooser.getSelected();
-    if (selectedRisk != null) {
-      riskLevel = selectedRisk;
     }
 
     // Change detection
@@ -211,20 +201,18 @@ public class AutoSettings {
     return scorePreload;
   }
 
-  public RiskLevel getRiskLevel() {
-    return riskLevel;
+  /** Set of trenches the pathfinder is allowed to cross. */
+  public Set<Trench> getAvailableTrenches() {
+    return Set.copyOf(availableTrenches);
   }
 
   /**
-   * Get the time margin multiplier based on risk level. Conservative adds a big buffer; aggressive
-   * is tight.
+   * Time margin multiplier for the planner's time budgeting. Fixed at 1.0 — the runtime time checks
+   * in AutoCommandBuilder (via {@link AutoTuning#RUNTIME_DRIVE_TIME_MULTIPLIER}) handle all
+   * drive-time inflation.
    */
   public double getTimeMarginMultiplier() {
-    return switch (riskLevel) {
-      case CONSERVATIVE -> 1.4;
-      case BALANCED -> 1.15;
-      case AGGRESSIVE -> 1.0;
-    };
+    return 1.0;
   }
 
   // ===== Change Detection =====
@@ -242,7 +230,7 @@ public class AutoSettings {
         + "|"
         + scorePreload
         + "|"
-        + riskLevel.name();
+        + availableTrenches;
   }
 
   // ===== Logging =====
@@ -258,7 +246,7 @@ public class AutoSettings {
     Logger.recordOutput("AutoSettings/ClimbLevel", "LEVEL_1");
     Logger.recordOutput("AutoSettings/ClimbPose", climbPose.name());
     Logger.recordOutput("AutoSettings/ScorePreload", scorePreload);
-    Logger.recordOutput("AutoSettings/RiskLevel", riskLevel.name());
+    Logger.recordOutput("AutoSettings/AvailableTrenches", availableTrenches.toString());
   }
 
   @Override
@@ -277,8 +265,8 @@ public class AutoSettings {
         + climbPose
         + ", scorePreload="
         + scorePreload
-        + ", risk="
-        + riskLevel
+        + ", trenches="
+        + availableTrenches
         + "}";
   }
 

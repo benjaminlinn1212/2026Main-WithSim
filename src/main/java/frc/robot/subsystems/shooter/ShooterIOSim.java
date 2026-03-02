@@ -47,6 +47,20 @@ public class ShooterIOSim implements ShooterIO {
    */
   private static int fuelQueuedCount = 0;
 
+  /**
+   * Whether the conveyor is actively feeding fuel toward the shooter this cycle. Set by {@link
+   * frc.robot.subsystems.conveyor.ConveyorIOSim} each update; prevents preloaded fuel from
+   * launching while the superstructure is only aiming (flywheel spinning but conveyor stopped).
+   */
+  private static boolean conveyorFeeding = false;
+
+  /**
+   * Cooldown ticks between consecutive fuel launches. Prevents all preloaded fuel from firing in a
+   * burst — matches the {@link Constants.SimConstants#FEED_COOLDOWN_TICKS} used by ConveyorIOSim so
+   * sim launch rate equals the real conveyor feed rate.
+   */
+  private int launchCooldownTicks = 0;
+
   public ShooterIOSim(
       SwerveDriveSimulation driveSimulation,
       DoubleSupplier turretAngleRadSupplier,
@@ -74,12 +88,23 @@ public class ShooterIOSim implements ShooterIO {
     inputs.currentAmps = Math.abs(flywheelSim.getCurrentDrawAmps());
     inputs.temperatureCelsius = 25.0;
 
-    // Launch fuel if spinning fast enough
+    // Decrement launch cooldown
+    if (launchCooldownTicks > 0) {
+      launchCooldownTicks--;
+    }
+
+    // Launch fuel if conveyor is feeding, flywheel spinning fast enough, and cooldown elapsed
     if (fuelQueuedCount > 0
+        && conveyorFeeding
+        && launchCooldownTicks == 0
         && Math.abs(inputs.velocityRotPerSec) > Constants.SimConstants.MIN_LAUNCH_VELOCITY_RPS) {
       launchFuelProjectile(inputs.velocityRotPerSec);
       fuelQueuedCount--;
+      launchCooldownTicks = Constants.SimConstants.FEED_COOLDOWN_TICKS;
     }
+
+    // Reset conveyor feeding flag each cycle — ConveyorIOSim re-sets it every update when active
+    conveyorFeeding = false;
   }
 
   @Override
@@ -107,6 +132,19 @@ public class ShooterIOSim implements ShooterIO {
    */
   public static void notifyFuelReady() {
     fuelQueuedCount++;
+  }
+
+  /** Reset the queued fuel count to zero. Called at auto start to avoid accumulation. */
+  public static void resetFuelCount() {
+    fuelQueuedCount = 0;
+  }
+
+  /**
+   * Signal that the conveyor is actively feeding fuel toward the shooter this cycle. Must be called
+   * every cycle that feeding is active — the flag resets each update in {@link #updateInputs}.
+   */
+  public static void setConveyorFeeding() {
+    conveyorFeeding = true;
   }
 
   /**

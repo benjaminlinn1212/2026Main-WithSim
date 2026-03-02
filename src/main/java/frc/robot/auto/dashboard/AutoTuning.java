@@ -20,20 +20,8 @@ public final class AutoTuning {
   private AutoTuning() {}
 
   // ===== Shoot-While-Driving Gating =====
-
-  /**
-   * Maximum linear acceleration (m/s²) at which the robot is allowed to start feeding FUEL to the
-   * shooter. Shooting at high acceleration degrades FUEL accuracy, so we wait until the robot has
-   * decelerated (or is at cruise) before commanding the conveyor/indexer.
-   */
-  public static final double MAX_FEED_ACCELERATION = 3.5;
-
-  /**
-   * Hysteresis band for the acceleration gate. Once feeding starts (accel ≤ MAX_FEED_ACCELERATION),
-   * it continues until accel exceeds MAX_FEED_ACCELERATION + this value. Prevents stutter when the
-   * acceleration oscillates near the threshold.
-   */
-  public static final double FEED_ACCEL_HYSTERESIS = 1.0;
+  // Feeding is gated only by hood readiness (atSetpoint). Once the hood reaches its setpoint,
+  // feeding latches on and stays on until the robot leaves the aiming zone.
 
   // ===== Intake Current-Based FUEL Presence Detection =====
   // New logic: monitor the LOWER intake roller current. Because there's motor accel time,
@@ -164,7 +152,7 @@ public final class AutoTuning {
    * fixed estimate.
    */
   public static final double STOP_AND_SHOOT_DURATION =
-      USE_CURRENT_DETECTION_TIMING ? AIM_CONVERGENCE_SECONDS + SHOOTER_DETECT_TIMEOUT_SECONDS : 1.5;
+      USE_CURRENT_DETECTION_TIMING ? AIM_CONVERGENCE_SECONDS + SHOOTER_DETECT_TIMEOUT_SECONDS : 2.0;
 
   /**
    * Estimated time (seconds) spent at an intake location picking up FUEL — deceleration, dwell for
@@ -202,11 +190,24 @@ public final class AutoTuning {
    * <p>The planner uses raw straight-line estimates (generous planning). The builder uses this
    * multiplier so runtime time checks reflect actual PathPlanner drive times.
    *
-   * <p>TUNE THIS: Start at 1.5 and adjust based on {@code DashboardAuto/ULScoreBreakdown} logs. If
+   * <p>TUNE THIS: Start at 1.25 and adjust based on {@code DashboardAuto/ULScoreBreakdown} logs. If
    * the robot still runs out of time before climbing, increase. If it aborts to climb too early,
-   * decrease.
+   * decrease. Note: {@link FieldConstants#estimateDriveTime} already inflates by {@code
+   * 1/PATH_DISTANCE_DERATING} (≈1.11×), so the combined inflation is {@code multiplier × 1.11}.
    */
-  public static final double RUNTIME_DRIVE_TIME_MULTIPLIER = 1.5;
+  public static final double RUNTIME_DRIVE_TIME_MULTIPLIER = 1.1;
+
+  // ===== Stop-and-Shoot Velocity Guard =====
+
+  /**
+   * Maximum linear speed (m/s) at which the robot is considered "stopped" for stop-and-shoot
+   * feeding. If the robot's speed exceeds this threshold, feeding pauses (AIMING_WHILE_INTAKING) to
+   * avoid wasting FUEL while moving. Feeding resumes once the robot slows below this threshold.
+   *
+   * <p>TUNE THIS: 0.1 m/s allows for minor drivetrain settling vibration while still catching any
+   * real movement (bumped, still decelerating, etc.).
+   */
+  public static final double STOP_AND_SHOOT_MAX_SPEED_MPS = 0.1;
 
   // ===== Zone-Aware Aiming Threshold =====
 

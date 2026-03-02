@@ -40,12 +40,17 @@ public class ConveyorIOSim implements ConveyorIO {
     }
 
     // Transfer fuel from intake to shooter when feeding
-    if (appliedPercent < Constants.SimConstants.CONVEYOR_FEED_THRESHOLD
-        && feedCooldownTicks == 0
-        && intakeIOSim != null) {
-      if (intakeIOSim.obtainFuel()) {
-        ShooterIOSim.notifyFuelReady();
-        feedCooldownTicks = Constants.SimConstants.FEED_COOLDOWN_TICKS;
+    if (appliedPercent < Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
+      // Signal the shooter sim that the conveyor is actively feeding this cycle.
+      // This prevents preloaded fuel from launching while the flywheel is spinning
+      // but the conveyor is stopped (e.g. AIMING_WHILE_INTAKING state).
+      ShooterIOSim.setConveyorFeeding();
+
+      if (feedCooldownTicks == 0 && intakeIOSim != null) {
+        if (intakeIOSim.obtainFuel()) {
+          ShooterIOSim.notifyFuelReady();
+          feedCooldownTicks = Constants.SimConstants.FEED_COOLDOWN_TICKS;
+        }
       }
     }
   }

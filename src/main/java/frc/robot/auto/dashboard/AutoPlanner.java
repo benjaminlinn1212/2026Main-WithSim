@@ -275,6 +275,7 @@ public class AutoPlanner {
       }
 
       cyclesCompleted++;
+      Logger.recordOutput("AutoPlanner/Cycle" + cyclesCompleted + "/TimeRemaining", timeRemaining);
     }
 
     // ===== Step 4: TOWER Climb =====

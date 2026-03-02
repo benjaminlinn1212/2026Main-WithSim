@@ -3,7 +3,10 @@
 
 package frc.robot.auto.dashboard;
 
+import com.pathplanner.lib.pathfinding.Pathfinding;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.subsystems.Superstructure;
@@ -79,6 +82,7 @@ public class DashboardAutoManager {
     if (changed) {
       Logger.recordOutput("DashboardAuto/Status", "Settings changed — replanning...");
       replan();
+      updateDynamicObstacles();
     }
 
     // Always log the current plan summary (useful for dashboard)
@@ -92,6 +96,18 @@ public class DashboardAutoManager {
   public void forceReplan() {
     settings.readFromDashboard();
     replan();
+    updateDynamicObstacles();
+  }
+
+  /**
+   * Push trench-availability obstacles to PathPlanner's dynamic obstacle system. Called whenever
+   * settings change so the pathfinder immediately re-routes around unavailable trenches.
+   */
+  private void updateDynamicObstacles() {
+    List<Pair<Translation2d, Translation2d>> obstacles =
+        FieldConstants.getTrenchObstacles(settings.getAvailableTrenches());
+    Pathfinding.setDynamicObstacles(obstacles, drive.getPose().getTranslation());
+    Logger.recordOutput("DashboardAuto/TrenchObstacleCount", obstacles.size());
   }
 
   /** Run the planner and cache the result. */

@@ -5,6 +5,7 @@ package frc.robot.auto.dashboard;
 
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -50,6 +51,13 @@ public final class FieldConstants {
   // The trench STRUCTURE (low ceiling) only exists in the X range [4.0, 5.2] (blue origin).
   // Outside that X range the robot is in open field and doesn't need heading constraints.
   // A buffer zone extends OUTSIDE the trench so the robot snaps heading BEFORE entering.
+
+  /** Which trench on the field (upper = near scoring table wall, lower = far side). */
+  public enum Trench {
+    UPPER,
+    LOWER
+  }
+
   public static final double TRENCH_HEIGHT_METERS = Units.inchesToMeters(22.25);
   public static final double TRENCH_WIDTH_METERS = Units.inchesToMeters(48.0);
 
@@ -121,6 +129,51 @@ public final class FieldConstants {
   public static boolean isNearTrenchAlliance(Translation2d alliancePosition) {
     Translation2d blue = isRedAlliance() ? flipTranslation(alliancePosition) : alliancePosition;
     return isNearTrench(blue);
+  }
+
+  /**
+   * Build a list of pathfinding obstacle bounding boxes for disabled trenches. Each trench exists
+   * on both the blue side (X 4.0–5.2) and red side (X 11.34–12.54) due to point symmetry. When a
+   * trench is unavailable, obstacles are added for BOTH sides so the pathfinder avoids them.
+   *
+   * <p>Each obstacle is a {@link Pair} of opposite corners of an axis-aligned bounding box, using
+   * blue-origin coordinates (matching PathPlanner's coordinate system).
+   *
+   * @param availableTrenches The set of trenches that are passable (those NOT in this set become
+   *     obstacles)
+   * @return Obstacle bounding boxes for PathPlanner's {@code Pathfinding.setDynamicObstacles()}
+   */
+  public static java.util.List<Pair<Translation2d, Translation2d>> getTrenchObstacles(
+      java.util.Set<Trench> availableTrenches) {
+    java.util.List<Pair<Translation2d, Translation2d>> obstacles = new java.util.ArrayList<>();
+
+    if (!availableTrenches.contains(Trench.UPPER)) {
+      // Blue-side upper trench
+      obstacles.add(
+          Pair.of(
+              new Translation2d(TRENCH_MIN_X - TRENCH_APPROACH_BUFFER, TRENCH_UPPER_MIN_Y),
+              new Translation2d(TRENCH_MAX_X + TRENCH_APPROACH_BUFFER, TRENCH_UPPER_MAX_Y)));
+      // Red-side upper trench (same Y band, mirrored X)
+      obstacles.add(
+          Pair.of(
+              new Translation2d(TRENCH_RED_MIN_X - TRENCH_APPROACH_BUFFER, TRENCH_UPPER_MIN_Y),
+              new Translation2d(TRENCH_RED_MAX_X + TRENCH_APPROACH_BUFFER, TRENCH_UPPER_MAX_Y)));
+    }
+
+    if (!availableTrenches.contains(Trench.LOWER)) {
+      // Blue-side lower trench
+      obstacles.add(
+          Pair.of(
+              new Translation2d(TRENCH_MIN_X - TRENCH_APPROACH_BUFFER, TRENCH_LOWER_MIN_Y),
+              new Translation2d(TRENCH_MAX_X + TRENCH_APPROACH_BUFFER, TRENCH_LOWER_MAX_Y)));
+      // Red-side lower trench (same Y band, mirrored X)
+      obstacles.add(
+          Pair.of(
+              new Translation2d(TRENCH_RED_MIN_X - TRENCH_APPROACH_BUFFER, TRENCH_LOWER_MIN_Y),
+              new Translation2d(TRENCH_RED_MAX_X + TRENCH_APPROACH_BUFFER, TRENCH_LOWER_MAX_Y)));
+    }
+
+    return obstacles;
   }
 
   /**
@@ -809,7 +862,7 @@ public final class FieldConstants {
   // The TOWER is integrated into the ALLIANCE WALL between DS2 and DS3.
   public enum ClimbLevel {
     /** LEVEL 1 — off the carpet/TOWER BASE. LOW RUNG at 27in. (10 pts teleop, 15 pts auto) */
-    LEVEL_1(10, 15, 1.0),
+    LEVEL_1(10, 15, 3.0),
     /** LEVEL 2 — BUMPERS above LOW RUNG. MID RUNG at 45in. (20 pts teleop) */
     LEVEL_2(20, 0, 5.0),
     /** LEVEL 3 — BUMPERS above MID RUNG. HIGH RUNG at 63in. (30 pts teleop) */

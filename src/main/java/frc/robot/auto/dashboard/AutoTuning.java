@@ -5,15 +5,14 @@ package frc.robot.auto.dashboard;
 
 /**
  * Tuning constants for the dashboard auto command builder. These are the "knobs" that control
- * shoot-while-driving gating, current-based FUEL detection, nudge recovery, and sim fallbacks.
+ * shoot-while-driving gating, sim fallbacks, and time budgeting.
  *
  * <p>Separated from {@link FieldConstants} (field geometry) and {@link
  * frc.robot.Constants.AutoConstants} (path-following PID / drive constraints) so they're easy to
  * find and tweak during practice.
  *
  * <p><b>TUNE THIS FILE</b> — values marked "TUNE THIS" should be adjusted based on real-robot
- * testing. Start with the defaults and adjust based on log data from {@code
- * DashboardAuto/IntakeDetect/*} and {@code DashboardAuto/ShooterDetect/*}.
+ * testing.
  */
 public final class AutoTuning {
 
@@ -22,42 +21,6 @@ public final class AutoTuning {
   // ===== Shoot-While-Driving Gating =====
   // Feeding is gated only by hood readiness (atSetpoint). Once the hood reaches its setpoint,
   // feeding latches on and stays on until the robot leaves the aiming zone.
-
-  // ===== Intake Current-Based FUEL Presence Detection =====
-  // New logic: monitor the LOWER intake roller current. Because there's motor accel time,
-  // the rollers always draw some current when spinning. If the lower roller current drops
-  // below the threshold for a sustained period, it means no FUEL is in the intake path.
-  // Conversely, while FUEL is present the lower roller is loaded and stays above threshold.
-
-  /**
-   * TUNE THIS: Stator current threshold (amps) for the lower intake roller below which we consider
-   * "no FUEL present". When the rollers are spinning with FUEL, the lower roller current stays
-   * above this. When the rollers are spinning without FUEL (free-spinning), current drops below.
-   * The detection triggers after the current stays below this for {@link
-   * #INTAKE_NO_FUEL_TIME_SECONDS}.
-   */
-  public static final double INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS = 9.0;
-
-  /**
-   * TUNE THIS: How long (seconds) the lower intake roller current must stay below {@link
-   * #INTAKE_NO_FUEL_CURRENT_THRESHOLD_AMPS} before we declare "no FUEL in intake". Because the
-   * motor has accel time, we need a sustained low-current window to avoid false triggers during
-   * transients. 0.5s accounts for motor spin-up and brief current dips between fuel contacts.
-   */
-  public static final double INTAKE_NO_FUEL_TIME_SECONDS = 0.5;
-
-  /**
-   * How far (meters) to nudge the robot toward the field center Y-axis when no FUEL pickup was
-   * detected during the drive. The robot drives further into the FUEL scatter zone to find nearby
-   * FUEL.
-   */
-  public static final double INTAKE_NUDGE_DISTANCE_METERS = 1.0;
-
-  /**
-   * Maximum time (seconds) to wait for a FUEL pickup after the nudge drive completes. If still no
-   * current spike, give up and continue the auto sequence without FUEL.
-   */
-  public static final double INTAKE_NUDGE_TIMEOUT_SECONDS = 0.5;
 
   // ===== Neutral Zone Repeat Visit Depth =====
 
@@ -105,11 +68,9 @@ public final class AutoTuning {
   public static final double SHOOTER_DETECT_TIMEOUT_SECONDS = 1.5;
 
   // ===== Simulation Fallbacks =====
-  // Sim IO doesn't model FUEL load, so current-based detection is bypassed.
-  // Intake detection: latch is set true immediately upon arrival (no delay).
-  // Shooter detection: uses a fixed time delay instead.
+  // Sim IO doesn't model FUEL load — shooter completion uses a fixed time delay.
 
-  /** In simulation, use a fixed time delay instead of current detection for shooter completion. */
+  /** In simulation, use a fixed time delay for shooter completion. */
   public static final double SIM_SHOOTER_DONE_SECONDS = 1.5;
 
   // ===== Time-Check Budgeting =====
@@ -117,56 +78,19 @@ public final class AutoTuning {
   // whether there's enough time to continue cycling or to abort to climb.
 
   /**
-   * When true, the time estimation for intake dwell and shooting includes the current-detection
-   * timing constants ({@link #INTAKE_NO_FUEL_TIME_SECONDS}, {@link #SHOOTER_DONE_TIME_SECONDS},
-   * {@link #SHOOTER_DETECT_TIMEOUT_SECONDS}). This gives a more conservative (realistic) estimate
-   * that accounts for the time the robot waits for current-based FUEL presence/absence detection.
-   *
-   * <p>When false, the fixed estimates ({@link #STOP_AND_SHOOT_DURATION}, {@link
-   * #INTAKE_DWELL_ESTIMATE}) are used as-is — simpler but may underestimate actual cycle time.
-   *
-   * <p>TUNE THIS: Enable once current detection is tuned and you want tighter time budgets.
-   */
-  public static final boolean USE_CURRENT_DETECTION_TIMING = false;
-
-  /**
-   * TUNE THIS: Estimated time (seconds) for aim convergence + shooter spin-up before the first FUEL
-   * exits. Used only when {@link #USE_CURRENT_DETECTION_TIMING} is true.
-   */
-  public static final double AIM_CONVERGENCE_SECONDS = 0.3;
-
-  /**
-   * TUNE THIS: Estimated time (seconds) for the robot to decelerate to a stop at an intake
-   * location. Used only when {@link #USE_CURRENT_DETECTION_TIMING} is true.
-   */
-  public static final double INTAKE_DECEL_SECONDS = 0.3;
-
-  /**
-   * Estimated time (seconds) for a stop-and-shoot action: pathfind to scoring waypoint, come to a
-   * stop, aim, fire all FUEL, and resume. Includes aim convergence + shooter spin-up + firing all
-   * loaded FUEL. On a real robot this is typically 1.0-1.5s; in sim it uses {@link
+   * TUNE THIS: Estimated time (seconds) for a stop-and-shoot action: pathfind to scoring waypoint,
+   * come to a stop, aim, fire all FUEL, and resume. Includes aim convergence + shooter spin-up +
+   * firing all loaded FUEL. On a real robot this is typically 1.0-1.5s; in sim it uses {@link
    * #SIM_SHOOTER_DONE_SECONDS}. Use the worst-case estimate for safe time budgeting.
-   *
-   * <p>When {@link #USE_CURRENT_DETECTION_TIMING} is true, uses {@link #AIM_CONVERGENCE_SECONDS} +
-   * {@link #SHOOTER_DETECT_TIMEOUT_SECONDS} (worst-case current detection wait) instead of the
-   * fixed estimate.
    */
-  public static final double STOP_AND_SHOOT_DURATION =
-      USE_CURRENT_DETECTION_TIMING ? AIM_CONVERGENCE_SECONDS + SHOOTER_DETECT_TIMEOUT_SECONDS : 2.0;
+  public static final double STOP_AND_SHOOT_DURATION = 2.0;
 
   /**
-   * Estimated time (seconds) spent at an intake location picking up FUEL — deceleration, dwell for
-   * current detection or sim latch, and any nudge recovery. On a real robot: ~0.5-1.0s. In sim:
-   * nearly instant but the pathfinder still decelerates.
-   *
-   * <p>When {@link #USE_CURRENT_DETECTION_TIMING} is true, uses {@link #INTAKE_DECEL_SECONDS} +
-   * {@link #INTAKE_NO_FUEL_TIME_SECONDS} + {@link #INTAKE_NUDGE_TIMEOUT_SECONDS} (worst-case: no
-   * fuel, nudge, retry) instead of the fixed estimate.
+   * TUNE THIS: Estimated time (seconds) spent at an intake location picking up FUEL — deceleration,
+   * dwell, and resume. On a real robot: ~0.5-1.0s. In sim: nearly instant but the pathfinder still
+   * decelerates.
    */
-  public static final double INTAKE_DWELL_ESTIMATE =
-      USE_CURRENT_DETECTION_TIMING
-          ? INTAKE_DECEL_SECONDS + INTAKE_NO_FUEL_TIME_SECONDS + INTAKE_NUDGE_TIMEOUT_SECONDS
-          : 1.0;
+  public static final double INTAKE_DWELL_ESTIMATE = 1.0;
 
   /**
    * Estimated time (seconds) for a shoot-while-driving (SWD) pass through the HUB zone. The robot

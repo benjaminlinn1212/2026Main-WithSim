@@ -551,77 +551,9 @@ public class AutoCommandBuilder {
     return remaining > needed;
   }
 
-  // ===== FUEL Detection Commands =====
+  // ===== Shooter Detection Commands =====
   // Detection logic lives in Superstructure (runs every periodic cycle).
   // These commands just reset the detection state and wait on the boolean getters.
-
-  /**
-   * Build a command that waits until the Superstructure detects FUEL in the intake path (lower
-   * roller current above threshold), or handles the case where no FUEL was picked up.
-   *
-   * <p><b>Logic:</b> The Superstructure continuously monitors the lower intake roller current.
-   * While FUEL is present, the roller is loaded and current stays high. If the current drops below
-   * the threshold for 0.5s, "no fuel" is declared. The detection is reset before each intake drive.
-   *
-   * <p>Upon arrival at the intake pose:
-   *
-   * <ul>
-   *   <li><b>FUEL detected (intakeHasFuel):</b> Continue immediately — no waiting.
-   *   <li><b>No FUEL detected:</b> Nudge 1m toward field center Y (deeper into the scatter zone),
-   *       then wait briefly for a pickup with timeout.
-   * </ul>
-   *
-   * <p><b>In simulation</b>, detection is bypassed — instant success.
-   *
-   * @param intakePose The nominal intake pose (used to compute nudge direction)
-   * @return Command that checks FUEL presence and nudges if empty
-   */
-  private Command waitForIntakePickup(Pose2d intakePose) {
-    if (Constants.currentMode == Constants.Mode.SIM) {
-      return Commands.none().withName("IntakeDetect_Sim");
-    }
-
-    // Real robot: check Superstructure detection upon arrival
-    return Commands.either(
-            // FUEL detected during the drive — continue immediately
-            Commands.none(),
-            // No FUEL detected — nudge + retry
-            Commands.sequence(
-                // Drive 1m toward field center Y with intake still running
-                pathfindTo(computeNudgePose(intakePose)),
-                // After nudge: check again
-                Commands.either(
-                    Commands.none(),
-                    // Still nothing — wait briefly with timeout, then give up
-                    Commands.race(
-                        Commands.waitUntil(() -> superstructure.intakeHasFuel()),
-                        Commands.waitSeconds(INTAKE_NUDGE_TIMEOUT_SECONDS)),
-                    () -> superstructure.intakeHasFuel())),
-            // Condition: does the Superstructure detect FUEL?
-            () -> superstructure.intakeHasFuel())
-        .withName("IntakeDetect");
-  }
-
-  /**
-   * Compute a pose 1m toward the field center Y from the given intake pose. The X coordinate stays
-   * the same; the Y moves toward {@code FIELD_WIDTH / 2.0}. Heading preserved from original pose.
-   *
-   * <p>This works in alliance-corrected coordinates (the intake pose is already alliance-flipped
-   * via {@link FieldConstants.IntakeLocation#getPose()}).
-   */
-  private static Pose2d computeNudgePose(Pose2d intakePose) {
-    double centerY = FieldConstants.FIELD_WIDTH / 2.0;
-    double currentY = intakePose.getY();
-    double deltaY = centerY - currentY;
-    // Normalize direction and scale to INTAKE_NUDGE_DISTANCE_METERS
-    double nudgeY;
-    if (Math.abs(deltaY) < 0.01) {
-      nudgeY = 0; // Already at center — no nudge
-    } else {
-      nudgeY = Math.signum(deltaY) * INTAKE_NUDGE_DISTANCE_METERS;
-    }
-    return new Pose2d(intakePose.getX(), currentY + nudgeY, intakePose.getRotation());
-  }
 
   /**
    * Compute a pose that is {@code deeperMeters} further into the neutral zone from the given
@@ -902,12 +834,6 @@ public class AutoCommandBuilder {
    * alliance-zone intakes (OUTPOST/DEPOT). The one-shot SWD core's settle+shoot sequence was
    * getting killed by the deadline on short alliance-zone paths before it could complete. {@code
    * zoneAwareIntake()} is continuous (polled every cycle) so it works regardless of path length.
-   *
-   * <p><b>Current-based pickup detection:</b> The Superstructure continuously monitors the lower
-   * intake roller current. The detection is reset before the drive starts. If the lower roller
-   * current stays above the threshold during the drive (FUEL present), {@code intakeHasFuel()}
-   * returns true. Upon arrival, the detection is checked — if FUEL detected, continue; if not,
-   * nudge 1m toward center Y and retry briefly.
    */
   private Command buildIntakeAt(AutoAction.IntakeAt action) {
     FieldConstants.IntakeLocation loc = action.getLocation();
@@ -927,9 +853,7 @@ public class AutoCommandBuilder {
 
     String visitLabel = visitNumber > 1 ? loc.name() + "_v" + visitNumber : loc.name();
 
-    // All intakes use the same logic: zone-aware intake during drive, then check
-    // Superstructure's intake detection on arrival. Detection runs in Superstructure's
-    // periodic() — no separate monitor command needed.
+    // Drive with zone-aware intake (opportunistic SWD on the way)
     return Commands.sequence(
             Commands.print(
                 "[DashboardAuto] Intaking at "
@@ -937,12 +861,7 @@ public class AutoCommandBuilder {
                     + " (pose="
                     + String.format("%.2f, %.2f", intakePose.getX(), intakePose.getY())
                     + ")"),
-            // Reset the intake detection before starting the drive
-            Commands.runOnce(() -> superstructure.resetIntakeDetection()),
-            // Drive with zone-aware intake (detection runs automatically in Superstructure)
-            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake()),
-            // Upon arrival: check detection — nudge if no FUEL detected during drive
-            waitForIntakePickup(intakePose))
+            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake()))
         .withName("IntakeAt_" + visitLabel);
   }
 

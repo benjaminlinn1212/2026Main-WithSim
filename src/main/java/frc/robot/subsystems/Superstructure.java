@@ -501,6 +501,52 @@ public class Superstructure extends SubsystemBase {
     return setWantedState(SuperstructureState.SHOOTING_WHILE_INTAKING);
   }
 
+  /**
+   * Continuous command that feeds game pieces to the shooter while held. Transitions ONLY_AIMING →
+   * ONLY_SHOOTING and AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING. Resets shooter detection on
+   * start. Requires this subsystem so the scheduler properly manages exclusion.
+   *
+   * @return a command to bind to the shooting trigger's whileTrue
+   */
+  public Command startShooting() {
+    return Commands.runOnce(this::resetShooterDetection)
+        .andThen(
+            Commands.run(
+                () -> {
+                  var state = getState();
+                  if (state == SuperstructureState.ONLY_AIMING
+                      || state == SuperstructureState.ONLY_SHOOTING) {
+                    forceWantedState(SuperstructureState.ONLY_SHOOTING);
+                  } else if (state == SuperstructureState.AIMING_WHILE_INTAKING
+                      || state == SuperstructureState.SHOOTING_WHILE_INTAKING) {
+                    forceWantedState(SuperstructureState.SHOOTING_WHILE_INTAKING);
+                  }
+                }))
+        .withName("StartShooting")
+        .addRequirements(this);
+  }
+
+  /**
+   * Instant command that stops shooting and returns to the corresponding aiming state.
+   * ONLY_SHOOTING → ONLY_AIMING, SHOOTING_WHILE_INTAKING → AIMING_WHILE_INTAKING. Requires this
+   * subsystem so the scheduler properly manages exclusion.
+   *
+   * @return a command to bind to the shooting trigger's onFalse
+   */
+  public Command stopShooting() {
+    return Commands.runOnce(
+            () -> {
+              var state = getState();
+              if (state == SuperstructureState.ONLY_SHOOTING) {
+                forceWantedState(SuperstructureState.ONLY_AIMING);
+              } else if (state == SuperstructureState.SHOOTING_WHILE_INTAKING) {
+                forceWantedState(SuperstructureState.AIMING_WHILE_INTAKING);
+              }
+            })
+        .withName("StopShooting")
+        .addRequirements(this);
+  }
+
   // ==================== Climb (Independent Subsystem) ====================
   // Climb operates independently from superstructure — RobotContainer binds directly to
   // climb.nextClimbStep(), climb.previousState(), etc.

@@ -526,32 +526,8 @@ public class RobotContainer {
     // Right trigger: Feed to shooter while held (ONLY_AIMING→ONLY_SHOOTING, etc.)
     controller
         .rightTrigger(0.2)
-        .onTrue(Commands.runOnce(superstructure::resetShooterDetection))
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  var state = superstructure.getState();
-                  if (state == Superstructure.SuperstructureState.ONLY_AIMING
-                      || state == Superstructure.SuperstructureState.ONLY_SHOOTING) {
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.ONLY_SHOOTING);
-                  } else if (state == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING
-                      || state == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING) {
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
-                  }
-                }))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  var state = superstructure.getState();
-                  if (state == Superstructure.SuperstructureState.ONLY_SHOOTING) {
-                    superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_AIMING);
-                  } else if (state == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING) {
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
-                  }
-                }));
+        .whileTrue(superstructure.startShooting())
+        .onFalse(superstructure.stopShooting());
   }
 
   /**

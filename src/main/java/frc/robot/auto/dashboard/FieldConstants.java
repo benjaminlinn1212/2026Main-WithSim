@@ -97,25 +97,34 @@ public final class FieldConstants {
    * lower trench and vice versa.
    */
   public static boolean isNearTrench(Translation2d bluePosition) {
+    return isNearTrench(bluePosition, TRENCH_APPROACH_BUFFER);
+  }
+
+  /**
+   * Parameterized overload — check if a blue-origin position is near any trench using a custom
+   * buffer distance. Callers with different buffer requirements (e.g. hood stow vs trench assist)
+   * can pass their own value.
+   *
+   * @param bluePosition Robot position in blue-origin coordinates
+   * @param buffer Distance (meters) outside the trench walls to include
+   */
+  public static boolean isNearTrench(Translation2d bluePosition, double buffer) {
     double x = bluePosition.getX();
     double y = bluePosition.getY();
 
-    double buf = TRENCH_APPROACH_BUFFER;
-
     // --- Blue-side trench (X 4.0–5.2) ---
-    boolean inBlueTrenchX = x >= (TRENCH_MIN_X - buf) && x <= (TRENCH_MAX_X + buf);
+    boolean inBlueTrenchX = x >= (TRENCH_MIN_X - buffer) && x <= (TRENCH_MAX_X + buffer);
     if (inBlueTrenchX) {
-      boolean nearUpper = y >= (TRENCH_UPPER_MIN_Y - buf) && y <= TRENCH_UPPER_MAX_Y;
-      boolean nearLower = y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buf);
+      boolean nearUpper = y >= (TRENCH_UPPER_MIN_Y - buffer) && y <= TRENCH_UPPER_MAX_Y;
+      boolean nearLower = y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buffer);
       if (nearUpper || nearLower) return true;
     }
 
     // --- Red-side trench (X 11.34–12.54, point-symmetric) ---
-    // Y bands are swapped: blue upper → red lower, blue lower → red upper
-    boolean inRedTrenchX = x >= (TRENCH_RED_MIN_X - buf) && x <= (TRENCH_RED_MAX_X + buf);
+    boolean inRedTrenchX = x >= (TRENCH_RED_MIN_X - buffer) && x <= (TRENCH_RED_MAX_X + buffer);
     if (inRedTrenchX) {
-      boolean nearUpper = y >= (TRENCH_UPPER_MIN_Y - buf) && y <= TRENCH_UPPER_MAX_Y;
-      boolean nearLower = y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buf);
+      boolean nearUpper = y >= (TRENCH_UPPER_MIN_Y - buffer) && y <= TRENCH_UPPER_MAX_Y;
+      boolean nearLower = y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buffer);
       if (nearUpper || nearLower) return true;
     }
 
@@ -337,285 +346,6 @@ public final class FieldConstants {
       return 1.0 - (x - maxX) / buf;
     }
     return 0.0;
-  }
-
-  /**
-   * Apply trench lateral centering to a teleop velocity vector. When the robot is near a trench and
-   * moving roughly toward it, the velocity <b>direction</b> is deflected toward the trench's center
-   * Y line, pulling the travel path toward the middle of the 48in corridor. Speed magnitude is
-   * preserved exactly.
-   *
-   * <p>This method handles <b>only lateral centering</b>. Chassis orientation alignment (rotating
-   * the robot's heading to a cardinal) is handled separately by {@link #getTrenchOrientationOmega}.
-   *
-   * @param bluePosition Robot position in blue-origin coordinates
-   * @param vxFieldMps Field-relative X velocity (m/s)
-   * @param vyFieldMps Field-relative Y velocity (m/s)
-   * @param maxBlend Maximum blend factor (0–1)
-   * @param minSpeedMps Minimum speed for assist activation (m/s)
-   * @param maxHeadingErrorDeg Maximum angular error from cardinal for vel-direction gating
-   *     (degrees)
-   * @param centeringDegPerMeter Degrees of deflection per meter of lateral offset from center
-   * @param maxCenteringDeg Maximum centering deflection angle (degrees)
-   * @param buffer Approach buffer distance (meters) outside trench walls
-   * @param robotHalfWidthM Half the robot's bumper width (meters), used for wall avoidance
-   * @param wallRepulsionMpsPerMeter Wall repulsion gain (m/s of lateral push per meter of
-   *     encroachment into the danger zone)
-   * @param wallDangerZoneM Distance from trench wall (inward) at which repulsion begins (meters)
-   * @return double[3] = {adjusted vx, adjusted vy, centering deflection degrees applied}
-   */
-  public static double[] applyTrenchAssist(
-      Translation2d bluePosition,
-      double vxFieldMps,
-      double vyFieldMps,
-      double maxBlend,
-      double minSpeedMps,
-      double maxHeadingErrorDeg,
-      double centeringDegPerMeter,
-      double maxCenteringDeg,
-      double buffer,
-      double robotHalfWidthM,
-      double wallRepulsionMpsPerMeter,
-      double wallDangerZoneM) {
-
-    double speed = Math.sqrt(vxFieldMps * vxFieldMps + vyFieldMps * vyFieldMps);
-
-    // Compute blend factor from proximity (used for centering & wall clamping)
-    double blend = getTrenchBlendFactor(bluePosition, maxBlend, buffer);
-
-    // === Wall avoidance (always active when near trench, even at low speed) ===
-    // Prevents the robot's bumper edges from hitting the trench walls.
-    // Works by clamping vy: if the bumper edge is inside the danger zone near a wall,
-    // inject a lateral push away from the wall and suppress vy toward the wall.
-    double wallVyAdjust = 0.0;
-    if (blend > 1e-4) {
-      wallVyAdjust =
-          computeWallRepulsion(
-              bluePosition,
-              vyFieldMps,
-              robotHalfWidthM,
-              wallRepulsionMpsPerMeter,
-              wallDangerZoneM,
-              blend,
-              buffer);
-    }
-
-    // Apply wall adjustment to vy
-    double adjustedVy = vyFieldMps + wallVyAdjust;
-
-    // Below speed threshold — only wall avoidance, no centering
-    if (speed < minSpeedMps) {
-      return new double[] {vxFieldMps, adjustedVy, 0.0};
-    }
-
-    if (blend < 1e-4) {
-      return new double[] {vxFieldMps, vyFieldMps, 0.0};
-    }
-
-    // Check velocity heading gate — only activate centering when traveling roughly along
-    // the X axis (0° or 180°), meaning the driver intends to go THROUGH the trench.
-    // Driving along Y (90°/270°) means parallel to / across the trench — don't assist.
-    Rotation2d velocityAngle = new Rotation2d(vxFieldMps, vyFieldMps);
-    double velDeg = velocityAngle.getDegrees(); // −180 to +180
-    double errorFrom0 = Math.abs(velDeg); // distance from 0°
-    double errorFrom180 = 180.0 - Math.abs(velDeg); // distance from ±180°
-    double errorFromXAxis = Math.min(errorFrom0, errorFrom180);
-    if (errorFromXAxis > maxHeadingErrorDeg) {
-      return new double[] {vxFieldMps, adjustedVy, 0.0};
-    }
-
-    // === Lateral centering toward trench mid-Y ===
-    // Uses a direction-agnostic approach: directly compute a vy offset toward center,
-    // then reconstruct the velocity with preserved speed magnitude.
-    double centeringDeg = 0.0;
-    double trenchCenterY = getNearestTrenchCenterY(bluePosition, buffer);
-    if (!Double.isNaN(trenchCenterY)) {
-      double yOffset = bluePosition.getY() - trenchCenterY; // positive = above center
-      double rawCenteringDeg = yOffset * centeringDegPerMeter;
-      centeringDeg =
-          Math.copySign(Math.min(Math.abs(rawCenteringDeg), maxCenteringDeg), rawCenteringDeg);
-      // Scale by blend factor so centering fades at the buffer edge
-      centeringDeg *= blend;
-    }
-
-    // Convert centering to a direct vy correction (direction-agnostic).
-    // Positive yOffset → positive centeringDeg → robot is above center → push vy negative (−Y).
-    // This works regardless of whether the robot is traveling at 0° or 180°.
-    double centeringFraction = Math.sin(Math.toRadians(centeringDeg));
-    double lateralCorrectionMps = -centeringFraction * speed;
-
-    // Apply centering to the already wall-adjusted vy
-    double newVy = adjustedVy + lateralCorrectionMps;
-    // Preserve speed magnitude: scale vx so total speed stays the same
-    double newVx =
-        Math.copySign(Math.sqrt(Math.max(0.0, speed * speed - newVy * newVy)), vxFieldMps);
-
-    return new double[] {newVx, newVy, centeringDeg};
-  }
-
-  /**
-   * Compute wall repulsion vy adjustment. When the robot's bumper edge is within the danger zone of
-   * a trench wall, this pushes the robot laterally away from the wall and suppresses vy toward the
-   * wall.
-   *
-   * <p>The trench walls are at the Y boundaries: upper trench walls at {@code TRENCH_UPPER_MIN_Y}
-   * (inner / field-center side) and {@code TRENCH_UPPER_MAX_Y} (outer / field perimeter), lower
-   * trench walls at {@code TRENCH_LOWER_MIN_Y} (outer / field perimeter) and {@code
-   * TRENCH_LOWER_MAX_Y} (inner / field-center side).
-   *
-   * <p><b>Field-edge (outer) walls</b> are the field perimeter — they exist everywhere, so their
-   * repulsion activates in the approach buffer zone (X range + buffer). <b>Field-center (inner)
-   * walls</b> are the trench structure — they only exist within the trench X range, so their
-   * repulsion is restricted to the trench X range only.
-   */
-  private static double computeWallRepulsion(
-      Translation2d bluePosition,
-      double vyFieldMps,
-      double robotHalfWidthM,
-      double repulsionGain,
-      double dangerZoneM,
-      double blend,
-      double buffer) {
-
-    double x = bluePosition.getX();
-    double y = bluePosition.getY();
-    double vyAdjust = 0.0;
-
-    // Determine X-zone membership:
-    // - "in trench X" = inside the actual trench structure X range (inner walls exist here)
-    // - "in buffer X" = inside the approach buffer around the trench (outer/field walls still
-    // apply)
-    boolean inBlueTrenchX = x >= TRENCH_MIN_X && x <= TRENCH_MAX_X;
-    boolean inBlueBufferX = x >= (TRENCH_MIN_X - buffer) && x <= (TRENCH_MAX_X + buffer);
-    boolean inRedTrenchX = x >= TRENCH_RED_MIN_X && x <= TRENCH_RED_MAX_X;
-    boolean inRedBufferX = x >= (TRENCH_RED_MIN_X - buffer) && x <= (TRENCH_RED_MAX_X + buffer);
-
-    boolean inAnyTrenchX = inBlueTrenchX || inRedTrenchX;
-    boolean inAnyBufferX = inBlueBufferX || inRedBufferX;
-
-    // No repulsion at all if outside even the buffer zone
-    if (!inAnyBufferX) {
-      return 0.0;
-    }
-
-    // Upper trench:
-    //   Inner wall (TRENCH_UPPER_MIN_Y, field-center side) — only in trench X range
-    //   Outer wall (TRENCH_UPPER_MAX_Y, field perimeter) — in buffer X range (starts earlier)
-    if (y >= (TRENCH_UPPER_MIN_Y - buffer) && y <= TRENCH_UPPER_MAX_Y) {
-      // Inner wall — field-center side (trench structure, only exists in trench X range)
-      if (inAnyTrenchX) {
-        double distToInnerWall = y - robotHalfWidthM - TRENCH_UPPER_MIN_Y;
-        if (distToInnerWall < dangerZoneM) {
-          double encroachment = dangerZoneM - distToInnerWall;
-          // Push toward +Y (away from inner wall, toward field edge)
-          vyAdjust += encroachment * repulsionGain * blend;
-        }
-      }
-      // Outer wall — field perimeter (exists everywhere, active in buffer X range)
-      double distToOuterWall = TRENCH_UPPER_MAX_Y - (y + robotHalfWidthM);
-      if (distToOuterWall < dangerZoneM) {
-        double encroachment = dangerZoneM - distToOuterWall;
-        // Push toward −Y (away from field edge)
-        vyAdjust -= encroachment * repulsionGain * blend;
-      }
-    }
-
-    // Lower trench:
-    //   Inner wall (TRENCH_LOWER_MAX_Y, field-center side) — only in trench X range
-    //   Outer wall (TRENCH_LOWER_MIN_Y = 0, field perimeter) — in buffer X range (starts earlier)
-    if (y >= TRENCH_LOWER_MIN_Y && y <= (TRENCH_LOWER_MAX_Y + buffer)) {
-      // Inner wall — field-center side (trench structure, only exists in trench X range)
-      if (inAnyTrenchX) {
-        double distToInnerWall = TRENCH_LOWER_MAX_Y - (y + robotHalfWidthM);
-        if (distToInnerWall < dangerZoneM) {
-          double encroachment = dangerZoneM - distToInnerWall;
-          // Push toward −Y (away from inner wall, toward field edge)
-          vyAdjust -= encroachment * repulsionGain * blend;
-        }
-      }
-      // Outer wall — field perimeter (exists everywhere, active in buffer X range)
-      double distToOuterWall = (y - robotHalfWidthM) - TRENCH_LOWER_MIN_Y;
-      if (distToOuterWall < dangerZoneM) {
-        double encroachment = dangerZoneM - distToOuterWall;
-        // Push toward +Y (away from field edge)
-        vyAdjust += encroachment * repulsionGain * blend;
-      }
-    }
-
-    return vyAdjust;
-  }
-
-  /**
-   * Compute an omega (rotational velocity) correction to align the robot's <b>chassis heading</b>
-   * toward the nearest cardinal direction when near a trench. This is a P-controller on the heading
-   * error, scaled by the proximity blend factor.
-   *
-   * <p>The correction is <b>added to</b> the driver's omega input, so the driver retains partial
-   * rotational authority. The correction is capped at {@code maxOmega} to avoid violent spinning.
-   *
-   * <p>Returns 0 if the robot is outside the trench zone, moving too slowly, or traveling
-   * perpendicular to the trench (velocity heading gate).
-   *
-   * @param bluePosition Robot position in blue-origin coordinates
-   * @param robotHeading Current robot chassis heading (field-relative)
-   * @param vxFieldMps Field-relative X velocity (m/s, for velocity heading gate)
-   * @param vyFieldMps Field-relative Y velocity (m/s, for velocity heading gate)
-   * @param maxBlend Maximum blend factor (0–1)
-   * @param minSpeedMps Minimum speed for activation (m/s)
-   * @param maxHeadingErrorDeg Velocity heading gate (degrees from cardinal)
-   * @param orientationKp P-gain (rad/s per radian of chassis heading error)
-   * @param maxOmega Maximum omega correction magnitude (rad/s)
-   * @param buffer Approach buffer distance (meters) outside trench walls
-   * @param intakeDeployed If true, snap heading to 0°/180° only instead of all four cardinals
-   * @return Omega correction in rad/s to add to the driver's omega. Positive = CCW.
-   */
-  public static double getTrenchOrientationOmega(
-      Translation2d bluePosition,
-      Rotation2d robotHeading,
-      double vxFieldMps,
-      double vyFieldMps,
-      double maxBlend,
-      double minSpeedMps,
-      double maxHeadingErrorDeg,
-      double orientationKp,
-      double maxOmega,
-      double buffer,
-      boolean intakeDeployed) {
-
-    double speed = Math.sqrt(vxFieldMps * vxFieldMps + vyFieldMps * vyFieldMps);
-    if (speed < minSpeedMps) {
-      return 0.0;
-    }
-
-    double blend = getTrenchBlendFactor(bluePosition, maxBlend, buffer);
-    if (blend < 1e-4) {
-      return 0.0;
-    }
-
-    // Velocity heading gate — only activate when traveling roughly along X axis (0° or 180°).
-    // Driving along Y (90°/270°) means the driver is not going through the trench.
-    Rotation2d velocityAngle = new Rotation2d(vxFieldMps, vyFieldMps);
-    double velDeg = velocityAngle.getDegrees();
-    double errorFrom0 = Math.abs(velDeg);
-    double errorFrom180 = 180.0 - Math.abs(velDeg);
-    double errorFromXAxis = Math.min(errorFrom0, errorFrom180);
-    if (errorFromXAxis > maxHeadingErrorDeg) {
-      return 0.0;
-    }
-
-    // Snap the *robot chassis heading* to the nearest cardinal (or horizontal if intake deployed)
-    Rotation2d targetHeading =
-        intakeDeployed ? snapToHorizontal(robotHeading) : snapToCardinal(robotHeading);
-    // Compute heading error (shortest path)
-    double headingErrorRad = targetHeading.minus(robotHeading).getRadians();
-
-    // P-controller on heading error, scaled by proximity blend
-    double omega = headingErrorRad * orientationKp * blend;
-
-    // Cap the correction
-    omega = Math.copySign(Math.min(Math.abs(omega), maxOmega), omega);
-
-    return omega;
   }
 
   // ===== AprilTag Field Layout =====

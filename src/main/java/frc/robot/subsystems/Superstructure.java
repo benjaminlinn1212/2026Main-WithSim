@@ -5,6 +5,7 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants;
 import frc.robot.auto.dashboard.AutoTuning;
 import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.subsystems.climb.ClimbSubsystem;
@@ -168,7 +169,9 @@ public class Superstructure extends SubsystemBase {
     // Compute trench zone FIRST so the main switch can stow the turret/hood as needed.
     // Exit hysteresis prevents turret stutter from pose noise at the trench boundary.
     Pose2d robotPose = robotPoseSupplier.get();
-    boolean geometricTrench = FieldConstants.isNearTrench(robotPose.getTranslation());
+    boolean geometricTrench =
+        FieldConstants.isNearTrench(
+            robotPose.getTranslation(), Constants.DriveConstants.TrenchAssist.HOOD_STOW_BUFFER);
     double now = Timer.getFPGATimestamp();
 
     if (geometricTrench) {

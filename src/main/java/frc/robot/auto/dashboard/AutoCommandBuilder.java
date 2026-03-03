@@ -1133,7 +1133,8 @@ public class AutoCommandBuilder {
    * @return The pose with heading snapped if near a trench, otherwise unchanged
    */
   private Pose2d trenchAwarePose(Pose2d pose) {
-    if (FieldConstants.isNearTrench(pose.getTranslation())) {
+    if (FieldConstants.isNearTrench(
+        pose.getTranslation(), Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER)) {
       Rotation2d snapped =
           superstructure.isIntakeDeployed()
               ? FieldConstants.snapToHorizontal(pose.getRotation())

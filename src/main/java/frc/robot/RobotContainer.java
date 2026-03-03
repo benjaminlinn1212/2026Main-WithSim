@@ -70,6 +70,7 @@ import frc.robot.subsystems.turret.TurretSubsystem;
 import frc.robot.subsystems.vision.VisionIOHardwareLimelight;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import frc.robot.util.ShooterSetpoint;
+import frc.robot.util.TrenchAssistController;
 import frc.robot.util.sim.MapleSimSwerveDrivetrain;
 import java.util.Set;
 import org.littletonrobotics.junction.Logger;
@@ -117,6 +118,9 @@ public class RobotContainer {
 
   // Orchestra manager for playing music through Kraken motors
   private OrchestraManager orchestraManager;
+
+  // Teleop trench assist controller (orientation + lateral centering PID)
+  private TrenchAssistController trenchAssist;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -253,6 +257,9 @@ public class RobotContainer {
         new Superstructure(
             shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb, leds);
 
+    // Trench assist controller (needs superstructure for intake-deployed query)
+    trenchAssist = new TrenchAssistController(superstructure::isIntakeDeployed);
+
     // Operator climb level chooser
     operatorClimbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.OperatorClimbLevel.L2L3);
     operatorClimbLevelChooser.addOption("L1", ClimbSubsystem.OperatorClimbLevel.L1);
@@ -356,13 +363,17 @@ public class RobotContainer {
 
       // ===== Trench Heading Override =====
       // Override PathPlanner's rotation feedback inside trenches to snap heading to cardinal.
+      // Uses the same approach buffer as the teleop trench assist so the zone is consistent.
       @SuppressWarnings("resource")
       PIDController trenchRotationPID =
           new PIDController(Constants.AutoConstants.PATH_FOLLOWING_ROTATION_KP, 0, 0);
       trenchRotationPID.enableContinuousInput(-Math.PI, Math.PI);
 
       new edu.wpi.first.wpilibj2.command.button.Trigger(
-              () -> FieldConstants.isNearTrench(drive.getPose().getTranslation()))
+              () ->
+                  FieldConstants.isNearTrench(
+                      drive.getPose().getTranslation(),
+                      Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER))
           .onTrue(
               Commands.runOnce(
                   () -> {
@@ -426,62 +437,12 @@ public class RobotContainer {
                   rightX * Constants.DriveConstants.MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC;
 
               // ===== Trench Assist =====
-              if (Constants.DriveConstants.TrenchAssist.ENABLED) {
-                Pose2d currentPose = drive.getPose();
-                Translation2d bluePos = currentPose.getTranslation();
-                Rotation2d robotHeading = currentPose.getRotation();
-                // Convert to blue-origin if on red alliance
-                if (isRed) {
-                  bluePos = FieldConstants.flipTranslation(bluePos);
-                  robotHeading = robotHeading.plus(Rotation2d.fromDegrees(180));
-                }
-
-                // 1. Orientation alignment
-                double trenchBuffer = Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER;
-                double orientationOmega =
-                    FieldConstants.getTrenchOrientationOmega(
-                        bluePos,
-                        robotHeading,
-                        vxMetersPerSec,
-                        vyMetersPerSec,
-                        Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
-                        Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
-                        Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
-                        Constants.DriveConstants.DriveToPose.ROTATION_KP,
-                        Constants.DriveConstants.TrenchAssist.MAX_ORIENTATION_OMEGA_RAD_PER_SEC,
-                        trenchBuffer,
-                        superstructure.isIntakeDeployed());
-                omegaRadPerSec += orientationOmega;
-
-                // 2. Lateral centering + wall avoidance
-                double[] assisted =
-                    FieldConstants.applyTrenchAssist(
-                        bluePos,
-                        vxMetersPerSec,
-                        vyMetersPerSec,
-                        Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
-                        Constants.DriveConstants.TrenchAssist.MIN_SPEED_MPS,
-                        Constants.DriveConstants.TrenchAssist.MAX_HEADING_ERROR_DEG,
-                        Constants.DriveConstants.TrenchAssist.CENTERING_DEG_PER_METER,
-                        Constants.DriveConstants.TrenchAssist.MAX_CENTERING_DEG,
-                        trenchBuffer,
-                        Constants.DriveConstants.TrenchAssist.ROBOT_HALF_WIDTH_M,
-                        Constants.DriveConstants.TrenchAssist.WALL_REPULSION_MPS_PER_METER,
-                        Constants.DriveConstants.TrenchAssist.WALL_DANGER_ZONE_M);
-                vxMetersPerSec = assisted[0];
-                vyMetersPerSec = assisted[1];
-
-                // Log trench assist telemetry
-                double blendFactor =
-                    FieldConstants.getTrenchBlendFactor(
-                        bluePos,
-                        Constants.DriveConstants.TrenchAssist.MAX_BLEND_FACTOR,
-                        trenchBuffer);
-                Logger.recordOutput("Drive/TrenchAssist/BlendFactor", blendFactor);
-                Logger.recordOutput("Drive/TrenchAssist/Active", blendFactor > 1e-4);
-                Logger.recordOutput("Drive/TrenchAssist/CenteringDeg", assisted[2]);
-                Logger.recordOutput("Drive/TrenchAssist/OrientationOmega", orientationOmega);
-              }
+              TrenchAssistController.Result trenchResult =
+                  trenchAssist.calculate(
+                      drive.getPose(), vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
+              vxMetersPerSec = trenchResult.vx();
+              vyMetersPerSec = trenchResult.vy();
+              omegaRadPerSec = trenchResult.omega();
 
               drive.driveFieldRelative(vxMetersPerSec, vyMetersPerSec, omegaRadPerSec);
             },

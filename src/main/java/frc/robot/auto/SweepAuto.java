@@ -98,7 +98,8 @@ public class SweepAuto {
     double currentRad = pose.getRotation().getRadians();
 
     // Near a trench — always lock heading to cardinal so we fit through the 22.25in ceiling
-    if (FieldConstants.isNearTrench(pose.getTranslation())) {
+    if (FieldConstants.isNearTrench(
+        pose.getTranslation(), Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER)) {
       Rotation2d snapped =
           superstructure.isIntakeDeployed()
               ? FieldConstants.snapToHorizontal(pose.getRotation())

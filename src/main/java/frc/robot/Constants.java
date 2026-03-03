@@ -117,7 +117,7 @@ public final class Constants {
 
     public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =
         new edu.wpi.first.math.geometry.Pose2d(
-            0.0, 0.0, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
+            0.3, 0.3, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
   }
 
   public static class DriveConstants {
@@ -133,7 +133,7 @@ public final class Constants {
     public static final double MAX_TELEOP_SPEED_MPS = 5.0;
     public static final double MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC = Math.PI * 2;
 
-    public static final double JOYSTICK_DEADBAND = 0.05;
+    public static final double JOYSTICK_DEADBAND = 0.02;
 
     public static class DriveToPose {
       // This constraint is used in the driveToPose() function by PPLib AND PIDControl.
@@ -167,16 +167,17 @@ public final class Constants {
     public static class TrenchAssist {
 
       /** Master enable for teleop trench assist. Set to false to disable all trench effects. */
-      public static final boolean ENABLED = false;
+      public static final boolean ENABLED = true;
 
-      public static final double MAX_BLEND_FACTOR = 0.9;
+      /**
+       * Maximum blend factor (0-1). Blend ramps from 0 at the buffer edge to this value inside the
+       * trench. 1.0 = full strength, 0.8 = 80% strength even when fully inside.
+       */
+      public static final double MAX_BLEND_FACTOR = 0.8;
 
       /**
        * Teleop approach buffer (meters). How far outside the trench walls the assist begins
-       * ramping. Independent from {@link
-       * frc.robot.auto.dashboard.FieldConstants#TRENCH_APPROACH_BUFFER} which is used by auto
-       * heading snap and Superstructure hood stow. Larger = assist starts earlier, more time to
-       * center.
+       * ramping. Larger = assist starts earlier, more time to center.
        */
       public static final double APPROACH_BUFFER = 2.5;
 
@@ -187,57 +188,52 @@ public final class Constants {
       public static final double MIN_SPEED_MPS = 0.5;
 
       /**
-       * Maximum angular error (degrees) between the velocity vector and the nearest cardinal before
-       * the assist activates. If the driver is traveling perpendicular to the trench, they clearly
-       * don't intend to go through it Ã¢â‚¬â€ don't fight them.
+       * Maximum angular error (degrees) between the velocity vector and the X axis before the
+       * assist activates. If the driver is traveling perpendicular to the trench, they clearly
+       * don't intend to go through it.
        */
       public static final double MAX_HEADING_ERROR_DEG = 50.0;
 
-      /**
-       * Lateral centering strength (deg per meter of offset). The trench half-width is ~0.61m, so
-       * 35Ã‚Â°/m gives ~21Ã‚Â° at the wall Ã¢â‚¬â€ a noticeable but gentle nudge toward center.
-       * Lower values feel more like a suggestion, higher values feel like rails.
-       */
-      public static final double CENTERING_DEG_PER_METER = 45.0;
+      // ===== Orientation PID (heading -> omega) =====
+
+      /** P-gain for heading snap (rad/s per radian of error). */
+      public static final double ORIENTATION_KP = 10.0;
+
+      /** I-gain for heading snap. Usually 0. */
+      public static final double ORIENTATION_KI = 0.0;
+
+      /** D-gain for heading snap. Damps overshoot. */
+      public static final double ORIENTATION_KD = 0.15;
+
+      /** Maximum omega correction (rad/s) for orientation alignment. */
+      public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 8.0;
+
+      // ===== Lateral Centering PID (Y-position -> vy correction) =====
 
       /**
-       * Maximum centering deflection angle (degrees). At 25Ã‚Â° the lateral component is ~42% of
-       * speed Ã¢â‚¬â€ enough to guide you toward center without stealing all your forward
-       * momentum.
+       * P-gain (m/s per meter of Y-offset from trench center). At 3.0, a 0.3m offset produces 0.9
+       * m/s of lateral correction. Handles both centering and wall avoidance.
        */
-      public static final double MAX_CENTERING_DEG = 30.0;
+      public static final double LATERAL_KP = 3.0;
 
-      /**
-       * Maximum omega correction (rad/s) for orientation alignment. Caps the injected rotational
-       * rate so the trench assist doesn't spin the robot violently. The heading P-gain itself is
-       * reused from {@link DriveToPose#ROTATION_KP} Ã¢â‚¬â€ no separate KP needed.
-       */
-      public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 4.0;
+      /** I-gain for lateral centering. Usually 0. */
+      public static final double LATERAL_KI = 0.0;
 
-      // === Wall Avoidance ===
+      /** D-gain for lateral centering. Damps lateral oscillation. */
+      public static final double LATERAL_KD = 0.1;
 
-      /**
-       * Half the robot's bumper width in meters. Used to compute the position of the robot's bumper
-       * edges relative to trench walls. 32in bumper Ã¢â€ â€™ 16in Ã¢â€ â€™ 0.406m.
-       */
+      /** Maximum lateral vy correction (m/s). */
+      public static final double MAX_LATERAL_CORRECTION_MPS = 1.5;
+
+      /** Half the robot's bumper width in meters. */
       public static final double ROBOT_HALF_WIDTH_M =
           Units.inchesToMeters(BUMPER_WIDTH_INCHES / 2.0);
 
       /**
-       * Wall repulsion gain (m/s of lateral push per meter of encroachment into the danger zone).
-       * Higher = harder virtual wall. At 4.0, a 0.1m encroachment produces 0.4 m/s of push-back
-       * Ã¢â‚¬â€ firm enough to prevent wall contact without feeling like a spring.
+       * Hood stow buffer (meters). Tighter than the teleop assist buffer because we only need to
+       * stow when the robot is actually close enough that the hood could hit the trench ceiling.
        */
-      public static final double WALL_REPULSION_MPS_PER_METER = 6.0;
-
-      /**
-       * Distance (meters) from a trench wall at which the repulsion force begins, measured from the
-       * robot's <b>bumper edge</b> (the distance calculation already accounts for {@link
-       * #ROBOT_HALF_WIDTH_M}). The trench has only ~0.20m of clearance per side, so this should be
-       * small Ã¢â‚¬â€ just enough to catch the robot before contact. At 0.12m the repulsion
-       * activates when the bumper is ~4.7in from the wall.
-       */
-      public static final double WALL_DANGER_ZONE_M = 0.12;
+      public static final double HOOD_STOW_BUFFER = 0.5;
     }
   }
 
@@ -524,10 +520,10 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 20.0 / 180.0;
-      public static final double LEFT_RELEASED_POSITION = 160.0 / 180.0;
-      public static final double RIGHT_STOWED_POSITION = 18.0 / 180.0;
-      public static final double RIGHT_RELEASED_POSITION = 158.0 / 180.0;
+      public static final double LEFT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 160.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_RELEASED_POSITION = 160.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the angle servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 1.0;
@@ -535,15 +531,15 @@ public final class Constants {
 
     /** Hardstop servo config: 100Ã‚Â° range, 1000Ã‚ÂµsÃ¢â‚¬â€œ2000Ã‚Âµs pulse. */
     public static class HardstopServo {
-      public static final double FULL_RANGE_DEG = 100.0;
-      public static final int PULSE_MIN_US = 1000;
-      public static final int PULSE_MAX_US = 2000;
+      public static final double FULL_RANGE_DEG = 180.0;
+      public static final int PULSE_MIN_US = 500;
+      public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 15.0 / 100.0;
-      public static final double LEFT_RELEASED_POSITION = 72.0 / 100.0;
-      public static final double RIGHT_STOWED_POSITION = 16.0 / 100.0;
-      public static final double RIGHT_RELEASED_POSITION = 73.0 / 100.0;
+      public static final double LEFT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 77.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_RELEASED_POSITION = 77.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the hardstop servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 0.7;

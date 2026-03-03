@@ -57,6 +57,17 @@ public class ShooterSetpoint {
   private static ShooterSetpoint cachedSetpoint = null;
   private static long cachedCycleCount = -1;
 
+  /** Reset all static mutable state (filters, cached angles, cycle cache).
+   *  Call on auto/teleop init to prevent stale feedforward spikes across mode transitions. */
+  public static void reset() {
+    lastTurretAngle = null;
+    lastHoodAngle = Double.NaN;
+    turretAngleFilter.reset();
+    hoodAngleFilter.reset();
+    cachedSetpoint = null;
+    cachedCycleCount = -1;
+  }
+
   // ===== Setpoint Data =====
   private final double shooterRPS;
   private final double turretAngleRad;

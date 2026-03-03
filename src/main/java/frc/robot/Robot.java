@@ -14,6 +14,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.subsystems.shooter.ShooterIOSim;
+import frc.robot.util.ShooterSetpoint;
 import org.ironmaple.simulation.SimulatedArena;
 import org.littletonrobotics.junction.LogFileUtil;
 import org.littletonrobotics.junction.LoggedRobot;
@@ -181,6 +182,9 @@ public class Robot extends LoggedRobot {
       }
     }
 
+    // Reset shooter aiming state to prevent feedforward spikes from stale auto data
+    ShooterSetpoint.reset();
+
     // Always get a fresh command from the chooser
     autonomousCommand = robotContainer.getAutonomousCommand();
 
@@ -202,6 +206,9 @@ public class Robot extends LoggedRobot {
     if (autonomousCommand != null) {
       autonomousCommand.cancel();
     }
+
+    // Reset shooter aiming state to prevent feedforward spikes from stale auto data
+    ShooterSetpoint.reset();
 
     // 254-style: Fallback heading reset on first enable
     if (!hasBeenEnabled) {

@@ -13,6 +13,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import frc.robot.auto.dashboard.FieldConstants;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
@@ -298,7 +299,11 @@ public class VisionSubsystem extends SubsystemBase {
       MegatagPoseEstimate poseEstimate, boolean isTurretCamera, boolean isMT2) {
 
     var fieldPose = poseEstimate.fieldPose;
-    if (fieldPose.getX() == 0.0) {
+    if (fieldPose.getX() == 0.0 && fieldPose.getY() == 0.0) {
+      return Optional.empty();
+    }
+    if (fieldPose.getX() < 0 || fieldPose.getX() > FieldConstants.FIELD_LENGTH
+        || fieldPose.getY() < 0 || fieldPose.getY() > FieldConstants.FIELD_WIDTH) {
       return Optional.empty();
     }
 

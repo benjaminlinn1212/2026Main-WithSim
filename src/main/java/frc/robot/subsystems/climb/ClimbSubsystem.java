@@ -774,12 +774,16 @@ public class ClimbSubsystem extends SubsystemBase {
             inputs.rightBackPositionRotations,
             rightTargetPosition);
 
-    if (measuredLeftPosition == null) {
-      measuredLeftPosition = leftTargetPosition;
+    // If FK fails (workspace boundary, singular Jacobian, or non-convergence), the measured
+    // position is unknown. Rather than assuming we're at the target (which feeds a wrong
+    // Jacobian into velocity IK), fall back to position control — same safe path used when
+    // velocity IK itself fails.
+    if (measuredLeftPosition == null || measuredRightPosition == null) {
+      Logger.recordOutput("Climb/FK/Failed", true);
+      moveToTargetPositions();
+      return;
     }
-    if (measuredRightPosition == null) {
-      measuredRightPosition = rightTargetPosition;
-    }
+    Logger.recordOutput("Climb/FK/Failed", false);
 
     // Use numerical Jacobian to calculate motor velocities from end effector velocities
     ClimbIK.ClimbVelocityResult velocityResult =

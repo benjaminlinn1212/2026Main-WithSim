@@ -102,8 +102,8 @@ public class ShooterSubsystem extends SubsystemBase {
     return atVelocity(setpoint.getShooterRPS()) && setpoint.isValid();
   }
 
-  /** Check if shooter is stopped (for climb readiness) */
-  public boolean atSetpoint() {
+  /** Check if shooter flywheels are stopped (e.g. safe to climb). */
+  public boolean isStopped() {
     return atVelocity(0.0);
   }
 

@@ -41,9 +41,6 @@ public class DriveIOSim extends DriveIOHardware {
           swerveDriveState.Pose =
               mapleSimSwerveDrivetrain.mapleSimDrive.getSimulatedDriveTrainPose();
         }
-        if (robotState != null) {
-          robotState.addFieldToRobot(swerveDriveState.Pose);
-        }
         telemetryConsumer_.accept(swerveDriveState);
       };
 

@@ -473,7 +473,7 @@ public final class Constants {
     public static final double KV = 0.12;
     public static final double KA = 0.0;
     public static final double KG = 0.23;
-    public static final GravityTypeValue GRAVITY_TYPE = GravityTypeValue.Elevator_Static;
+    public static final GravityTypeValue GRAVITY_TYPE = GravityTypeValue.Arm_Cosine;
 
     // Motion Magic Constants (motor rotations per second)
     public static final double CRUISE_VELOCITY = 80.0 / GEAR_RATIO;

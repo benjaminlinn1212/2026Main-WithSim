@@ -59,7 +59,7 @@ public class RobotState {
   }
 
   /** Update the measured chassis speeds */
-  public void updateChassisSpeeds(
+  public synchronized void updateChassisSpeeds(
       ChassisSpeeds fieldRelativeSpeeds, ChassisSpeeds robotRelativeSpeeds) {
     this.measuredFieldRelativeChassisSpeeds = fieldRelativeSpeeds;
     this.robotRelativeChassisSpeed = robotRelativeSpeeds;
@@ -123,12 +123,12 @@ public class RobotState {
   }
 
   /** Get the field-relative chassis speeds */
-  public ChassisSpeeds getLatestMeasuredFieldRelativeChassisSpeeds() {
+  public synchronized ChassisSpeeds getLatestMeasuredFieldRelativeChassisSpeeds() {
     return measuredFieldRelativeChassisSpeeds;
   }
 
   /** Get the robot-relative chassis speeds */
-  public ChassisSpeeds getLatestRobotRelativeChassisSpeed() {
+  public synchronized ChassisSpeeds getLatestRobotRelativeChassisSpeed() {
     return robotRelativeChassisSpeed;
   }
 

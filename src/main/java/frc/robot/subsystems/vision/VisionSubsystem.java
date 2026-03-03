@@ -203,7 +203,6 @@ public class VisionSubsystem extends SubsystemBase {
           VecBuilder.fill(xyStds, xyStds, MEGATAG2_ROTATION_STD_DEV);
 
       Logger.recordOutput(logPreface + "StdDevs", visionMeasurementStdDevs.getData());
-      Logger.recordOutput(logPreface + "PoseDifference", poseDifference);
 
       return Optional.of(
           new VisionFieldPoseEstimate(

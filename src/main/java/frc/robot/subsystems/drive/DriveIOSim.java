@@ -41,9 +41,9 @@ public class DriveIOSim extends DriveIOHardware {
           swerveDriveState.Pose =
               mapleSimSwerveDrivetrain.mapleSimDrive.getSimulatedDriveTrainPose();
         }
-        if (robotState != null) {
-          robotState.addFieldToRobot(swerveDriveState.Pose);
-        }
+        // Delegate to parent's telemetry consumer which updates RobotState.
+        // Do NOT call robotState.addFieldToRobot() here — telemetryConsumer_ already does it,
+        // and double-adding causes redundant synchronized lock contention on the pose TreeMap.
         telemetryConsumer_.accept(swerveDriveState);
       };
 

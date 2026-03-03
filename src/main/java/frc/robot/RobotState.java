@@ -157,7 +157,11 @@ public class RobotState {
     }
   }
 
-  /** Log the robot state for debugging */
+  /**
+   * Log the robot state for debugging. Uses direct TreeMap access instead of calling
+   * getLatestRobotToTurret()/getLatestTurretAngularVelocity() to avoid redundant synchronized lock
+   * re-acquisition (this method is already synchronized).
+   */
   public synchronized void log() {
     var latestPose = fieldToRobot.lastEntry();
     if (latestPose != null) {
@@ -170,11 +174,15 @@ public class RobotState {
           measuredFieldRelativeChassisSpeeds.vyMetersPerSecond);
       Logger.recordOutput(
           "RobotState/AngularVelocity", robotRelativeChassisSpeed.omegaRadiansPerSecond);
-      var turretEntry = getLatestRobotToTurret();
-      double turretRad = turretEntry.getValue();
-      Logger.recordOutput("RobotState/TurretRotationRad", turretRad);
+
+      // Direct TreeMap access — no lock re-acquisition
+      var turretEntry = robotToTurretRad.lastEntry();
+      double turretRad = turretEntry != null ? turretEntry.getValue() : 0.0;
       Logger.recordOutput("RobotState/TurretRotationDeg", Math.toDegrees(turretRad));
-      Logger.recordOutput("RobotState/TurretAngularVelocity", getLatestTurretAngularVelocity());
+
+      var angVelEntry = turretAngularVelocity.lastEntry();
+      Logger.recordOutput(
+          "RobotState/TurretAngularVelocity", angVelEntry != null ? angVelEntry.getValue() : 0.0);
     }
   }
 }

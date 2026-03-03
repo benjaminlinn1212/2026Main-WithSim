@@ -98,8 +98,6 @@ public class HoodSubsystem extends SubsystemBase {
   }
 
   private void setPositionSetpointImpl(double radiansFromHorizontal, double radPerSecond) {
-    Logger.recordOutput("Hood/SetPositionSetpoint/radiansFromHorizontal", radiansFromHorizontal);
-    Logger.recordOutput("Hood/SetPositionSetpoint/radPerSecond", radPerSecond);
     io.setPositionSetpoint(radiansFromHorizontal, radPerSecond);
   }
 

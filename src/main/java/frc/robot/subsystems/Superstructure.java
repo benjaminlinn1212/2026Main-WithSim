@@ -14,7 +14,6 @@ import frc.robot.subsystems.hood.HoodSubsystem;
 import frc.robot.subsystems.indexer.IndexerSubsystem;
 import frc.robot.subsystems.intake.IntakeSubsystem;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
-import frc.robot.subsystems.led.LEDSubsystem;
 import frc.robot.subsystems.shooter.ShooterSubsystem;
 import frc.robot.subsystems.turret.TurretSubsystem;
 import frc.robot.util.MechanismVisualizer;
@@ -58,7 +57,6 @@ public class Superstructure extends SubsystemBase {
   private final ConveyorSubsystem conveyor;
   private final IndexerSubsystem indexer;
   private final ClimbSubsystem climb;
-  private final LEDSubsystem leds;
   private final MechanismVisualizer mechanismViz = new MechanismVisualizer();
 
   private SuperstructureState currentState = SuperstructureState.IDLE;
@@ -130,8 +128,7 @@ public class Superstructure extends SubsystemBase {
       IntakePivotSubsystem intakePivot,
       ConveyorSubsystem conveyor,
       IndexerSubsystem indexer,
-      ClimbSubsystem climb,
-      LEDSubsystem leds) {
+      ClimbSubsystem climb) {
     this.shooter = shooter;
     this.turret = turret;
     this.hood = hood;
@@ -140,7 +137,6 @@ public class Superstructure extends SubsystemBase {
     this.conveyor = conveyor;
     this.indexer = indexer;
     this.climb = climb;
-    this.leds = leds;
   }
 
   // ==================== Periodic — Continuously Apply Wanted State ====================
@@ -168,30 +164,31 @@ public class Superstructure extends SubsystemBase {
     // ===== Trench Zone Detection (with exit hysteresis) =====
     // Compute trench zone FIRST so the main switch can stow the turret/hood as needed.
     // Exit hysteresis prevents turret stutter from pose noise at the trench boundary.
-    Pose2d robotPose = robotPoseSupplier.get();
-    boolean geometricTrench =
-        FieldConstants.isNearTrench(
-            robotPose.getTranslation(), Constants.DriveConstants.TrenchAssist.HOOD_STOW_BUFFER);
+    // Skip trench computation for IDLE and EMERGENCY — turret/hood are stowed anyway.
     double now = Timer.getFPGATimestamp();
+    boolean trenchStowHood = false;
+    if (wantedState != SuperstructureState.IDLE && wantedState != SuperstructureState.EMERGENCY) {
+      Pose2d robotPose = robotPoseSupplier.get();
+      boolean geometricTrench =
+          FieldConstants.isNearTrench(
+              robotPose.getTranslation(), Constants.DriveConstants.TrenchAssist.HOOD_STOW_BUFFER);
 
-    if (geometricTrench) {
-      // Inside trench — keep latched and reset the exit timer
-      inTrenchZone = true;
-      trenchExitTimestamp = now;
-    } else if (inTrenchZone) {
-      // Just left the geometric zone — hold the latch for the holdoff period
-      if (now - trenchExitTimestamp >= TRENCH_EXIT_HOLDOFF_SECONDS) {
-        inTrenchZone = false; // Holdoff expired, safe to release
+      if (geometricTrench) {
+        // Inside trench — keep latched and reset the exit timer
+        inTrenchZone = true;
+        trenchExitTimestamp = now;
+      } else if (inTrenchZone) {
+        // Just left the geometric zone — hold the latch for the holdoff period
+        if (now - trenchExitTimestamp >= TRENCH_EXIT_HOLDOFF_SECONDS) {
+          inTrenchZone = false; // Holdoff expired, safe to release
+        }
+        // else: still within holdoff, keep inTrenchZone = true
       }
-      // else: still within holdoff, keep inTrenchZone = true
-    }
-    Logger.recordOutput("Superstructure/InTrenchZone", inTrenchZone);
+      Logger.recordOutput("Superstructure/InTrenchZone", inTrenchZone);
 
-    // When in the trench zone, stow the hood (trench is 22.25in tall)
-    boolean trenchStowHood =
-        inTrenchZone
-            && wantedState != SuperstructureState.IDLE
-            && wantedState != SuperstructureState.EMERGENCY;
+      // When in the trench zone, stow the hood (trench is 22.25in tall)
+      trenchStowHood = inTrenchZone;
+    }
 
     // ===== Shooter Detection (current-based, gated by state) =====
     if (wantedState == SuperstructureState.ONLY_SHOOTING
@@ -200,8 +197,6 @@ public class Superstructure extends SubsystemBase {
     }
 
     // Apply the wanted state to all subsystems every cycle
-    Logger.recordOutput("Superstructure/IntakeHalfDeployed", intakeHalfDeployed);
-    Logger.recordOutput("Superstructure/AutoShootingHalfDeploy", autoShootingHalfDeploy);
     switch (wantedState) {
       case IDLE:
         turret.applyStow();
@@ -211,7 +206,6 @@ public class Superstructure extends SubsystemBase {
         intake.stopMotor();
         conveyor.stopMotor();
         indexer.stopMotor();
-        leds.setStowed();
         break;
 
       case ONLY_INTAKE:
@@ -222,7 +216,6 @@ public class Superstructure extends SubsystemBase {
         applyIntakeRollers();
         conveyor.stopMotor();
         indexer.stopMotor();
-        leds.setIntaking();
         break;
 
       case ONLY_AIMING:
@@ -237,7 +230,6 @@ public class Superstructure extends SubsystemBase {
         intake.stopMotor();
         conveyor.stopMotor();
         indexer.stopMotor();
-        leds.setAiming();
         break;
 
       case ONLY_SHOOTING:
@@ -252,7 +244,6 @@ public class Superstructure extends SubsystemBase {
         intake.stopMotor();
         conveyor.applyFeedToShooter();
         indexer.applyFeedToShooter();
-        leds.setShooting();
         break;
 
       case AIMING_WHILE_INTAKING:
@@ -267,7 +258,6 @@ public class Superstructure extends SubsystemBase {
         applyIntakeRollers();
         conveyor.stopMotor();
         indexer.stopMotor();
-        leds.setAiming();
         break;
 
       case SHOOTING_WHILE_INTAKING:
@@ -282,7 +272,6 @@ public class Superstructure extends SubsystemBase {
         applyIntakeRollers();
         conveyor.applyFeedToShooter();
         indexer.applyFeedToShooter();
-        leds.setShooting();
         break;
 
       case EMERGENCY:
@@ -565,7 +554,6 @@ public class Superstructure extends SubsystemBase {
               conveyor.stopMotor();
               indexer.stopMotor();
               climb.stopMotors();
-              leds.setError();
             })
         .withName("Superstructure_EmergencyStop");
   }

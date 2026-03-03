@@ -198,14 +198,13 @@ public class TrenchAssistController {
     return MathUtil.clamp(1.0 - errorFromXAxis / maxError, 0.0, 1.0);
   }
 
-  private static void logInactive() {
+  /**
+   * Log inactive state. Only logs the Active=false flag to avoid unnecessary NT overhead every 20ms
+   * cycle when the robot is nowhere near a trench. The numeric fields are only interesting when the
+   * assist is active or ramping.
+   */
+  private void logInactive() {
     Logger.recordOutput("Drive/TrenchAssist/Active", false);
-    Logger.recordOutput("Drive/TrenchAssist/Strength", 0.0);
-    Logger.recordOutput("Drive/TrenchAssist/ProximityBlend", 0.0);
-    Logger.recordOutput("Drive/TrenchAssist/SpeedGate", 0.0);
-    Logger.recordOutput("Drive/TrenchAssist/HeadingGate", 0.0);
-    Logger.recordOutput("Drive/TrenchAssist/OrientationOmega", 0.0);
-    Logger.recordOutput("Drive/TrenchAssist/LateralCorrection", 0.0);
   }
 
   private static boolean isRedAlliance() {

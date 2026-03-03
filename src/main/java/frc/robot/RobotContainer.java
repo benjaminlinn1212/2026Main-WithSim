@@ -57,7 +57,6 @@ import frc.robot.subsystems.intakepivot.IntakePivotIO;
 import frc.robot.subsystems.intakepivot.IntakePivotIOSim;
 import frc.robot.subsystems.intakepivot.IntakePivotIOTalonFX;
 import frc.robot.subsystems.intakepivot.IntakePivotSubsystem;
-import frc.robot.subsystems.led.LEDSubsystem;
 import frc.robot.subsystems.orchestra.OrchestraManager;
 import frc.robot.subsystems.shooter.ShooterIO;
 import frc.robot.subsystems.shooter.ShooterIOSim;
@@ -93,7 +92,6 @@ public class RobotContainer {
   private final ConveyorSubsystem conveyor;
   private final IndexerSubsystem indexer;
   private final ClimbSubsystem climb;
-  private final LEDSubsystem leds;
   private final Superstructure superstructure;
 
   @SuppressWarnings("unused")
@@ -191,7 +189,6 @@ public class RobotContainer {
         conveyor = new ConveyorSubsystem(new ConveyorIOTalonFX());
         indexer = new IndexerSubsystem(new IndexerIOTalonFX());
         climb = new ClimbSubsystem(new ClimbIOTalonFX());
-        leds = new LEDSubsystem();
         break;
       case SIM:
         {
@@ -236,7 +233,6 @@ public class RobotContainer {
 
           indexer = new IndexerSubsystem(new IndexerIOSim());
           climb = new ClimbSubsystem(new ClimbIOSim());
-          leds = new LEDSubsystem();
         }
         break;
       default:
@@ -248,14 +244,12 @@ public class RobotContainer {
         conveyor = new ConveyorSubsystem(new ConveyorIO() {});
         indexer = new IndexerSubsystem(new IndexerIO() {});
         climb = new ClimbSubsystem(new ClimbIO() {});
-        leds = new LEDSubsystem();
         break;
     }
 
     // Instantiate Superstructure with all subsystems
     superstructure =
-        new Superstructure(
-            shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb, leds);
+        new Superstructure(shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb);
 
     // Trench assist controller (needs superstructure for intake-deployed query)
     trenchAssist = new TrenchAssistController(superstructure::isIntakeDeployed);

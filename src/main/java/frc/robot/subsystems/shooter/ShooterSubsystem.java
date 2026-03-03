@@ -139,6 +139,9 @@ public class ShooterSubsystem extends SubsystemBase {
     Logger.processInputs("Shooter", inputs);
 
     Logger.recordOutput("Shooter/VelocitySetpointRPS", velocitySetpointRPS);
-    Logger.recordOutput("Shooter/IsReady", isReady());
+    // Inline isReady() logic to avoid a second setpointSupplier.get() call this cycle
+    ShooterSetpoint cachedSetpoint = setpointSupplier.get();
+    Logger.recordOutput(
+        "Shooter/IsReady", atVelocity(cachedSetpoint.getShooterRPS()) && cachedSetpoint.isValid());
   }
 }

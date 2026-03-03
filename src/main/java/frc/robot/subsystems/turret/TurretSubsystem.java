@@ -75,11 +75,9 @@ public class TurretSubsystem extends SubsystemBase {
 
     double robotHeadingRad = robotPoseSupplier.get().getRotation().getRadians();
     double turretFieldHeadingRad = robotHeadingRad + turretPositionRad;
-    Logger.recordOutput("Turret/FieldHeadingRad", turretFieldHeadingRad);
     Logger.recordOutput("Turret/FieldHeadingDeg", Math.toDegrees(turretFieldHeadingRad));
 
     double errorRad = positionSetpointRad - turretPositionRad;
-    Logger.recordOutput("Turret/ErrorRad", errorRad);
     Logger.recordOutput("Turret/ErrorDeg", Math.toDegrees(errorRad));
   }
 
@@ -180,11 +178,8 @@ public class TurretSubsystem extends SubsystemBase {
     double closest = currentPos + diff;
 
     // Log wrapping result only (internals removed to reduce bandwidth — re-enable for debugging)
-    Logger.recordOutput("Turret/Wrap/TargetAngleDeg", Math.toDegrees(targetAngle));
-
     // 2. Check if the closest candidate is in bounds — if so, use it.
     if (closest >= minLimit && closest <= maxLimit) {
-      Logger.recordOutput("Turret/Wrap/ResultDeg", Math.toDegrees(closest));
       return closest;
     }
 
@@ -219,7 +214,6 @@ public class TurretSubsystem extends SubsystemBase {
       bestCandidate = Math.max(minLimit, Math.min(maxLimit, bestCandidate));
     }
 
-    Logger.recordOutput("Turret/Wrap/ResultDeg", Math.toDegrees(bestCandidate));
     Logger.recordOutput("Turret/Wrap/UsedFallback", true);
     return bestCandidate;
   }
@@ -286,9 +280,6 @@ public class TurretSubsystem extends SubsystemBase {
     double targetRad = setpoint.getTurretAngleRad();
     double feedforwardRadPerSec = setpoint.getTurretFeedforwardRadPerSec();
     double wrappedTarget = adjustSetpointForWrap(targetRad);
-
-    Logger.recordOutput("Turret/Aiming/SetpointValid", setpoint.isValid());
-    Logger.recordOutput("Turret/Aiming/IsNeutralZoneShot", setpoint.isNeutralZoneShot());
 
     double feedforwardVolts = feedforwardRadPerSec * Constants.TurretConstants.KV;
     setPositionSetpointImpl(wrappedTarget, feedforwardVolts);

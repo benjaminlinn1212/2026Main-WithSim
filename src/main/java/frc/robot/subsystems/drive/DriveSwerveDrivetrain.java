@@ -45,6 +45,13 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   private double linearAccelerationMagnitude = 0.0;
 
   /**
+   * Cached pose from the latest periodic() cycle. Avoids repeatedly acquiring the synchronized lock
+   * on RobotState's TreeMap during the same 20ms cycle (teleop default command, TrenchAssist,
+   * Superstructure, ShooterSetpoint, etc. all read the pose).
+   */
+  private volatile Pose2d cachedPose = new Pose2d();
+
+  /**
    * Exponential moving average of acceleration. Smooths out frame-to-frame noise so the zone-aware
    * feeding gate doesn't stutter. Alpha controls responsiveness: lower = smoother but more lag,
    * higher = noisier but faster response.
@@ -63,8 +70,19 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
 
   @Override
   public void periodic() {
+    // Cache pose once per cycle to avoid repeated synchronized lock acquisitions on RobotState.
+    // The 250Hz odometry thread writes to RobotState's TreeMap under a lock; reading it multiple
+    // times per 20ms cycle (teleop command, TrenchAssist, Superstructure, ShooterSetpoint) causes
+    // unnecessary contention. One read per periodic() eliminates this.
+    var latestEntry = robotState.getLatestFieldToRobot();
+    cachedPose = (latestEntry != null) ? latestEntry.getValue() : new Pose2d();
     // CTRE's SwerveDriveState.Speeds are robot-relative
-    var robotRelativeSpeeds = driveIO.getState().Speeds;
+    var driveState = driveIO.getState();
+    var robotRelativeSpeeds = driveState.Speeds;
+
+    // Log swerve module states for AdvantageScope visualization
+    Logger.recordOutput("Drive/SwerveStates/Measured", driveState.ModuleStates);
+    Logger.recordOutput("Drive/SwerveStates/Setpoints", driveState.ModuleTargets);
 
     // Compute field-relative speeds by rotating by robot heading
     var heading = getPose().getRotation();
@@ -101,12 +119,9 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     }
   }
 
-  /** Get the current robot pose from RobotState (matches 254) */
+  /** Get the current robot pose (cached per periodic cycle — lock-free). */
   public Pose2d getPose() {
-    if (robotState.getLatestFieldToRobot() != null) {
-      return robotState.getLatestFieldToRobot().getValue();
-    }
-    return new Pose2d(); // Fallback
+    return cachedPose;
   }
 
   /** Get RobotState object for commands */

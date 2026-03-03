@@ -48,6 +48,8 @@ public class MechanismVisualizer {
       zeroedPoses[i] = new Pose3d();
       componentPoses[i] = new Pose3d();
     }
+    // Log zeroed poses once — they never change (used by AdvantageScope calibration step 4).
+    Logger.recordOutput("Mechanism3d/ZeroedComponentPoses", zeroedPoses);
   }
 
   /**
@@ -106,10 +108,8 @@ public class MechanismVisualizer {
     componentPoses[2] = new Pose3d(new Translation3d(deltaX, 0, deltaZ), new Rotation3d());
 
     // --- Log to AdvantageScope ---
-    // "ZeroedComponentPoses" is used during the calibration process (step 4).
     // "ComponentPoses" is the live visualization — add as a "Component" child
     //   to the robot object in the 3D Field tab.
-    Logger.recordOutput("Mechanism3d/ZeroedComponentPoses", zeroedPoses);
     Logger.recordOutput("Mechanism3d/ComponentPoses", componentPoses);
   }
 }

@@ -133,7 +133,12 @@ public final class Constants {
     public static final double MAX_TELEOP_SPEED_MPS = 5.0;
     public static final double MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC = Math.PI * 2;
 
-    public static final double JOYSTICK_DEADBAND = 0.02;
+    // Slew rate limits (units per second) — limits how fast joystick commands can change.
+    // Translation: m/s per second (acceleration limit). Rotation: rad/s per second.
+    public static final double TRANSLATION_SLEW_RATE = 12.0; // m/s², ~0.4s from 0 to full speed
+    public static final double ROTATION_SLEW_RATE = 16.0; // rad/s², ~0.8s from 0 to full spin
+
+    public static final double JOYSTICK_DEADBAND = 0.04;
 
     public static class DriveToPose {
       // This constraint is used in the driveToPose() function by PPLib AND PIDControl.
@@ -167,7 +172,7 @@ public final class Constants {
     public static class TrenchAssist {
 
       /** Master enable for teleop trench assist. Set to false to disable all trench effects. */
-      public static final boolean ENABLED = true;
+      public static final boolean ENABLED = false;
 
       /**
        * Maximum blend factor (0-1). Blend ramps from 0 at the buffer edge to this value inside the
@@ -179,7 +184,7 @@ public final class Constants {
        * Teleop approach buffer (meters). How far outside the trench walls the assist begins
        * ramping. Larger = assist starts earlier, more time to center.
        */
-      public static final double APPROACH_BUFFER = 2.5;
+      public static final double APPROACH_BUFFER = 1.5;
 
       /**
        * Minimum speed (m/s) below which the assist is inactive. Prevents the assist from
@@ -192,7 +197,7 @@ public final class Constants {
        * assist activates. If the driver is traveling perpendicular to the trench, they clearly
        * don't intend to go through it.
        */
-      public static final double MAX_HEADING_ERROR_DEG = 50.0;
+      public static final double MAX_HEADING_ERROR_DEG = 35.0;
 
       // ===== Orientation PID (heading -> omega) =====
 
@@ -520,8 +525,8 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
-      public static final double LEFT_RELEASED_POSITION = 160.0 / FULL_RANGE_DEG;
+      public static final double LEFT_STOWED_POSITION = 27.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 167.0 / FULL_RANGE_DEG;
       public static final double RIGHT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
       public static final double RIGHT_RELEASED_POSITION = 160.0 / FULL_RANGE_DEG;
 
@@ -561,8 +566,8 @@ public final class Constants {
     // Front motors: 100:1 reduction Ã¢â€ â€™ 1 motor rotation = 1/100 drum rotation
     // Back motors: 80:1 reduction Ã¢â€ â€™ 1 motor rotation = 1/80 drum rotation
     // Used in both Phoenix SensorToMechanismRatio and IK calculations
-    public static final double FRONT_GEAR_RATIO = 1.0 / 60.0;
-    public static final double BACK_GEAR_RATIO = 1.0 / 48.0;
+    public static final double FRONT_GEAR_RATIO = 1.0 / 48.0;
+    public static final double BACK_GEAR_RATIO = 1.0 / 27.0;
 
     // Motor Inversion - Configure each motor independently
     public static final InvertedValue RIGHT_FRONT_MOTOR_INVERTED =

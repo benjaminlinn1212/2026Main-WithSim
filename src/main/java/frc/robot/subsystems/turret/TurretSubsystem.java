@@ -121,6 +121,7 @@ public class TurretSubsystem extends SubsystemBase {
 
                   double feedforwardVolts =
                       Units.radiansToRotations(feedforwardRadPerSec)
+                          / Constants.TurretConstants.GEAR_RATIO
                           * Constants.TurretConstants.KV;
 
                   setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
@@ -293,7 +294,9 @@ public class TurretSubsystem extends SubsystemBase {
     Logger.recordOutput("Turret/Aiming/IsNeutralZoneShot", setpoint.isNeutralZoneShot());
 
     double feedforwardVolts =
-        Units.radiansToRotations(feedforwardRadPerSec) * Constants.TurretConstants.KV;
+        Units.radiansToRotations(feedforwardRadPerSec)
+            / Constants.TurretConstants.GEAR_RATIO
+            * Constants.TurretConstants.KV;
     setPositionSetpointImpl(wrappedTarget, feedforwardVolts);
     positionSetpointRad = wrappedTarget;
   }

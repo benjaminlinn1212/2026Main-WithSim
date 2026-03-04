@@ -12,8 +12,8 @@ import org.ironmaple.simulation.drivesims.SwerveDriveSimulation;
  */
 public class IntakeIOSim implements IntakeIO {
 
-  private double upperAppliedPercent = 0.0;
-  private double lowerAppliedPercent = 0.0;
+  private double upperTargetVelocityRPS = 0.0;
+  private double lowerTargetVelocityRPS = 0.0;
 
   private final IntakeSimulation intakeSimulation;
 
@@ -30,49 +30,47 @@ public class IntakeIOSim implements IntakeIO {
 
   @Override
   public void updateInputs(IntakeIOInputs inputs) {
-    inputs.upperAppliedVolts = upperAppliedPercent * 12.0;
-    inputs.upperVelocityRotPerSec = upperAppliedPercent * 80.0;
-    inputs.upperCurrentAmps = Math.abs(upperAppliedPercent) * 10.0;
+    // Simulate voltage/current proportional to target velocity (rough approximation)
+    double upperFraction = upperTargetVelocityRPS / 80.0;
+    double lowerFraction = lowerTargetVelocityRPS / 80.0;
+
+    inputs.upperAppliedVolts = upperFraction * 12.0;
+    inputs.upperVelocityRotPerSec = upperTargetVelocityRPS;
+    inputs.upperCurrentAmps = Math.abs(upperFraction) * 10.0;
     inputs.upperTemperatureCelsius = 25.0;
 
-    inputs.lowerAppliedVolts = lowerAppliedPercent * 12.0;
-    inputs.lowerVelocityRotPerSec = lowerAppliedPercent * 80.0;
-    inputs.lowerCurrentAmps = Math.abs(lowerAppliedPercent) * 10.0;
+    inputs.lowerAppliedVolts = lowerFraction * 12.0;
+    inputs.lowerVelocityRotPerSec = lowerTargetVelocityRPS;
+    inputs.lowerCurrentAmps = Math.abs(lowerFraction) * 10.0;
     inputs.lowerTemperatureCelsius = 25.0;
   }
 
   @Override
-  public void setUpperPercent(double percent) {
-    this.upperAppliedPercent = percent;
+  public void setUpperVelocity(double velocityRPS) {
+    this.upperTargetVelocityRPS = velocityRPS;
     updateIntakeState();
   }
 
   @Override
-  public void setLowerPercent(double percent) {
-    this.lowerAppliedPercent = percent;
+  public void setLowerVelocity(double velocityRPS) {
+    this.lowerTargetVelocityRPS = velocityRPS;
     updateIntakeState();
-  }
-
-  @Override
-  public void setPercent(double percent) {
-    setUpperPercent(percent);
-    setLowerPercent(percent);
   }
 
   @Override
   public void stop() {
-    this.upperAppliedPercent = 0.0;
-    this.lowerAppliedPercent = 0.0;
+    this.upperTargetVelocityRPS = 0.0;
+    this.lowerTargetVelocityRPS = 0.0;
     intakeSimulation.stopIntake();
   }
 
   /**
-   * Update the intake simulation state based on motor percent outputs. If either motor is running
-   * forward (positive percent), activate the intake. Otherwise, stop it.
+   * Update the intake simulation state based on motor velocity targets. If either motor has a
+   * positive velocity target, activate the intake. Otherwise, stop it.
    */
   private void updateIntakeState() {
-    if (upperAppliedPercent > Constants.SimConstants.INTAKE_MOTOR_THRESHOLD
-        || lowerAppliedPercent > Constants.SimConstants.INTAKE_MOTOR_THRESHOLD) {
+    if (upperTargetVelocityRPS > Constants.SimConstants.INTAKE_MOTOR_THRESHOLD
+        || lowerTargetVelocityRPS > Constants.SimConstants.INTAKE_MOTOR_THRESHOLD) {
       intakeSimulation.startIntake();
     } else {
       intakeSimulation.stopIntake();

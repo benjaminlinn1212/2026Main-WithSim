@@ -653,16 +653,52 @@ public class ClimbSubsystem extends SubsystemBase {
       public void initialize() {
         executor = null;
         params = paramSupplier.get();
-        if (params == null || params.waypoints().size() < 2) return;
+        System.out.println(
+            "[Climb] runPath '"
+                + name
+                + "' initialize: params="
+                + (params == null
+                    ? "null"
+                    : "waypoints="
+                        + params.waypoints().size()
+                        + " first="
+                        + params.waypoints().get(0)
+                        + " last="
+                        + params.waypoints().get(params.waypoints().size() - 1)));
+        if (params == null || params.waypoints().size() < 2) {
+          System.out.println("[Climb] runPath '" + name + "': skipped (null or <2 waypoints)");
+          return;
+        }
 
         try {
           var path =
               ClimbPathPlanner.createMultiBezierPath(params.waypoints(), 0.15, params.isPulling());
-          if (!ClimbPathPlanner.isPathValid(path)) return;
+          boolean valid = ClimbPathPlanner.isPathValid(path);
+          System.out.println(
+              "[Climb] runPath '"
+                  + name
+                  + "': path created, duration="
+                  + path.getTotalDuration()
+                  + "s, waypointCount="
+                  + path.getWaypointCount()
+                  + ", valid="
+                  + valid);
+          if (!valid) {
+            // Find which waypoint fails
+            for (int i = 0; i < path.getWaypoints().size(); i++) {
+              var pt = path.getWaypoints().get(i);
+              if (!ClimbIK.isPositionReachable(pt)) {
+                System.out.println("[Climb]   UNREACHABLE waypoint " + i + ": " + pt);
+              }
+            }
+            return;
+          }
           executor = new ClimbPathPlanner.PathExecutor(path, path);
           executor.start();
+          System.out.println("[Climb] runPath '" + name + "': executor started");
         } catch (Exception e) {
           System.out.println("[Climb] Path generation failed: " + e.getMessage());
+          e.printStackTrace();
         }
       }
 
@@ -692,11 +728,20 @@ public class ClimbSubsystem extends SubsystemBase {
 
       @Override
       public boolean isFinished() {
-        return executor == null || executor.isFinished();
+        boolean finished = executor == null || executor.isFinished();
+        if (finished) {
+          System.out.println(
+              "[Climb] runPath '"
+                  + name
+                  + "' isFinished=true, executor="
+                  + (executor == null ? "null" : "elapsed=" + executor.getElapsedTime()));
+        }
+        return finished;
       }
 
       @Override
       public void end(boolean interrupted) {
+        System.out.println("[Climb] runPath '" + name + "' end: interrupted=" + interrupted);
         if (executor != null) executor.stop();
         if (!interrupted && params != null && !params.waypoints().isEmpty()) {
           Translation2d finalPos = params.waypoints().get(params.waypoints().size() - 1);

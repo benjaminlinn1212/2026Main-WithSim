@@ -63,13 +63,15 @@ public class Robot extends LoggedRobot {
     // Set up data receivers & replay source
     switch (Constants.currentMode) {
       case REAL:
-        // Running on a real robot, log to a USB stick ("/U/logs") if available
-        if (new java.io.File("/U").exists()) {
-          Logger.addDataReceiver(new WPILOGWriter());
-        } else {
-          System.out.println(
-              "[Robot] WARNING: No USB drive found at /U. Logging to /home/lvuser/logs instead.");
-          Logger.addDataReceiver(new WPILOGWriter("/home/lvuser/logs"));
+        // Optionally log to a .wpilog file on disk
+        if (Constants.ENABLE_FILE_LOGGING) {
+          if (new java.io.File("/U").exists()) {
+            Logger.addDataReceiver(new WPILOGWriter());
+          } else {
+            System.out.println(
+                "[Robot] WARNING: No USB drive found at /U. Logging to /home/lvuser/logs instead.");
+            Logger.addDataReceiver(new WPILOGWriter("/home/lvuser/logs"));
+          }
         }
         Logger.addDataReceiver(new NT4Publisher());
         break;

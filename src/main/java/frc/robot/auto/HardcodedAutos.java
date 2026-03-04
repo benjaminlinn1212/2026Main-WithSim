@@ -254,14 +254,11 @@ public class HardcodedAutos {
         Set.of(drive));
   }
 
-  /** Snap heading to cardinal (or horizontal if intake deployed) if near a trench. */
+  /** Snap heading to cardinal if near a trench. */
   private Pose2d trenchAwarePose(Pose2d pose) {
     if (FieldConstants.isNearTrench(
         pose.getTranslation(), Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER)) {
-      Rotation2d snapped =
-          superstructure.isIntakeDeployed()
-              ? FieldConstants.snapToHorizontal(pose.getRotation())
-              : FieldConstants.snapToCardinal(pose.getRotation());
+      Rotation2d snapped = FieldConstants.snapToCardinal(pose.getRotation());
       return new Pose2d(pose.getTranslation(), snapped);
     }
     return pose;

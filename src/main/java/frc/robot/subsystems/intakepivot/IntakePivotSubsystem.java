@@ -89,6 +89,15 @@ public class IntakePivotSubsystem extends SubsystemBase {
     io.setPosition(IntakePivotConstants.HALF_DEPLOYED_POSITION);
   }
 
+  /**
+   * Directly apply the outpost position. Used in auto when intaking at the OUTPOST — the pivot
+   * extends just enough to receive FUEL from the human player CHUTE without running rollers. This
+   * is a plain void method for Superstructure use.
+   */
+  public void applyOutpostDeploy() {
+    io.setPosition(IntakePivotConstants.OUTPOST_POSITION);
+  }
+
   /** Check if intake is at the half-deployed position */
   public boolean isHalfDeployed() {
     return atPosition(IntakePivotConstants.HALF_DEPLOYED_POSITION);

@@ -374,14 +374,13 @@ public final class FieldConstants {
   // If robot Y > FIELD_WIDTH/2 → aim at upper target; Y < FIELD_WIDTH/2 → aim at lower target.
   // Point-symmetric: RED targets are 180° rotated from BLUE targets about field center.
   public static final Translation3d BLUE_NEUTRAL_ZONE_UPPER_AIM =
-      new Translation3d(2.8, FIELD_WIDTH * 0.75, 0);
+      new Translation3d(4.5, FIELD_WIDTH * 0.75, 0);
   public static final Translation3d BLUE_NEUTRAL_ZONE_LOWER_AIM =
-      new Translation3d(2.8, FIELD_WIDTH * 0.25, 0);
+      new Translation3d(4.5, FIELD_WIDTH * 0.25, 0);
   public static final Translation3d RED_NEUTRAL_ZONE_UPPER_AIM =
-      new Translation3d(FIELD_LENGTH - 2.8, FIELD_WIDTH * 0.75, 0);
+      new Translation3d(FIELD_LENGTH - 4.5, FIELD_WIDTH * 0.75, 0);
   public static final Translation3d RED_NEUTRAL_ZONE_LOWER_AIM =
-      new Translation3d(FIELD_LENGTH - 2.8, FIELD_WIDTH * 0.25, 0);
-
+      new Translation3d(FIELD_LENGTH - 4.5, FIELD_WIDTH * 0.25, 0);
   // ===== Zones =====
   // Zones define rectangular regions of the REBUILT field (blue-alliance origin).
   // Boundaries are axis-aligned rectangles: (minX, minY) to (maxX, maxY) in meters.

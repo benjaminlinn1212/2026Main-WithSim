@@ -28,8 +28,8 @@ public class IntakeSubsystem extends SubsystemBase {
    */
   public Command intake() {
     return run(() -> {
-          io.setUpperPercent(IntakeConstants.UPPER_INTAKE_PERCENT);
-          io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
+          io.setUpperVelocity(IntakeConstants.UPPER_INTAKE_VELOCITY_RPS);
+          io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_VELOCITY_RPS);
         })
         .finallyDo(() -> io.stop())
         .withName("Intake");
@@ -65,8 +65,8 @@ public class IntakeSubsystem extends SubsystemBase {
    * method — no command scheduling overhead.
    */
   public void applyIntake() {
-    io.setUpperPercent(IntakeConstants.UPPER_INTAKE_PERCENT);
-    io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
+    io.setUpperVelocity(IntakeConstants.UPPER_INTAKE_VELOCITY_RPS);
+    io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_VELOCITY_RPS);
   }
 
   /**
@@ -75,8 +75,8 @@ public class IntakeSubsystem extends SubsystemBase {
    * stuck FUEL while the upper roller is disabled to avoid ejecting game pieces.
    */
   public void applyIntakeLowerOnly() {
-    io.setUpperPercent(0.0);
-    io.setLowerPercent(IntakeConstants.LOWER_INTAKE_PERCENT);
+    io.setUpperVelocity(0.0);
+    io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_VELOCITY_RPS);
   }
 
   /**

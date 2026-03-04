@@ -63,6 +63,15 @@ public class Superstructure extends SubsystemBase {
   private SuperstructureState wantedState = SuperstructureState.IDLE;
 
   /**
+   * Whether the driver is requesting feeding (RT held). When true, {@code periodic()} automatically
+   * promotes aiming states to their shooting equivalents (ONLY_AIMING → ONLY_SHOOTING,
+   * AIMING_WHILE_INTAKING → SHOOTING_WHILE_INTAKING). When false, it demotes them back. This
+   * decouples the mode buttons (X/Y/A) from the feed trigger — the driver can freely switch modes
+   * while holding RT. Set/cleared via {@link #setFeedingRequested(boolean)}.
+   */
+  private boolean feedingRequested = false;
+
+  /**
    * Whether the intake pivot is in "half deployed" (shake) mode. When true and in an intaking
    * state, periodic() applies half-deploy instead of full deploy. Toggled by operator Y/A buttons.
    */
@@ -77,6 +86,16 @@ public class Superstructure extends SubsystemBase {
    * #forceIdleState()}.
    */
   private boolean autoShootingHalfDeploy = false;
+
+  /**
+   * Whether the intake pivot should use the outpost position instead of full/half deploy. Auto-only
+   * flag — set when intaking at the OUTPOST human player CHUTE. When true, {@link
+   * #applyIntakePivotDeploy()} uses the outpost position and {@link #applyIntakeRollers()} stops
+   * the rollers (FUEL is gravity-fed from the CHUTE). Other subsystems (turret, hood, shooter,
+   * conveyor, indexer) continue operating normally per the current state. Cleared on {@link
+   * #forceIdleState()}.
+   */
+  private boolean intakeOutpostMode = false;
 
   /**
    * Robot pose supplier — used to detect when the robot is near a TRENCH so we can override the
@@ -146,11 +165,15 @@ public class Superstructure extends SubsystemBase {
   //
   // -------------------------|--------|--------|---------|-------------|--------|----------|--------
   //  IDLE                     | stow   | stow   | stop    | stow        | stop   | stop     | stop
-  //  ONLY_INTAKE              | stow   | stow   | stop    | deploy      | intake | stop     | stop
+  //  ONLY_INTAKE              | stow   | stow   | stop    | deploy*     | intake* | stop    | stop
   //  ONLY_AIMING              | aim    | aim    | spinUp  | stow        | stop   | stop     | stop
   //  ONLY_SHOOTING            | aim    | aim    | spinUp  | stow        | stop   | feed     | feed
-  //  AIMING_WHILE_INTAKING    | aim    | aim    | spinUp  | deploy      | intake | stop     | stop
-  //  SHOOTING_WHILE_INTAKING  | aim    | aim    | spinUp  | deploy      | intake | feed     | feed
+  //  AIMING_WHILE_INTAKING    | aim    | aim    | spinUp  | deploy*     | intake* | stop    | stop
+  //  SHOOTING_WHILE_INTAKING  | aim    | aim    | spinUp  | deploy*     | intake* | feed    | feed
+  //
+  //  * IntakePivot/Intake vary by flags: intakeOutpostMode → outpost pos + stop,
+  //    intakeHalfDeployed/autoShootingHalfDeploy → half deploy + lower only,
+  //    else → full deploy + both rollers.
 
   @Override
   public void periodic() {
@@ -158,6 +181,28 @@ public class Superstructure extends SubsystemBase {
     if (currentState != wantedState) {
       Logger.recordOutput("Superstructure/StateTransition", currentState + " -> " + wantedState);
       currentState = wantedState;
+    }
+
+    // ===== Feeding Promotion / Demotion =====
+    // When feedingRequested is true, promote aiming states → shooting states.
+    // When false, demote shooting states → aiming states (unless auto set them directly).
+    Logger.recordOutput("Superstructure/FeedingRequested", feedingRequested);
+    if (feedingRequested) {
+      if (wantedState == SuperstructureState.ONLY_AIMING) {
+        wantedState = SuperstructureState.ONLY_SHOOTING;
+        currentState = wantedState;
+      } else if (wantedState == SuperstructureState.AIMING_WHILE_INTAKING) {
+        wantedState = SuperstructureState.SHOOTING_WHILE_INTAKING;
+        currentState = wantedState;
+      }
+    } else {
+      if (wantedState == SuperstructureState.ONLY_SHOOTING) {
+        wantedState = SuperstructureState.ONLY_AIMING;
+        currentState = wantedState;
+      } else if (wantedState == SuperstructureState.SHOOTING_WHILE_INTAKING) {
+        wantedState = SuperstructureState.AIMING_WHILE_INTAKING;
+        currentState = wantedState;
+      }
     }
     Logger.recordOutput("Superstructure/State", currentState.toString());
 
@@ -312,12 +357,21 @@ public class Superstructure extends SubsystemBase {
   // ==================== Intake Pivot Deploy Helper ====================
 
   /**
-   * Apply the correct intake pivot position based on the {@link #intakeHalfDeployed} and {@link
-   * #autoShootingHalfDeploy} flags. When either flag is true, uses half deploy (oscillating the
-   * pivot to dislodge stuck FUEL). Otherwise uses full deploy.
+   * Apply the correct intake pivot position. Priority (highest → lowest):
+   *
+   * <ol>
+   *   <li>{@link #intakeOutpostMode} → outpost position (auto OUTPOST CHUTE)
+   *   <li>{@link #intakeHalfDeployed} or {@link #autoShootingHalfDeploy} → half deploy (shake)
+   *   <li>Default → full deploy
+   * </ol>
+   *
+   * Flags are mutually exclusive in practice (outpost is auto-only, half-deploy is operator-toggled
+   * or auto-shooting), but the priority chain is explicit in case they overlap.
    */
   private void applyIntakePivotDeploy() {
-    if (intakeHalfDeployed || autoShootingHalfDeploy) {
+    if (intakeOutpostMode) {
+      intakePivot.applyOutpostDeploy();
+    } else if (intakeHalfDeployed || autoShootingHalfDeploy) {
       intakePivot.applyHalfDeploy();
     } else {
       intakePivot.applyDeploy();
@@ -325,11 +379,18 @@ public class Superstructure extends SubsystemBase {
   }
 
   /**
-   * Apply the correct intake roller output based on the half-deploy flags. When half-deployed, only
-   * the lower roller runs (upper stops at 0%) to avoid ejecting FUEL while the pivot oscillates.
+   * Apply the correct intake roller output. Same priority as {@link #applyIntakePivotDeploy()}:
+   *
+   * <ol>
+   *   <li>{@link #intakeOutpostMode} → stop all rollers (FUEL gravity-fed from CHUTE)
+   *   <li>{@link #intakeHalfDeployed} or {@link #autoShootingHalfDeploy} → lower roller only
+   *   <li>Default → both rollers
+   * </ol>
    */
   private void applyIntakeRollers() {
-    if (intakeHalfDeployed || autoShootingHalfDeploy) {
+    if (intakeOutpostMode) {
+      intake.stopMotor();
+    } else if (intakeHalfDeployed || autoShootingHalfDeploy) {
       intake.applyIntakeLowerOnly();
     } else {
       intake.applyIntake();
@@ -380,6 +441,27 @@ public class Superstructure extends SubsystemBase {
   }
 
   /**
+   * Set whether the driver is requesting feeding (right trigger held). When enabled, the periodic
+   * loop promotes aiming states to their shooting equivalents. When disabled, shooting states are
+   * demoted back. Also resets shooter detection when enabling so current-spike detection starts
+   * fresh.
+   *
+   * @param requested true while the driver holds the feed trigger
+   */
+  public void setFeedingRequested(boolean requested) {
+    if (requested && !this.feedingRequested) {
+      resetShooterDetection();
+    }
+    this.feedingRequested = requested;
+    Logger.recordOutput("Superstructure/FeedingRequested", requested);
+  }
+
+  /** Get whether the driver is currently requesting feeding. */
+  public boolean isFeedingRequested() {
+    return feedingRequested;
+  }
+
+  /**
    * Enable or disable auto shooting half-deploy. When enabled, all intake-deployed states
    * (AIMING_WHILE_INTAKING, SHOOTING_WHILE_INTAKING) use half-deploy instead of full deploy,
    * causing the intake to oscillate and help dislodge stuck FUEL during auto scoring.
@@ -389,6 +471,24 @@ public class Superstructure extends SubsystemBase {
   public void setAutoShootingHalfDeploy(boolean enabled) {
     this.autoShootingHalfDeploy = enabled;
     Logger.recordOutput("Superstructure/AutoShootingHalfDeploy", enabled);
+  }
+
+  /**
+   * Enable or disable outpost intake mode. When enabled, any intake-deploying state uses the
+   * outpost pivot position and stops the rollers (FUEL is gravity-fed from the human player CHUTE).
+   * All other subsystems continue operating per the current state. Auto-only — set when approaching
+   * the OUTPOST, cleared when leaving.
+   *
+   * @param enabled true to use outpost pivot position and stop rollers
+   */
+  public void setIntakeOutpostMode(boolean enabled) {
+    this.intakeOutpostMode = enabled;
+    Logger.recordOutput("Superstructure/IntakeOutpostMode", enabled);
+  }
+
+  /** Whether the intake is in outpost mode (outpost pivot position, rollers stopped). */
+  public boolean isIntakeOutpostMode() {
+    return intakeOutpostMode;
   }
 
   // ==================== Release from Auto Climb ====================
@@ -463,9 +563,14 @@ public class Superstructure extends SubsystemBase {
 
   // ===== Convenience Aliases (for readability in auto/teleop) =====
 
-  /** Set state to IDLE (everything stowed and stopped). Instant. */
+  /** Set state to IDLE (everything stowed and stopped). Also clears feeding flag. Instant. */
   public Command idle() {
-    return setWantedState(SuperstructureState.IDLE);
+    return Commands.runOnce(
+            () -> {
+              feedingRequested = false;
+              wantedState = SuperstructureState.IDLE;
+            })
+        .withName("SetState_IDLE");
   }
 
   /** Set state to ONLY_INTAKE (deploy intake, everything else stowed). Instant. */
@@ -508,6 +613,8 @@ public class Superstructure extends SubsystemBase {
     this.wantedState = SuperstructureState.IDLE;
     this.currentState = SuperstructureState.IDLE;
     this.autoShootingHalfDeploy = false;
+    this.feedingRequested = false;
+    this.intakeOutpostMode = false;
   }
 
   /**
@@ -525,6 +632,15 @@ public class Superstructure extends SubsystemBase {
     // same logic as setWantedState() — ensures full deploy on fresh intake transitions.
     if (isIntakeDeployingState(state) && !isIntakeDeployingState(currentState)) {
       intakeHalfDeployed = false;
+    }
+    // Sync feedingRequested with shooting states so auto code (which sets states directly)
+    // won't have its shooting states demoted by the periodic() promotion/demotion logic.
+    if (state == SuperstructureState.ONLY_SHOOTING
+        || state == SuperstructureState.SHOOTING_WHILE_INTAKING) {
+      feedingRequested = true;
+    } else if (state == SuperstructureState.ONLY_AIMING
+        || state == SuperstructureState.AIMING_WHILE_INTAKING) {
+      feedingRequested = false;
     }
     this.wantedState = state;
   }
@@ -545,6 +661,7 @@ public class Superstructure extends SubsystemBase {
             () -> {
               wantedState = SuperstructureState.EMERGENCY;
               currentState = SuperstructureState.EMERGENCY;
+              feedingRequested = false;
               // Directly stop all motors immediately — don't wait for periodic
               turret.applyStow();
               hood.applyStow();

@@ -11,7 +11,7 @@ import frc.robot.subsystems.shooter.ShooterIOSim;
  */
 public class ConveyorIOSim implements ConveyorIO {
 
-  private double appliedPercent = 0.0;
+  private double targetVelocityRPS = 0.0;
   private boolean directionInverted = false;
 
   /** Reference to the intake sim for obtaining game pieces. May be null if not wired. */
@@ -29,10 +29,11 @@ public class ConveyorIOSim implements ConveyorIO {
 
   @Override
   public void updateInputs(ConveyorIOInputs inputs) {
-    inputs.appliedVolts = appliedPercent * 12.0;
-    inputs.currentAmps = Math.abs(appliedPercent) * 8.0;
+    double fraction = targetVelocityRPS / 10.0;
+    inputs.appliedVolts = fraction * 12.0;
+    inputs.currentAmps = Math.abs(fraction) * 8.0;
     inputs.directionInverted = directionInverted;
-    inputs.velocityRotPerSec = appliedPercent * 10;
+    inputs.velocityRotPerSec = targetVelocityRPS;
 
     // Decrement cooldown
     if (feedCooldownTicks > 0) {
@@ -40,7 +41,7 @@ public class ConveyorIOSim implements ConveyorIO {
     }
 
     // Transfer fuel from intake to shooter when feeding
-    if (appliedPercent < Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
+    if (targetVelocityRPS < Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
       // Signal the shooter sim that the conveyor is actively feeding this cycle.
       // This prevents preloaded fuel from launching while the flywheel is spinning
       // but the conveyor is stopped (e.g. AIMING_WHILE_INTAKING state).
@@ -56,13 +57,13 @@ public class ConveyorIOSim implements ConveyorIO {
   }
 
   @Override
-  public void setPercent(double percent) {
-    this.appliedPercent = directionInverted ? -percent : percent;
+  public void setVelocity(double velocityRPS) {
+    this.targetVelocityRPS = directionInverted ? -velocityRPS : velocityRPS;
   }
 
   @Override
   public void stop() {
-    this.appliedPercent = 0.0;
+    this.targetVelocityRPS = 0.0;
   }
 
   @Override

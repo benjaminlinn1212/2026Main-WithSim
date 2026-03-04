@@ -251,8 +251,8 @@ public class RobotContainer {
     superstructure =
         new Superstructure(shooter, turret, hood, intake, intakePivot, conveyor, indexer, climb);
 
-    // Trench assist controller (needs superstructure for intake-deployed query)
-    trenchAssist = new TrenchAssistController(superstructure::isIntakeDeployed);
+    // Trench assist controller — always snaps to nearest cardinal heading
+    trenchAssist = new TrenchAssistController();
 
     // Operator climb level chooser
     operatorClimbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.OperatorClimbLevel.L2L3);
@@ -375,10 +375,7 @@ public class RobotContainer {
                     PPHolonomicDriveController.overrideRotationFeedback(
                         () -> {
                           Pose2d pose = drive.getPose();
-                          Rotation2d snapped =
-                              superstructure.isIntakeDeployed()
-                                  ? FieldConstants.snapToHorizontal(pose.getRotation())
-                                  : FieldConstants.snapToCardinal(pose.getRotation());
+                          Rotation2d snapped = FieldConstants.snapToCardinal(pose.getRotation());
                           return trenchRotationPID.calculate(
                               pose.getRotation().getRadians(), snapped.getRadians());
                         });
@@ -465,8 +462,10 @@ public class RobotContainer {
                 .ignoringDisable(true));
 
     // ===== SUPERSTRUCTURE STATE CONTROLS =====
+    // Mode buttons set the base state. The feeding flag (RT) promotes aiming→shooting
+    // automatically in Superstructure.periodic() — no RT checks needed here.
 
-    // B button: IDLE
+    // B button: IDLE (also clears feeding flag)
     controller.b().onTrue(superstructure.idle());
 
     // A button: ONLY_INTAKE
@@ -478,35 +477,12 @@ public class RobotContainer {
     // X button: AIMING_WHILE_INTAKING
     controller.x().onTrue(superstructure.aimingWhileIntaking());
 
-    // Right trigger: Feed to shooter while held (ONLY_AIMING→ONLY_SHOOTING, etc.)
+    // Right trigger: Set feeding flag while held. Superstructure.periodic() handles
+    // promoting aiming → shooting and demoting when released.
     controller
         .rightTrigger(0.2)
-        .onTrue(Commands.runOnce(superstructure::resetShooterDetection))
-        .whileTrue(
-            Commands.run(
-                () -> {
-                  var state = superstructure.getState();
-                  if (state == Superstructure.SuperstructureState.ONLY_AIMING
-                      || state == Superstructure.SuperstructureState.ONLY_SHOOTING) {
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.ONLY_SHOOTING);
-                  } else if (state == Superstructure.SuperstructureState.AIMING_WHILE_INTAKING
-                      || state == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING) {
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
-                  }
-                }))
-        .onFalse(
-            Commands.runOnce(
-                () -> {
-                  var state = superstructure.getState();
-                  if (state == Superstructure.SuperstructureState.ONLY_SHOOTING) {
-                    superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_AIMING);
-                  } else if (state == Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING) {
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
-                  }
-                }));
+        .onTrue(Commands.runOnce(() -> superstructure.setFeedingRequested(true)))
+        .onFalse(Commands.runOnce(() -> superstructure.setFeedingRequested(false)));
   }
 
   /**

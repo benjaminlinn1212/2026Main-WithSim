@@ -853,7 +853,11 @@ public class AutoCommandBuilder {
 
     String visitLabel = visitNumber > 1 ? loc.name() + "_v" + visitNumber : loc.name();
 
-    // Drive with zone-aware intake (opportunistic SWD on the way)
+    boolean isOutpost = (loc == FieldConstants.IntakeLocation.OUTPOST);
+
+    // Drive with zone-aware intake (opportunistic SWD on the way).
+    // For OUTPOST, enable outpost mode (pivot at outpost position, rollers stopped) during
+    // the approach and clear it afterward so normal intake resumes for subsequent actions.
     return Commands.sequence(
             Commands.print(
                 "[DashboardAuto] Intaking at "
@@ -861,7 +865,13 @@ public class AutoCommandBuilder {
                     + " (pose="
                     + String.format("%.2f, %.2f", intakePose.getX(), intakePose.getY())
                     + ")"),
-            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake()))
+            isOutpost
+                ? Commands.runOnce(() -> superstructure.setIntakeOutpostMode(true))
+                : Commands.none(),
+            Commands.deadline(pathfindTo(intakePose), zoneAwareIntake()),
+            isOutpost
+                ? Commands.runOnce(() -> superstructure.setIntakeOutpostMode(false))
+                : Commands.none())
         .withName("IntakeAt_" + visitLabel);
   }
 
@@ -1135,10 +1145,7 @@ public class AutoCommandBuilder {
   private Pose2d trenchAwarePose(Pose2d pose) {
     if (FieldConstants.isNearTrench(
         pose.getTranslation(), Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER)) {
-      Rotation2d snapped =
-          superstructure.isIntakeDeployed()
-              ? FieldConstants.snapToHorizontal(pose.getRotation())
-              : FieldConstants.snapToCardinal(pose.getRotation());
+      Rotation2d snapped = FieldConstants.snapToCardinal(pose.getRotation());
       return new Pose2d(pose.getTranslation(), snapped);
     }
     return pose;

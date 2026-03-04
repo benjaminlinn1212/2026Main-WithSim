@@ -100,10 +100,7 @@ public class SweepAuto {
     // Near a trench — always lock heading to cardinal so we fit through the 22.25in ceiling
     if (FieldConstants.isNearTrench(
         pose.getTranslation(), Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER)) {
-      Rotation2d snapped =
-          superstructure.isIntakeDeployed()
-              ? FieldConstants.snapToHorizontal(pose.getRotation())
-              : FieldConstants.snapToCardinal(pose.getRotation());
+      Rotation2d snapped = FieldConstants.snapToCardinal(pose.getRotation());
       return rotationPID.calculate(currentRad, snapped.getRadians());
     }
     if (spinActive) {

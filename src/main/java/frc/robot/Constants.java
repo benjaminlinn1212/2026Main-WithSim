@@ -27,6 +27,9 @@ public final class Constants {
   public static final Mode simMode = Mode.SIM;
   public static final Mode currentMode = RobotBase.isReal() ? Mode.REAL : simMode;
 
+  /** Whether to write .wpilog files to disk (USB stick or roboRIO). Set false to save storage. */
+  public static final boolean ENABLE_FILE_LOGGING = false;
+
   // Shared CAN bus used by all superstructure subsystems
   public static final CANBus SUPERSTRUCTURE_CAN_BUS = new CANBus("Superstructure");
 
@@ -172,13 +175,13 @@ public final class Constants {
     public static class TrenchAssist {
 
       /** Master enable for teleop trench assist. Set to false to disable all trench effects. */
-      public static final boolean ENABLED = false;
+      public static final boolean ENABLED = true;
 
       /**
        * Maximum blend factor (0-1). Blend ramps from 0 at the buffer edge to this value inside the
        * trench. 1.0 = full strength, 0.8 = 80% strength even when fully inside.
        */
-      public static final double MAX_BLEND_FACTOR = 0.8;
+      public static final double MAX_BLEND_FACTOR = 0.6;
 
       /**
        * Teleop approach buffer (meters). How far outside the trench walls the assist begins
@@ -190,14 +193,14 @@ public final class Constants {
        * Minimum speed (m/s) below which the assist is inactive. Prevents the assist from
        * interfering with fine positioning / stationary rotation near the trench.
        */
-      public static final double MIN_SPEED_MPS = 0.5;
+      public static final double MIN_SPEED_MPS = 2.0;
 
       /**
        * Maximum angular error (degrees) between the velocity vector and the X axis before the
        * assist activates. If the driver is traveling perpendicular to the trench, they clearly
        * don't intend to go through it.
        */
-      public static final double MAX_HEADING_ERROR_DEG = 35.0;
+      public static final double MAX_HEADING_ERROR_DEG = 30.0;
 
       // ===== Orientation PID (heading -> omega) =====
 
@@ -251,23 +254,30 @@ public final class Constants {
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and Feedforward Constants (not used for duty cycle control)
-    public static final double KP = 0.0;
-    public static final double KI = 0.0;
-    public static final double KD = 0.0;
-    public static final double KS = 0.0;
-    public static final double KV = 0.0;
-    public static final double KA = 0.0;
-    public static final double KG = 0.0;
+    // Upper Roller PID and Feedforward
+    public static final double UPPER_KP = 0.1;
+    public static final double UPPER_KI = 0.0;
+    public static final double UPPER_KD = 0.0;
+    public static final double UPPER_KS = 0.0;
+    public static final double UPPER_KV = 0.12;
+    public static final double UPPER_KA = 0.0;
+
+    // Lower Roller PID and Feedforward
+    public static final double LOWER_KP = 0.1;
+    public static final double LOWER_KI = 0.0;
+    public static final double LOWER_KD = 0.0;
+    public static final double LOWER_KS = 0.0;
+    public static final double LOWER_KV = 0.12;
+    public static final double LOWER_KA = 0.0;
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Intake Percent Output (0.0 to 1.0)
-    public static final double UPPER_INTAKE_PERCENT = 0.45;
-    public static final double LOWER_INTAKE_PERCENT = 0.5;
+    // Velocity Setpoints (rotations per second)
+    public static final double UPPER_INTAKE_VELOCITY_RPS = 60.0;
+    public static final double LOWER_INTAKE_VELOCITY_RPS = 15.0;
   }
 
   public static class IntakePivotConstants {
@@ -302,6 +312,7 @@ public final class Constants {
 
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0;
+    public static final double OUTPOST_POSITION = 7.784;
     public static final double HALF_DEPLOYED_POSITION = 25.0;
     public static final double DEPLOYED_POSITION = 27.0;
 
@@ -314,25 +325,24 @@ public final class Constants {
     public static final int MOTOR_CAN_ID = 45;
     public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
     public static final double GEAR_RATIO = 1.0;
-    public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
+    public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and Feedforward Constants (not used for duty cycle control)
-    public static final double KP = 0.0;
+    // PID and Feedforward Constants
+    public static final double KP = 0.1;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
     public static final double KS = 0.0;
-    public static final double KV = 0.0;
+    public static final double KV = 0.12;
     public static final double KA = 0.0;
-    public static final double KG = 0.0;
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Conveyor Duty Cycle Percentages
-    public static final double TO_SHOOTER_PERCENT = -0.5;
+    // Velocity Setpoint (rotations per second)
+    public static final double FEED_VELOCITY_RPS = 15.0;
   }
 
   public static class IndexerConstants {
@@ -360,7 +370,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Indexer Percent Output
-    public static final double TO_SHOOTER_PERCENT = 0.7;
+    public static final double TO_SHOOTER_PERCENT = 0.6;
   }
 
   public static class Aiming {
@@ -525,13 +535,13 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 27.0 / FULL_RANGE_DEG;
-      public static final double LEFT_RELEASED_POSITION = 167.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
+      public static final double LEFT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 164.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 14.0 / FULL_RANGE_DEG;
       public static final double RIGHT_RELEASED_POSITION = 160.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the angle servo to travel its full range. */
-      public static final double TRAVEL_TIME_SEC = 1.0;
+      public static final double TRAVEL_TIME_SEC = 1.2;
     }
 
     /** Hardstop servo config: 100Ã‚Â° range, 1000Ã‚ÂµsÃ¢â‚¬â€œ2000Ã‚Âµs pulse. */
@@ -541,13 +551,13 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
-      public static final double LEFT_RELEASED_POSITION = 77.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_RELEASED_POSITION = 77.0 / FULL_RANGE_DEG;
+      public static final double LEFT_STOWED_POSITION = 25.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 80.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 26.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_RELEASED_POSITION = 81.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the hardstop servo to travel its full range. */
-      public static final double TRAVEL_TIME_SEC = 0.7;
+      public static final double TRAVEL_TIME_SEC = 0.6;
     }
 
     // PWM Channels

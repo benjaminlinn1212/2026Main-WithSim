@@ -8,7 +8,6 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import frc.robot.Constants;
 import frc.robot.auto.dashboard.FieldConstants;
-import java.util.function.BooleanSupplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
@@ -17,7 +16,7 @@ import org.littletonrobotics.junction.Logger;
  *
  * <ol>
  *   <li><b>Orientation PID</b> (heading error &rarr; omega) &mdash; snaps the chassis heading to
- *       the nearest cardinal (or horizontal when intake deployed).
+ *       the nearest cardinal direction (0°, 90°, 180°, 270°).
  *   <li><b>Lateral PID</b> (Y-position error &rarr; vy) &mdash; centers the robot in the trench.
  * </ol>
  *
@@ -43,16 +42,9 @@ public class TrenchAssistController {
   private final PIDController lateralPID;
 
   // ----- State -----
-  private final BooleanSupplier intakeDeployedSupplier;
   private boolean wasActive = false;
 
-  /**
-   * @param intakeDeployedSupplier supplies whether the intake is currently deployed. When true,
-   *     heading snaps to 0/180 degrees only instead of all four cardinals.
-   */
-  public TrenchAssistController(BooleanSupplier intakeDeployedSupplier) {
-    this.intakeDeployedSupplier = intakeDeployedSupplier;
-
+  public TrenchAssistController() {
     orientationPID =
         new PIDController(
             Constants.DriveConstants.TrenchAssist.ORIENTATION_KP,
@@ -125,11 +117,7 @@ public class TrenchAssistController {
     }
 
     // ===== 1. Orientation: blend between driver omega and PID omega =====
-    boolean intakeDeployed = intakeDeployedSupplier.getAsBoolean();
-    Rotation2d targetHeading =
-        intakeDeployed
-            ? FieldConstants.snapToHorizontal(robotHeading)
-            : FieldConstants.snapToCardinal(robotHeading);
+    Rotation2d targetHeading = FieldConstants.snapToCardinal(robotHeading);
 
     double rawPidOmega =
         orientationPID.calculate(robotHeading.getRadians(), targetHeading.getRadians());

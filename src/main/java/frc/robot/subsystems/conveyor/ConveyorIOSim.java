@@ -1,6 +1,7 @@
 package frc.robot.subsystems.conveyor;
 
 import frc.robot.Constants;
+import frc.robot.Constants.ConveyorConstants;
 import frc.robot.subsystems.intake.IntakeIOSim;
 import frc.robot.subsystems.shooter.ShooterIOSim;
 
@@ -11,7 +12,7 @@ import frc.robot.subsystems.shooter.ShooterIOSim;
  */
 public class ConveyorIOSim implements ConveyorIO {
 
-  private double dutyCycle = 0.0;
+  private double targetVelocityRPS = 0.0;
   private boolean directionInverted = false;
 
   /** Reference to the intake sim for obtaining game pieces. May be null if not wired. */
@@ -29,10 +30,10 @@ public class ConveyorIOSim implements ConveyorIO {
 
   @Override
   public void updateInputs(ConveyorIOInputs inputs) {
-    inputs.appliedVolts = dutyCycle * 12.0;
-    inputs.currentAmps = Math.abs(dutyCycle) * 8.0;
+    inputs.appliedVolts = (ConveyorConstants.KV * targetVelocityRPS + ConveyorConstants.KS) * 12.0;
+    inputs.currentAmps = Math.abs(targetVelocityRPS) * 0.5;
     inputs.directionInverted = directionInverted;
-    inputs.velocityRotPerSec = dutyCycle * 10.0; // rough approximation for logging
+    inputs.velocityRotPerSec = targetVelocityRPS;
 
     // Decrement cooldown
     if (feedCooldownTicks > 0) {
@@ -40,7 +41,7 @@ public class ConveyorIOSim implements ConveyorIO {
     }
 
     // Transfer fuel from intake to shooter when feeding
-    if (dutyCycle > Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
+    if (targetVelocityRPS > Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
       // Signal the shooter sim that the conveyor is actively feeding this cycle.
       // This prevents preloaded fuel from launching while the flywheel is spinning
       // but the conveyor is stopped (e.g. AIMING_WHILE_INTAKING state).
@@ -56,13 +57,13 @@ public class ConveyorIOSim implements ConveyorIO {
   }
 
   @Override
-  public void setVelocity(double dutyCycle) {
-    this.dutyCycle = directionInverted ? -dutyCycle : dutyCycle;
+  public void setVelocity(double velocityRPS) {
+    this.targetVelocityRPS = directionInverted ? -velocityRPS : velocityRPS;
   }
 
   @Override
   public void stop() {
-    this.dutyCycle = 0.0;
+    this.targetVelocityRPS = 0.0;
   }
 
   @Override

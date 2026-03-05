@@ -70,6 +70,17 @@ public class IntakeSubsystem extends SubsystemBase {
   }
 
   /**
+   * Directly apply deploy-reverse output. Called by Superstructure.periodic() while the intake
+   * pivot is still deploying (not yet at deployed position). Runs the lower roller in reverse to
+   * prevent FUEL from falling out of the intake as it swings down, while the upper roller runs
+   * normally.
+   */
+  public void applyDeployReverse() {
+    io.setUpperVelocity(IntakeConstants.UPPER_INTAKE_VELOCITY_RPS);
+    io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_EJECT_RPS);
+  }
+
+  /**
    * Directly apply intake motor output with the upper roller stopped. Called by
    * Superstructure.periodic() when intake half-deploy is active — the pivot oscillates to dislodge
    * stuck FUEL while the upper roller is disabled to avoid ejecting game pieces.

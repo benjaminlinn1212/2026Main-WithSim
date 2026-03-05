@@ -1,14 +1,14 @@
 package frc.robot.subsystems.conveyor;
 
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.DutyCycleOut;
+import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import frc.robot.Constants.ConveyorConstants;
 
 public class ConveyorIOTalonFX implements ConveyorIO {
 
   private final TalonFX motor;
-  private final DutyCycleOut dutyCycleControl = new DutyCycleOut(0);
+  private final VelocityVoltage velocityControl = new VelocityVoltage(0).withEnableFOC(true);
   private boolean directionInverted = false;
 
   public ConveyorIOTalonFX() {
@@ -18,6 +18,13 @@ public class ConveyorIOTalonFX implements ConveyorIO {
 
     config.MotorOutput.Inverted = ConveyorConstants.MOTOR_INVERTED;
     config.MotorOutput.NeutralMode = ConveyorConstants.NEUTRAL_MODE;
+
+    config.Slot0.kP = ConveyorConstants.KP;
+    config.Slot0.kI = ConveyorConstants.KI;
+    config.Slot0.kD = ConveyorConstants.KD;
+    config.Slot0.kS = ConveyorConstants.KS;
+    config.Slot0.kV = ConveyorConstants.KV;
+    config.Slot0.kA = ConveyorConstants.KA;
 
     config.CurrentLimits.StatorCurrentLimit = ConveyorConstants.STATOR_CURRENT_LIMIT;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
@@ -39,8 +46,8 @@ public class ConveyorIOTalonFX implements ConveyorIO {
   }
 
   @Override
-  public void setVelocity(double dutyCycle) {
-    motor.setControl(dutyCycleControl.withOutput(directionInverted ? -dutyCycle : dutyCycle));
+  public void setVelocity(double velocityRPS) {
+    motor.setControl(velocityControl.withVelocity(directionInverted ? -velocityRPS : velocityRPS));
   }
 
   @Override

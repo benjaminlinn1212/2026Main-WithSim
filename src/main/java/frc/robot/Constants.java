@@ -283,6 +283,7 @@ public final class Constants {
     // Velocity Setpoints (rotations per second)
     public static final double UPPER_INTAKE_VELOCITY_RPS = 60.0;
     public static final double LOWER_INTAKE_VELOCITY_RPS = 15.0;
+    public static final double LOWER_INTAKE_EJECT_RPS = -20.0;
   }
 
   public static class IntakePivotConstants {
@@ -338,14 +339,24 @@ public final class Constants {
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
+    // PID and Feedforward Constants (Slot 0 — VelocityVoltage)
+    // KP=0.5 → at full stall (15 RPS error) produces 7.5V of corrective effort,
+    // giving ~78% duty at stall for jam-busting while cruising gently when unloaded.
+    public static final double KP = 0.5;
+    public static final double KI = 0.0;
+    public static final double KD = 0.0;
+    public static final double KS = 0.15; // overcome static friction
+    public static final double KV = 0.12; // ~12V / 100 RPS free speed
+    public static final double KA = 0.0;
+
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Duty cycle output for feeding (0 to 1). Applies constant voltage regardless of
-    // load — no stutter when empty, full torque available to push through jams.
-    public static final double FEED_DUTY_CYCLE = 0.4;
+    // Feed velocity setpoint (rotations per second). Low speed for gentle feeding —
+    // the velocity PID automatically ramps voltage when the belt meets resistance.
+    public static final double FEED_VELOCITY_RPS = 40.0;
   }
 
   public static class IndexerConstants {
@@ -818,10 +829,10 @@ public final class Constants {
 
     // --- Conveyor / Fuel Transfer ---
     /**
-     * Conveyor duty-cycle threshold above which the sim considers the conveyor to be feeding toward
-     * the shooter. Must be positive — the conveyor feeds at +FEED_DUTY_CYCLE.
+     * Conveyor velocity threshold (RPS) above which the sim considers the conveyor to be feeding
+     * toward the shooter. Must be positive — the conveyor feeds at +FEED_VELOCITY_RPS.
      */
-    public static final double CONVEYOR_FEED_THRESHOLD = 0.05;
+    public static final double CONVEYOR_FEED_THRESHOLD = 0.5;
 
     /** Cooldown ticks (Ã— 20 ms) between consecutive fuel transfers from intake â†’ shooter. */
     public static final int FEED_COOLDOWN_TICKS = 7;

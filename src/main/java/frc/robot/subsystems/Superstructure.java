@@ -343,7 +343,8 @@ public class Superstructure extends SubsystemBase {
    * <ol>
    *   <li>{@link #intakeOutpostMode} → stop all rollers (FUEL gravity-fed from CHUTE)
    *   <li>{@code shouldJiggle} → lower roller only (jiggling)
-   *   <li>Default → both rollers
+   *   <li>Pivot still deploying → upper roller forward, lower roller reverse (prevent FUEL fallout)
+   *   <li>Default → both rollers forward
    * </ol>
    */
   private void applyIntakeRollers(boolean shouldJiggle) {
@@ -351,6 +352,8 @@ public class Superstructure extends SubsystemBase {
       intake.stopMotor();
     } else if (shouldJiggle) {
       intake.applyIntakeLowerOnly();
+    } else if (!intakePivot.isDeployed()) {
+      intake.applyDeployReverse();
     } else {
       intake.applyIntake();
     }

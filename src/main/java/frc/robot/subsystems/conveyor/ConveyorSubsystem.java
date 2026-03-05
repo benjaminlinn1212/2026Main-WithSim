@@ -28,7 +28,7 @@ public class ConveyorSubsystem extends SubsystemBase {
    */
   public Command goToShooter() {
     return run(() -> {
-          io.setVelocity(ConveyorConstants.FEED_DUTY_CYCLE);
+          io.setVelocity(ConveyorConstants.FEED_VELOCITY_RPS);
         })
         .withName("ConveyorToShooter");
   }
@@ -62,7 +62,7 @@ public class ConveyorSubsystem extends SubsystemBase {
    * method.
    */
   public void applyFeedToShooter() {
-    io.setVelocity(ConveyorConstants.FEED_DUTY_CYCLE);
+    io.setVelocity(ConveyorConstants.FEED_VELOCITY_RPS);
   }
 
   /** Toggle the conveyor direction */

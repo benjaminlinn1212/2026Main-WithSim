@@ -16,8 +16,8 @@ public interface ConveyorIO {
   /** Updates the set of loggable inputs. */
   public default void updateInputs(ConveyorIOInputs inputs) {}
 
-  /** Run the conveyor motor at the given duty cycle (-1 to 1). */
-  public default void setVelocity(double dutyCycle) {}
+  /** Run the conveyor motor at the given velocity (rotations per second). */
+  public default void setVelocity(double velocityRPS) {}
 
   /** Stop the conveyor motor. */
   public default void stop() {}

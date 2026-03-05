@@ -338,21 +338,14 @@ public final class Constants {
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and Feedforward Constants
-    public static final double KP = 0.1;
-    public static final double KI = 0.0;
-    public static final double KD = 0.0;
-    public static final double KS = 0.0;
-    public static final double KV = 0.12;
-    public static final double KA = 0.0;
-
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Velocity Setpoint (rotations per second)
-    public static final double FEED_VELOCITY_RPS = 15.0;
+    // Duty cycle output for feeding (0 to 1). Applies constant voltage regardless of
+    // load — no stutter when empty, full torque available to push through jams.
+    public static final double FEED_DUTY_CYCLE = 0.4;
   }
 
   public static class IndexerConstants {
@@ -825,10 +818,10 @@ public final class Constants {
 
     // --- Conveyor / Fuel Transfer ---
     /**
-     * Conveyor velocity threshold (RPS) above which the sim considers the conveyor to be feeding
-     * toward the shooter. Must be positive — the conveyor feeds at +FEED_VELOCITY_RPS.
+     * Conveyor duty-cycle threshold above which the sim considers the conveyor to be feeding toward
+     * the shooter. Must be positive — the conveyor feeds at +FEED_DUTY_CYCLE.
      */
-    public static final double CONVEYOR_FEED_THRESHOLD = 0.5;
+    public static final double CONVEYOR_FEED_THRESHOLD = 0.05;
 
     /** Cooldown ticks (Ã— 20 ms) between consecutive fuel transfers from intake â†’ shooter. */
     public static final int FEED_COOLDOWN_TICKS = 7;

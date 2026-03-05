@@ -317,20 +317,50 @@ public class ShooterSetpoint {
   }
 
   /**
-   * Calculate a simple neutral-zone shot (fixed speed/angle, aim at alliance wall). No motion
-   * compensation — just point and shoot.
+   * Calculate a neutral-zone shot using projectile kinematics. Uses a fixed hood angle and computes
+   * the required flywheel speed from the range equation so the ball lands at the target regardless
+   * of distance. No interp maps needed — just physics + one efficiency fudge factor.
+   *
+   * <p>Range equation (projectile from height h, angle θ, to ground): v =
+   * sqrt(g·d²/(2·cos²θ·(d·tanθ+h)))
    */
   private static ShooterSetpoint calculateNeutralZoneShot(
       Translation2d turretPosition, Translation3d target, Rotation2d robotHeading) {
     Translation2d turretToTarget =
         new Translation2d(target.getX(), target.getY()).minus(turretPosition);
+    double distance = turretToTarget.getNorm();
     Rotation2d turretAngle = turretToTarget.getAngle().minus(robotHeading);
 
-    double hoodAngleRad = Math.toRadians(Constants.Aiming.NEUTRAL_ZONE_HOOD_ANGLE_DEG);
-    double shooterRPS = Constants.ShooterConstants.NEUTRAL_ZONE_SPEED;
+    double hoodAngleDeg = Constants.Aiming.NEUTRAL_ZONE_HOOD_ANGLE_DEG;
+    double hoodAngleRad = Math.toRadians(hoodAngleDeg);
 
+    // Projectile launch height above ground (turret + hood offset)
+    double launchHeight = Constants.Aiming.NEUTRAL_ZONE_LAUNCH_HEIGHT_M;
+
+    // Solve range equation for required launch velocity (m/s):
+    //   v = sqrt(g * d^2 / (2 * cos^2(θ) * (d * tan(θ) + h)))
+    double cosTheta = Math.cos(hoodAngleRad);
+    double tanTheta = Math.tan(hoodAngleRad);
+    double denominator = 2.0 * cosTheta * cosTheta * (distance * tanTheta + launchHeight);
+
+    double requiredSpeedMps;
+    if (denominator > 0.01) {
+      requiredSpeedMps = Math.sqrt(9.81 * distance * distance / denominator);
+    } else {
+      // Fallback for degenerate cases (very close or bad angle)
+      requiredSpeedMps = 3.0;
+    }
+
+    // Convert m/s to flywheel RPS via a single scaling constant
+    double shooterRPS = requiredSpeedMps * Constants.Aiming.NEUTRAL_ZONE_RPS_PER_MPS;
+
+    // Clamp to safe flywheel limits
+    shooterRPS = Math.max(20.0, Math.min(shooterRPS, 100.0));
+
+    Logger.recordOutput("ShooterSetpoint/NeutralZone/DistanceM", distance);
+    Logger.recordOutput("ShooterSetpoint/NeutralZone/RequiredSpeedMps", requiredSpeedMps);
     Logger.recordOutput("ShooterSetpoint/NeutralZone/Speed", shooterRPS);
-    Logger.recordOutput("ShooterSetpoint/NeutralZone/HoodAngleDeg", Math.toDegrees(hoodAngleRad));
+    Logger.recordOutput("ShooterSetpoint/NeutralZone/HoodAngleDeg", hoodAngleDeg);
 
     return new ShooterSetpoint(
         shooterRPS, turretAngle.getRadians(), 0.0, hoodAngleRad, 0.0, true, true);

@@ -41,7 +41,7 @@ public class ConveyorIOSim implements ConveyorIO {
     }
 
     // Transfer fuel from intake to shooter when feeding
-    if (targetVelocityRPS < Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
+    if (targetVelocityRPS > Constants.SimConstants.CONVEYOR_FEED_THRESHOLD) {
       // Signal the shooter sim that the conveyor is actively feeding this cycle.
       // This prevents preloaded fuel from launching while the flywheel is spinning
       // but the conveyor is stopped (e.g. AIMING_WHILE_INTAKING state).

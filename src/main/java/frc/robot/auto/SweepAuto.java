@@ -7,12 +7,10 @@ package frc.robot.auto;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathPlannerPath;
-import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -198,54 +196,13 @@ public class SweepAuto {
   }
 
   /**
-   * 2910-style PID drive-to-pose. Linear PID drives distance error to zero while a heading PID
-   * holds the target angle. Static friction feedforward prevents stalling at small distances.
+   * Drive to a target pose using DriveSwerveDrivetrain's 2910-style DriveToPoint state. Uses CTRE's
+   * FieldCentricFacingAngle for 250 Hz heading control and separate auto/teleop PID gains.
    */
-  @SuppressWarnings("resource") // PIDController implements AutoCloseable but is never closed in FRC
   private Command buildDriveToPose(
       Pose2d target, double maxVelocity, double driveTolerance, double thetaTolerance) {
-    PIDController driveController =
-        new PIDController(
-            Constants.AutoConstants.DRIVE_TO_POSE_KP, 0, Constants.AutoConstants.DRIVE_TO_POSE_KD);
-    PIDController thetaController =
-        new PIDController(Constants.AutoConstants.DRIVE_TO_POSE_THETA_KP, 0, 0);
-    thetaController.enableContinuousInput(-Math.PI, Math.PI);
-
-    double frictionFF = Constants.AutoConstants.DRIVE_TO_POSE_FRICTION_FF * maxVelocity;
-
-    return Commands.run(
-            () -> {
-              Pose2d currentPose = drive.getPose();
-              Translation2d translationToTarget =
-                  target.getTranslation().minus(currentPose.getTranslation());
-              double linearDistance = translationToTarget.getNorm();
-              Rotation2d directionOfTravel = translationToTarget.getAngle();
-
-              double friction = (linearDistance >= Units.inchesToMeters(0.5)) ? frictionFF : 0.0;
-              double velocityOutput =
-                  Math.min(
-                      Math.abs(driveController.calculate(linearDistance, 0.0)) + friction,
-                      maxVelocity);
-
-              double vx = velocityOutput * directionOfTravel.getCos();
-              double vy = velocityOutput * directionOfTravel.getSin();
-              double omega =
-                  thetaController.calculate(
-                      currentPose.getRotation().getRadians(), target.getRotation().getRadians());
-
-              drive.driveFieldRelative(vx, vy, omega);
-            },
-            drive)
-        .until(
-            () -> {
-              Pose2d currentPose = drive.getPose();
-              double distError = currentPose.getTranslation().getDistance(target.getTranslation());
-              double headingError =
-                  Math.abs(
-                      MathUtil.angleModulus(
-                          currentPose.getRotation().getRadians()
-                              - target.getRotation().getRadians()));
-              return distError <= driveTolerance && headingError <= thetaTolerance;
-            });
+    return Commands.sequence(
+        Commands.runOnce(() -> drive.setDesiredPoseForDriveToPoint(target, maxVelocity), drive),
+        Commands.waitUntil(() -> drive.isAtDriveToPointSetpoint(driveTolerance, thetaTolerance)));
   }
 }

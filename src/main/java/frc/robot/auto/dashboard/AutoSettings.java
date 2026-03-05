@@ -243,7 +243,6 @@ public class AutoSettings {
         SmartDashboard.getString(PREFIX + "Intake Sequence", "ULDO"));
     Logger.recordOutput("AutoSettings/IntakePriority", intakePriority.toString());
     Logger.recordOutput("AutoSettings/AttemptClimb", attemptClimb);
-    Logger.recordOutput("AutoSettings/ClimbLevel", "LEVEL_1");
     Logger.recordOutput("AutoSettings/ClimbPose", climbPose.name());
     Logger.recordOutput("AutoSettings/ScorePreload", scorePreload);
     Logger.recordOutput("AutoSettings/AvailableTrenches", availableTrenches.toString());
@@ -260,7 +259,6 @@ public class AutoSettings {
         + intakePriority
         + ", climb="
         + attemptClimb
-        + ", climbLevel=LEVEL_1"
         + ", climbPose="
         + climbPose
         + ", scorePreload="

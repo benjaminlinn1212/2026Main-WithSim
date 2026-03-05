@@ -66,6 +66,17 @@ public final class Constants {
 
     public static final Translation2d ROBOT_TO_TURRET =
         TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
+
+    // Angular velocity rejection thresholds for turret camera vision.
+    // If the turret or chassis was spinning faster than these limits during the
+    // image capture window, the frame is rejected to avoid heading-mismatch error.
+    // Values in rad/s. 254 uses similar logic in shouldUsePinhole().
+    public static final double MAX_TURRET_ANGULAR_VELOCITY_FOR_VISION =
+        Units.degreesToRadians(200.0);
+    public static final double MAX_DRIVE_ANGULAR_VELOCITY_FOR_VISION =
+        Units.degreesToRadians(200.0);
+    /** How far back (seconds) to check for peak angular velocity relative to the capture time. */
+    public static final double VELOCITY_REJECTION_LOOKBACK = 0.10;
   }
 
   public static class AutoConstants {
@@ -75,7 +86,7 @@ public final class Constants {
 
     // PathPlanner pathfinding constraints (single source of truth)
     public static final double PATHFINDING_MAX_VELOCITY_MPS = 3.0;
-    public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 5.0;
+    public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 4.0;
     public static final double PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC = Math.toRadians(360);
     public static final double PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2 =
         Math.toRadians(540);
@@ -84,26 +95,40 @@ public final class Constants {
     /**
      * Distance (m) from the climb target at which the robot stops pathfinding and drives straight
      */
-    public static final double CLIMB_APPROACH_DISTANCE_M = 0.3;
+    public static final double CLIMB_APPROACH_DISTANCE_M = 0.2;
     /** Max velocity (m/s) cap for the PID-controlled straight-line drive into the tower */
     public static final double CLIMB_APPROACH_MAX_VELOCITY_MPS = 3.0;
     /** Position tolerance (m) to consider the robot arrived at the climb target */
     public static final double CLIMB_APPROACH_TOLERANCE_M = 0.01;
     /** Heading tolerance (rad) to consider the robot arrived at the climb target */
-    public static final double CLIMB_APPROACH_THETA_TOLERANCE_RAD = Math.toRadians(3.0);
+    public static final double CLIMB_APPROACH_THETA_TOLERANCE_RAD = Math.toRadians(1.0);
 
-    // DriveToPose PID gains (2910-style: PID on linear distance + heading PID)
-    /** Proportional gain for linear distance-to-target PID controller */
-    public static final double DRIVE_TO_POSE_KP = 3.5;
-    /** Derivative gain for linear distance-to-target PID controller */
-    public static final double DRIVE_TO_POSE_KD = 0.1;
-    /** Proportional gain for heading PID controller */
-    public static final double DRIVE_TO_POSE_THETA_KP = 5.0;
+    // DriveToPoint PID gains (2910-style: PID on scalar distance + CTRE heading PID)
+    // Separate auto/teleop gains for translation — auto is tighter, teleop is more aggressive.
+    /** Proportional gain for linear distance PID in autonomous */
+    public static final double DRIVE_TO_POINT_AUTO_KP = 3.0;
+    /** Derivative gain for linear distance PID in autonomous */
+    public static final double DRIVE_TO_POINT_AUTO_KD = 0.1;
+    /** Proportional gain for linear distance PID in teleop */
+    public static final double DRIVE_TO_POINT_TELEOP_KP = 3.0;
+    /** Derivative gain for linear distance PID in teleop */
+    public static final double DRIVE_TO_POINT_TELEOP_KD = 0.1;
+    /**
+     * Proportional gain for the CTRE PhoenixPIDController used by FieldCentricFacingAngle. Runs at
+     * 250 Hz in the odometry thread for smoother heading control than a 50 Hz software PID.
+     */
+    public static final double DRIVE_TO_POINT_HEADING_KP = 5.0;
     /**
      * Static friction feedforward constant. Multiplied by max velocity to produce a minimum
-     * velocity that overcomes drivetrain friction when distance > 0.5 inches.
+     * velocity that overcomes drivetrain friction when distance >= 0.5 inches.
      */
-    public static final double DRIVE_TO_POSE_FRICTION_FF = 0.02;
+    public static final double DRIVE_TO_POINT_FRICTION_FF = 0.02;
+    /** Default max velocity output (m/s) for drive-to-point when not otherwise specified */
+    public static final double DRIVE_TO_POINT_DEFAULT_MAX_VELOCITY_MPS = 3.0;
+    /** Translation tolerance (m) to consider the robot at the setpoint */
+    public static final double DRIVE_TO_POINT_POSITION_TOLERANCE_M = Units.inchesToMeters(1.0);
+    /** Heading tolerance (rad) to consider the robot at the setpoint */
+    public static final double DRIVE_TO_POINT_HEADING_TOLERANCE_RAD = Math.toRadians(2.0);
 
     /**
      * Derating factor for time estimation. AD* paths are longer than straight-line due to curves
@@ -136,27 +161,7 @@ public final class Constants {
     public static final double MAX_TELEOP_SPEED_MPS = 5.0;
     public static final double MAX_TELEOP_ANGULAR_SPEED_RAD_PER_SEC = Math.PI * 2;
 
-    // Slew rate limits (units per second) — limits how fast joystick commands can change.
-    // Translation: m/s per second (acceleration limit). Rotation: rad/s per second.
-    public static final double TRANSLATION_SLEW_RATE = 12.0; // m/s², ~0.4s from 0 to full speed
-    public static final double ROTATION_SLEW_RATE = 16.0; // rad/s², ~0.8s from 0 to full spin
-
-    public static final double JOYSTICK_DEADBAND = 0.04;
-
-    public static class DriveToPose {
-      // This constraint is used in the driveToPose() function by PPLib AND PIDControl.
-      public static final double TRANSLATION_KP = 2.0;
-      public static final double TRANSLATION_KI = 0.0;
-      public static final double TRANSLATION_KD = 0.2;
-      public static final double TRANSLATION_TOLERANCE = 0.05;
-      public static final double STATIC_FRICTION_CONSTANT = 1.2;
-      public static final double MAX_VELOCITY = 3.0;
-
-      public static final double ROTATION_KP = 7;
-      public static final double ROTATION_KI = 0.0;
-      public static final double ROTATION_KD = 0;
-      public static final double ROTATION_TOLERANCE = Units.degreesToRadians(1);
-    }
+    public static final double JOYSTICK_DEADBAND = 0.0;
 
     /**
      * Trench Teleop Assist tuning. When the robot is near a trench, two effects activate:
@@ -313,8 +318,13 @@ public final class Constants {
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0;
     public static final double OUTPOST_POSITION = 7.784;
-    public static final double HALF_DEPLOYED_POSITION = 25.0;
     public static final double DEPLOYED_POSITION = 27.0;
+
+    // Jiggle positions — pivot alternates between these two during feeding to dislodge FUEL
+    public static final double JIGGLE_POSITION_A = 23.0;
+    public static final double JIGGLE_POSITION_B = 26.0;
+    /** Seconds per half-cycle of the jiggle oscillation. */
+    public static final double JIGGLE_PERIOD_SECONDS = 0.5;
 
     // Position Tolerance
     public static final double POSITION_TOLERANCE = 0.1;
@@ -381,8 +391,23 @@ public final class Constants {
 
     public static final int FEEDFORWARD_FILTER_TAPS = 5;
 
-    // Neutral Zone Shot Settings
+    // Neutral Zone Feed Shot — physics-based (no interp maps needed)
+    /** Fixed hood angle (degrees) for neutral zone ground-level lob shots. */
     public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG = 35.0;
+
+    /**
+     * Launch height above ground (meters) for neutral zone shots. Typically turret height + hood
+     * offset. Approximated from MechanismVisualization constants (~0.45m).
+     */
+    public static final double NEUTRAL_ZONE_LAUNCH_HEIGHT_M = 0.45;
+
+    /**
+     * Flywheel RPS per m/s of required launch speed. This is the single fudge factor that maps
+     * physics-computed launch velocity to actual flywheel command. Increase if balls fall short,
+     * decrease if they overshoot. Starting estimate derived from hub shot data: ~65 RPS produces
+     * roughly 6–7 m/s effective ball speed → ~10 RPS/mps.
+     */
+    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 15.0;
   }
 
   public static class TurretConstants {
@@ -412,9 +437,9 @@ public final class Constants {
     public static final double KG = 0.0;
 
     // Motion Magic Constants (motor rotations per second)
-    public static final double CRUISE_VELOCITY = 2.0 / GEAR_RATIO;
-    public static final double ACCELERATION = 10.0 / GEAR_RATIO;
-    public static final double JERK = 100.0 / GEAR_RATIO;
+    public static final double CRUISE_VELOCITY = 90;
+    public static final double ACCELERATION = 360;
+    public static final double JERK = 2000;
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 150.0;
@@ -456,9 +481,6 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Shooter Speed Presets (rotations per second)
-    public static final double NEUTRAL_ZONE_SPEED = 80.0;
-
     // Velocity Tolerance
     public static final double VELOCITY_TOLERANCE = 2.0;
   }
@@ -487,9 +509,9 @@ public final class Constants {
     public static final GravityTypeValue GRAVITY_TYPE = GravityTypeValue.Elevator_Static;
 
     // Motion Magic Constants (motor rotations per second)
-    public static final double CRUISE_VELOCITY = 80.0 / GEAR_RATIO;
-    public static final double ACCELERATION = 160.0 / GEAR_RATIO;
-    public static final double JERK = 1600.0 / GEAR_RATIO;
+    public static final double CRUISE_VELOCITY = 80.0;
+    public static final double ACCELERATION = 160.0;
+    public static final double JERK = 1600.0;
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 60.0;
@@ -589,10 +611,10 @@ public final class Constants {
 
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // PID and Feedforward Constants (Slot 0 Ã¢â‚¬â€ MotionMagicVoltage position control)
-    public static final double KP = 2.0;
+    // PID and Feedforward Constants (Slot 0 Ã¢â‚¬â€ MotionMagicVoltage position control)
+    public static final double KP = 1.0;
     public static final double KI = 0.0;
-    public static final double KD = 0.0;
+    public static final double KD = 0.05;
     public static final double KS = 0.0;
     public static final double KV = 0.0;
     public static final double KA = 0.0;
@@ -695,6 +717,14 @@ public final class Constants {
 
     public static final double VELOCITY_KG_PULLING = 0.0;
 
+    // Cartesian position correction gain applied during velocity-mode path following.
+    // Adds a proportional velocity correction = kP * (targetPos - measuredPos) to the
+    // feedforward velocity each cycle, reducing position drift from velocity tracking error.
+    // Units: (m/s) per (m) of position error. Applies to both sim and real hardware.
+    // Set to 0.0 to disable — the TalonFX inner velocity PID handles tracking well enough
+    // on real hardware, and the outer P loop can cause overshoot due to FK latency.
+    public static final double PATH_POSITION_CORRECTION_KP = 0.0;
+
     // ==================== IMU Climb Assist (Auto-Level) ====================
     // Uses IMU roll to differentially adjust left/right end-effector velocities
     // during RETRACT paths, keeping the robot level while pulling up.
@@ -795,9 +825,10 @@ public final class Constants {
 
     // --- Conveyor / Fuel Transfer ---
     /**
-     * Conveyor percent-output threshold to trigger feeding toward the shooter (negative = feed).
+     * Conveyor velocity threshold (RPS) above which the sim considers the conveyor to be feeding
+     * toward the shooter. Must be positive — the conveyor feeds at +FEED_VELOCITY_RPS.
      */
-    public static final double CONVEYOR_FEED_THRESHOLD = -0.05;
+    public static final double CONVEYOR_FEED_THRESHOLD = 0.5;
 
     /** Cooldown ticks (Ã— 20 ms) between consecutive fuel transfers from intake â†’ shooter. */
     public static final int FEED_COOLDOWN_TICKS = 7;

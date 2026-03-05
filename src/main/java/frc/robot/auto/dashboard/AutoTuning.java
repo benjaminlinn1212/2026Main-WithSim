@@ -44,6 +44,15 @@ public final class AutoTuning {
   // all FUEL has been fired.
 
   /**
+   * Master toggle for current-based shot completion detection in auto. When {@code true}, auto uses
+   * conveyor current monitoring to detect when all FUEL has been fired. When {@code false}, auto
+   * falls back to a fixed time delay ({@link #SHOOTER_DETECT_TIMEOUT_SECONDS}) instead.
+   *
+   * <p>Set to {@code false} during early testing or if current detection is unreliable.
+   */
+  public static final boolean USE_CURRENT_DETECTION = false;
+
+  /**
    * TUNE THIS: Stator current threshold (amps) for the conveyor motor below which we consider "no
    * FUEL being fed". When FUEL is being pushed into the shooter, the conveyor is loaded and current
    * stays above this. When all FUEL has exited and the conveyor is spinning freely, current drops

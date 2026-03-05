@@ -8,11 +8,9 @@ import static frc.robot.auto.dashboard.AutoTuning.*;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.path.PathConstraints;
 import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -64,9 +62,9 @@ public class AutoCommandBuilder {
   private final ClimbSubsystem climb;
 
   /**
-   * Latch for the zone-aware feeding gate. When true, the robot is currently feeding
-   * (SHOOTING_WHILE_INTAKING or ONLY_SHOOTING). It latches on once the hood first reaches its
-   * setpoint, and only resets when leaving the aiming zone or starting a new command phase.
+   * Latch for the zone-aware feeding gate. When true, the robot is currently feeding (conveyor +
+   * indexer active via feedingRequested). It latches on once the hood first reaches its setpoint,
+   * and only resets when leaving the aiming zone or starting a new command phase.
    */
   private boolean zoneAwareFeeding = false;
 
@@ -615,6 +613,12 @@ public class AutoCommandBuilder {
       return Commands.waitSeconds(SIM_SHOOTER_DONE_SECONDS).withName("ShooterDetect_Sim");
     }
 
+    // Current detection disabled — use fixed timeout as fallback
+    if (!USE_CURRENT_DETECTION) {
+      return Commands.waitSeconds(SHOOTER_DETECT_TIMEOUT_SECONDS)
+          .withName("ShooterDetect_FixedTime");
+    }
+
     // Real robot: reset detection, then wait for Superstructure to declare "done"
     return Commands.sequence(
             Commands.runOnce(() -> superstructure.resetShooterDetection()),
@@ -778,8 +782,8 @@ public class AutoCommandBuilder {
    *   <li><b>Neutral/opponent zone:</b> ONLY_INTAKE (turret stowed, just collect FUEL)
    *   <li><b>Aiming zone, hood not at setpoint:</b> AIMING_WHILE_INTAKING (turret tracks, hood
    *       deploying, no feed)
-   *   <li><b>Aiming zone, hood ready:</b> SHOOTING_WHILE_INTAKING (turret tracks + feed, latches
-   *       on)
+   *   <li><b>Aiming zone, hood ready:</b> AIMING_WHILE_INTAKING + feedingRequested (turret tracks +
+   *       feed, latches on)
    * </ul>
    *
    * <p>Once feeding starts (hood reaches setpoint), it stays latched on to avoid stutter from sim
@@ -799,12 +803,11 @@ public class AutoCommandBuilder {
             // Deadline: the path finishing is what ends this group
             pathfindTo(destination),
             // Continuous zone-aware shooting: every cycle, check zone + hood and
-            // switch between AIMING_WHILE_INTAKING and SHOOTING_WHILE_INTAKING. Once
-            // hood reaches setpoint, feeding latches on. Resets when leaving aiming zone.
+            // toggle feedingRequested. Once hood reaches setpoint, feeding latches on.
+            // Resets when leaving aiming zone.
             Commands.run(
                 () -> {
                   updateZoneAwareFeeding(
-                      Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
                       Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
                       Superstructure.SuperstructureState.ONLY_INTAKE);
                 },
@@ -823,8 +826,8 @@ public class AutoCommandBuilder {
    * position and acceleration:
    *
    * <ul>
-   *   <li><b>Alliance / HUB zone, low accel:</b> SHOOTING_WHILE_INTAKING — opportunistically dumps
-   *       any loaded FUEL into the HUB while driving through.
+   *   <li><b>Alliance / HUB zone, low accel:</b> AIMING_WHILE_INTAKING + feedingRequested —
+   *       opportunistically dumps any loaded FUEL into the HUB while driving through.
    *   <li><b>Alliance / HUB zone, high accel:</b> AIMING_WHILE_INTAKING — turret tracks HUB but
    *       doesn't feed (shots inaccurate while accelerating).
    *   <li><b>Neutral zone:</b> ONLY_INTAKE — turret stowed, just collect FUEL.
@@ -890,9 +893,8 @@ public class AutoCommandBuilder {
    * <p><b>Timeline (overlapped):</b>
    *
    * <ol>
-   *   <li><b>Immediately:</b> Switch superstructure to ONLY_AIMING/ONLY_SHOOTING (stows intake
-   *       while keeping turret/hood/shooter active). Zone-aware shooting continues the entire
-   *       drive.
+   *   <li><b>Immediately:</b> Switch superstructure to ONLY_AIMING + feedingRequested (stows intake
+   *       while keeping turret/hood/shooter active). Zone-aware feeding continues the entire drive.
    *   <li><b>Intake stowed:</b> Climb hooks start extending (runs in parallel with driving +
    *       shooting). The arms extend mid-transit so they're ready before the robot arrives.
    *   <li><b>Drivetrain reaches standoff:</b> Pathfinding ends. Superstructure goes IDLE (stops
@@ -922,8 +924,8 @@ public class AutoCommandBuilder {
             // The climb extend runs independently (not killed by pathfind ending).
             Commands.parallel(
                 // Group 1: Drive to standoff with zone-aware shooting en route.
-                // Uses ONLY_SHOOTING/ONLY_AIMING (intake stowed, turret active) so the
-                // intake retracts immediately and the climb arms can start extending.
+                // Uses ONLY_AIMING (intake stowed, turret active) with feedingRequested
+                // so the intake retracts immediately and the climb arms can start extending.
                 Commands.deadline(
                     Commands.defer(
                         () -> AutoBuilder.pathfindToPose(standoffPose, getPathConstraints(), 0.0),
@@ -931,7 +933,6 @@ public class AutoCommandBuilder {
                     Commands.run(
                         () -> {
                           updateZoneAwareFeeding(
-                              Superstructure.SuperstructureState.ONLY_SHOOTING,
                               Superstructure.SuperstructureState.ONLY_AIMING,
                               Superstructure.SuperstructureState.IDLE);
                         },
@@ -946,7 +947,7 @@ public class AutoCommandBuilder {
             Commands.runOnce(
                 () -> {
                   zoneAwareFeeding = false;
-                  superstructure.setAutoShootingHalfDeploy(false);
+                  superstructure.setFeedingRequested(false);
                   superstructure.forceWantedState(Superstructure.SuperstructureState.IDLE);
                 }),
             // Phase 2: Hooks extended, robot at standoff — drive straight into tower
@@ -1000,22 +1001,21 @@ public class AutoCommandBuilder {
    */
   private Command buildStopAndShootSequence() {
     return Commands.sequence(
-        // Half-deploy intake while shooting to dislodge stuck FUEL
-        Commands.runOnce(() -> superstructure.setAutoShootingHalfDeploy(true)),
-        // Feed only while stopped. Every cycle: check robot speed and toggle between
-        // SHOOTING_WHILE_INTAKING (stopped) and AIMING_WHILE_INTAKING (moving).
+        // Feed only while stopped. Every cycle: check robot speed and toggle
+        // feedingRequested. State stays AIMING_WHILE_INTAKING throughout.
+        // Jiggle is automatic — feedingRequested drives it via Superstructure.periodic().
         Commands.deadline(
             waitForShooterEmpty(),
             Commands.run(
                 () -> {
+                  superstructure.forceWantedState(
+                      Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
                   if (drive.getLinearSpeedMps() > STOP_AND_SHOOT_MAX_SPEED_MPS) {
                     // Robot is moving — stop feeding, keep aiming
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.AIMING_WHILE_INTAKING);
+                    superstructure.setFeedingRequested(false);
                   } else {
                     // Robot is stopped — feed
-                    superstructure.forceWantedState(
-                        Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING);
+                    superstructure.setFeedingRequested(true);
                   }
                 },
                 superstructure)),
@@ -1028,7 +1028,7 @@ public class AutoCommandBuilder {
             () -> {
               zoneAwareFeeding = false;
               zoneAwareFeedingArmed = false;
-              superstructure.setAutoShootingHalfDeploy(false);
+              superstructure.setFeedingRequested(false);
               superstructure.forceWantedState(Superstructure.SuperstructureState.ONLY_INTAKE);
             }));
   }
@@ -1077,58 +1077,9 @@ public class AutoCommandBuilder {
    */
   private Command buildDriveToPose(
       Pose2d target, double maxVelocity, double driveTolerance, double thetaTolerance) {
-    // Create PID controllers fresh for each command instance
-    PIDController driveController =
-        new PIDController(
-            Constants.AutoConstants.DRIVE_TO_POSE_KP, 0, Constants.AutoConstants.DRIVE_TO_POSE_KD);
-    PIDController thetaController =
-        new PIDController(Constants.AutoConstants.DRIVE_TO_POSE_THETA_KP, 0, 0);
-    thetaController.enableContinuousInput(-Math.PI, Math.PI);
-
-    double frictionFF = Constants.AutoConstants.DRIVE_TO_POSE_FRICTION_FF * maxVelocity;
-
-    return Commands.run(
-            () -> {
-              Pose2d currentPose = drive.getPose();
-
-              // Translation: compute direction and distance to target
-              Translation2d translationToTarget =
-                  target.getTranslation().minus(currentPose.getTranslation());
-              double linearDistance = translationToTarget.getNorm();
-              Rotation2d directionOfTravel = translationToTarget.getAngle();
-
-              // Static friction feedforward: only add when > 0.5 inches away
-              double friction = (linearDistance >= Units.inchesToMeters(0.5)) ? frictionFF : 0.0;
-
-              // PID on distance → velocity magnitude, clamped to max
-              double velocityOutput =
-                  Math.min(
-                      Math.abs(driveController.calculate(linearDistance, 0.0)) + friction,
-                      maxVelocity);
-
-              // Project scalar velocity along direction of travel
-              double vx = velocityOutput * directionOfTravel.getCos();
-              double vy = velocityOutput * directionOfTravel.getSin();
-
-              // Heading PID
-              double omega =
-                  thetaController.calculate(
-                      currentPose.getRotation().getRadians(), target.getRotation().getRadians());
-
-              drive.driveFieldRelative(vx, vy, omega);
-            },
-            drive)
-        .until(
-            () -> {
-              Pose2d currentPose = drive.getPose();
-              double distError = currentPose.getTranslation().getDistance(target.getTranslation());
-              double headingError =
-                  Math.abs(
-                      MathUtil.angleModulus(
-                          currentPose.getRotation().getRadians()
-                              - target.getRotation().getRadians()));
-              return distError <= driveTolerance && headingError <= thetaTolerance;
-            });
+    return Commands.sequence(
+        Commands.runOnce(() -> drive.setDesiredPoseForDriveToPoint(target, maxVelocity), drive),
+        Commands.waitUntil(() -> drive.isAtDriveToPointSetpoint(driveTolerance, thetaTolerance)));
   }
 
   /**
@@ -1187,18 +1138,17 @@ public class AutoCommandBuilder {
    * requiring a zone exit first, the robot must drive through the neutral zone (picking up FUEL)
    * before feeding can resume.
    *
-   * @param feedingState State to apply when feeding (hood ready)
-   * @param aimingState State to apply when aiming but not yet feeding
+   * @param aimingState State to apply when in the aiming zone (feeding is controlled by
+   *     feedingRequested)
    * @param outsideState State to apply when outside the aiming zone
    */
   private void updateZoneAwareFeeding(
-      Superstructure.SuperstructureState feedingState,
       Superstructure.SuperstructureState aimingState,
       Superstructure.SuperstructureState outsideState) {
     if (isOutsideAimingZone()) {
       zoneAwareFeeding = false;
       zoneAwareFeedingArmed = true; // Arm the gate — next aiming-zone entry can latch
-      superstructure.setAutoShootingHalfDeploy(false);
+      superstructure.setFeedingRequested(false);
       superstructure.forceWantedState(outsideState);
     } else {
       // Once feeding starts, stay latched on — don't stop for brief hood oscillations.
@@ -1207,10 +1157,9 @@ public class AutoCommandBuilder {
       if (!zoneAwareFeeding && zoneAwareFeedingArmed && superstructure.isHoodAtSetpoint()) {
         zoneAwareFeeding = true;
       }
-      // Half-deploy the intake while feeding so it oscillates and dislodges stuck FUEL.
-      // Full deploy resumes as soon as feeding stops.
-      superstructure.setAutoShootingHalfDeploy(zoneAwareFeeding);
-      superstructure.forceWantedState(zoneAwareFeeding ? feedingState : aimingState);
+      // Jiggle is automatic — feedingRequested drives it via Superstructure.periodic().
+      superstructure.setFeedingRequested(zoneAwareFeeding);
+      superstructure.forceWantedState(aimingState);
     }
   }
 
@@ -1274,9 +1223,9 @@ public class AutoCommandBuilder {
    *       and hood deploys, but don't feed yet (hood still moving after leaving trench).
    *   <li><b>In aiming zone, hood at setpoint, high acceleration:</b> AIMING_WHILE_INTAKING —
    *       turret tracks HUB, but don't feed (shots inaccurate while accelerating).
-   *   <li><b>In aiming zone, hood at setpoint, low acceleration:</b> SHOOTING_WHILE_INTAKING —
-   *       turret tracks HUB AND conveyor/indexer feed FUEL. Opportunistic scoring whenever the
-   *       robot is cruising near the HUB with hood settled.
+   *   <li><b>In aiming zone, hood at setpoint, low acceleration:</b> AIMING_WHILE_INTAKING +
+   *       feedingRequested — turret tracks HUB AND conveyor/indexer feed FUEL. Opportunistic
+   *       scoring whenever the robot is cruising near the HUB with hood settled.
    * </ul>
    *
    * <p>This turns the robot into a continuous opportunistic shooter during auto — any time it's in
@@ -1295,7 +1244,6 @@ public class AutoCommandBuilder {
             Commands.run(
                 () -> {
                   updateZoneAwareFeeding(
-                      Superstructure.SuperstructureState.SHOOTING_WHILE_INTAKING,
                       Superstructure.SuperstructureState.AIMING_WHILE_INTAKING,
                       Superstructure.SuperstructureState.ONLY_INTAKE);
                 },

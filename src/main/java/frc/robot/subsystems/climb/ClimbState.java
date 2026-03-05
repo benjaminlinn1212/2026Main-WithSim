@@ -41,11 +41,11 @@ public enum ClimbState {
   RETRACT_L1(
       "Retracting on L1",
       List.of(
-          new Translation2d(0.6, 0.63),
+          new Translation2d(0.63, 0.61),
           new Translation2d(0.63, 0.60),
           new Translation2d(0.65, 0.46),
           new Translation2d(0.56, 0.42),
-          new Translation2d(0.491, 0.146)),
+          new Translation2d(0.491, 0.246)),
       true),
 
   /** Release angle servos after L1 retract (servo-only, no path) */
@@ -120,6 +120,7 @@ public enum ClimbState {
 
   // ── Special states ──
   MANUAL("Manual", new Translation2d(0.0, 0.0), false),
+  CALIBRATION("Calibration", new Translation2d(0.0, 0.0), false),
   EMERGENCY_STOP("E-Stop", new Translation2d(0.0, 0.0), false);
 
   // State data
@@ -133,7 +134,7 @@ public enum ClimbState {
     this(name, waypoints.get(waypoints.size() - 1), waypoints, isPulling);
   }
 
-  /** Constructor for states WITHOUT a path (STOWED, MANUAL, EMERGENCY_STOP). */
+  /** Constructor for states WITHOUT a path (STOWED, MANUAL, CALIBRATION, EMERGENCY_STOP). */
   ClimbState(String name, Translation2d target, boolean isPulling) {
     this(name, target, null, isPulling);
   }
@@ -207,7 +208,7 @@ public enum ClimbState {
       case EXTEND_L3:
         return RETRACT_L3;
       default:
-        return null; // Terminal states (RETRACT_L3, MANUAL, EMERGENCY_STOP)
+        return null; // Terminal states (RETRACT_L3, MANUAL, CALIBRATION, EMERGENCY_STOP)
     }
   }
 

@@ -1,5 +1,6 @@
 package frc.robot.subsystems.intakepivot;
 
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.IntakePivotConstants;
@@ -82,11 +83,18 @@ public class IntakePivotSubsystem extends SubsystemBase {
   }
 
   /**
-   * Directly apply the half-deployed position. Used for intake shake — oscillates between half and
-   * full deployed to dislodge stuck fuel. This is a plain void method for Superstructure use.
+   * Directly apply the jiggle oscillation. Alternates between JIGGLE_POSITION_A and
+   * JIGGLE_POSITION_B at the configured period. Called every cycle by Superstructure.periodic()
+   * when feeding is active and the intake is deployed, to dislodge stuck FUEL.
    */
-  public void applyHalfDeploy() {
-    io.setPosition(IntakePivotConstants.HALF_DEPLOYED_POSITION);
+  public void applyJiggle() {
+    double half = IntakePivotConstants.JIGGLE_PERIOD_SECONDS;
+    double phase = Timer.getFPGATimestamp() % (2.0 * half);
+    if (phase < half) {
+      io.setPosition(IntakePivotConstants.JIGGLE_POSITION_A);
+    } else {
+      io.setPosition(IntakePivotConstants.JIGGLE_POSITION_B);
+    }
   }
 
   /**
@@ -98,9 +106,15 @@ public class IntakePivotSubsystem extends SubsystemBase {
     io.setPosition(IntakePivotConstants.OUTPOST_POSITION);
   }
 
-  /** Check if intake is at the half-deployed position */
-  public boolean isHalfDeployed() {
-    return atPosition(IntakePivotConstants.HALF_DEPLOYED_POSITION);
+  /** Check if intake is currently within the jiggle range (between A and B positions). */
+  public boolean isJiggling() {
+    double pos = inputs.positionRotations;
+    double lo =
+        Math.min(IntakePivotConstants.JIGGLE_POSITION_A, IntakePivotConstants.JIGGLE_POSITION_B);
+    double hi =
+        Math.max(IntakePivotConstants.JIGGLE_POSITION_A, IntakePivotConstants.JIGGLE_POSITION_B);
+    return pos >= lo - IntakePivotConstants.POSITION_TOLERANCE
+        && pos <= hi + IntakePivotConstants.POSITION_TOLERANCE;
   }
 
   /**

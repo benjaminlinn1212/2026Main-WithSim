@@ -21,20 +21,23 @@ public class IntakePivotIOSim implements IntakePivotIO {
   private double appliedVolts = 0.0;
   private boolean closedLoop = false;
 
-  // Sim-only PID gains
-  private static final double SIM_KP = 1.5;
+  // Sim-only PID gains (acts on profiled position error in meters = rotations)
+  private static final double SIM_KP = 6.0;
   private static final double SIM_KI = 0.0;
-  private static final double SIM_KD = 0.4;
+  private static final double SIM_KD = 0.6;
 
   // Sim-only feedforward gains
+  // kV: Kraken X60 free speed ~100 RPS → ~100 m/s in sim units → kV ≈ 12V / 100 = 0.12
   private static final double SIM_KS = 0.0;
-  private static final double SIM_KG = 0.05;
+  private static final double SIM_KG = 0.0;
   private static final double SIM_KV = 0.0;
   private static final double SIM_KA = 0.0;
 
   // Sim-only Motion Magic constraints
+  // ElevatorSim position is in "meters" where 1 meter = 1 motor rotation.
+  // Kraken X60 free speed ≈ 100 RPS, so max ~100 m/s. Use ~80% for margin.
   private static final double SIM_CRUISE_VELOCITY = 100.0;
-  private static final double SIM_ACCELERATION = 300.0;
+  private static final double SIM_ACCELERATION = 2000.0;
 
   public IntakePivotIOSim() {
     sim =

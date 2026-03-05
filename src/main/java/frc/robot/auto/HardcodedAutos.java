@@ -169,19 +169,22 @@ public class HardcodedAutos {
   /**
    * Stop-and-shoot: fire FUEL at the HUB while stationary.
    *
-   * <p>The turret should already be tracking the HUB via zone-aware intake during the drive. We go
-   * straight to SHOOTING_WHILE_INTAKING (not AIMING first) to avoid a visible state flicker.
+   * <p>The turret should already be tracking the HUB via zone-aware intake during the drive. We
+   * enable feeding immediately — the superstructure stays in AIMING_WHILE_INTAKING and the
+   * feedingRequested flag drives conveyor/indexer.
    *
    * <p>Uses fixed wait times for simplicity — this is a fallback auto, not the optimized dashboard
    * auto. The dashboard auto uses current-based detection; hardcoded autos keep it simple.
    */
   private Command buildStopAndShootSequence() {
     return Commands.sequence(
-        // Fire immediately — turret was already tracking via zoneAwareIntake during the drive
-        superstructure.shootingWhileIntaking(),
+        // Enable feeding — turret was already tracking via zoneAwareIntake during the drive
+        superstructure.aimingWhileIntaking(),
+        Commands.runOnce(() -> superstructure.setFeedingRequested(true)),
         // Wait for FUEL to exit the shooter
         Commands.waitSeconds(SHOOT_DURATION_SECONDS),
-        // Return to zone-aware default
+        // Stop feeding and return to zone-aware default
+        Commands.runOnce(() -> superstructure.setFeedingRequested(false)),
         zoneAwareDefaultState());
   }
 

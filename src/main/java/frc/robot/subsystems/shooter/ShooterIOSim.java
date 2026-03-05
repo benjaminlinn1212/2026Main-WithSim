@@ -188,14 +188,15 @@ public class ShooterIOSim implements ShooterIO {
     // Configure trajectory visualization
     fuelOnFly.withProjectileTrajectoryDisplayCallBack(
         (poses) ->
-            Logger.recordOutput("Flywheel/FuelProjectileSuccessful", poses.toArray(Pose3d[]::new)),
+            Logger.recordOutput(
+                "Shooter/Sim/FuelProjectileSuccessful", poses.toArray(Pose3d[]::new)),
         (poses) ->
-            Logger.recordOutput("Flywheel/FuelProjectileMissed", poses.toArray(Pose3d[]::new)));
+            Logger.recordOutput("Shooter/Sim/FuelProjectileMissed", poses.toArray(Pose3d[]::new)));
 
     fuelOnFly.enableBecomesGamePieceOnFieldAfterTouchGround();
     SimulatedArena.getInstance().addGamePieceProjectile(fuelOnFly);
 
-    Logger.recordOutput("Flywheel/LaunchSpeedMps", launchSpeedMps);
-    Logger.recordOutput("Flywheel/LaunchAngleDeg", launchAngleDeg);
+    Logger.recordOutput("Shooter/Sim/LaunchSpeedMps", launchSpeedMps);
+    Logger.recordOutput("Shooter/Sim/LaunchAngleDeg", launchAngleDeg);
   }
 }

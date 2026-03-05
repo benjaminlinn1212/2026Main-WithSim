@@ -11,6 +11,7 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.wpilibj.Timer;
 import frc.robot.Constants;
 import frc.robot.LimelightHelpers;
 import frc.robot.RobotState;
@@ -38,8 +39,10 @@ public class VisionIOHardwareLimelight implements VisionIO {
     LimelightHelpers.SetIMUMode(Constants.Vision.FRONT_LIMELIGHT_NAME, 0);
 
     // Turret camera: Mode 0 — use external heading only (internal IMU disabled).
-    // TODO: Switch to mode 1 (seed) while disabled → mode 4 (internal + external assist)
-    // when enabled, to eliminate heading-vs-image timing mismatch that causes turret oscillation.
+    // The Pigeon2 gyro is far more accurate than the LL onboard IMU, so we keep
+    // mode 0. To compensate for the heading-vs-image timing mismatch,
+    // updateOrientations() estimates the capture timestamp and interpolates the
+    // turret angle back to that instant.
     LimelightHelpers.SetIMUMode(Constants.Vision.TURRET_LIMELIGHT_NAME, 0);
   }
 
@@ -89,6 +92,12 @@ public class VisionIOHardwareLimelight implements VisionIO {
    * <p>Drivetrain cameras receive the robot's field heading. The turret camera receives the
    * turret's field heading (robot heading + turret angle) so the Limelight can solve for the
    * camera's field pose.
+   *
+   * <p>For the turret camera we estimate the image capture time (now − capture − pipeline latency)
+   * and look up the turret angle at that instant. This removes the heading timing mismatch that
+   * occurs because SetRobotOrientation is called "now" but the LL image was captured ~20-50 ms ago.
+   * The yaw-rate we send lets the LL refine further, but using a time-corrected heading as the
+   * starting point is significantly more accurate than relying on linear extrapolation alone.
    */
   private void updateOrientations() {
     var latestEntry = robotState.getLatestFieldToRobot();
@@ -101,7 +110,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
         Units.radiansToDegrees(
             robotState.getLatestRobotRelativeChassisSpeed().omegaRadiansPerSecond);
 
-    // Drivetrain camera — send robot heading
+    // Drivetrain camera — send robot heading (gyro is time-aligned, no correction needed)
     LimelightHelpers.SetRobotOrientation(
         Constants.Vision.FRONT_LIMELIGHT_NAME,
         robotHeading.getDegrees(),
@@ -111,8 +120,19 @@ public class VisionIOHardwareLimelight implements VisionIO {
         0,
         0);
 
-    // Turret camera — send turret's field-relative heading (raw radians, no wrapping)
-    double turretAngleRad = robotState.getLatestRobotToTurret().getValue();
+    // Turret camera — estimate the turret heading at the image capture instant.
+    // Capture + pipeline latency (ms → s) tells us how far back the image was taken.
+    double captureLatencyS =
+        (LimelightHelpers.getLatency_Capture(Constants.Vision.TURRET_LIMELIGHT_NAME)
+                + LimelightHelpers.getLatency_Pipeline(Constants.Vision.TURRET_LIMELIGHT_NAME))
+            / 1000.0;
+    double estimatedCaptureTimestamp = Timer.getFPGATimestamp() - captureLatencyS;
+
+    // Look up the interpolated turret angle at the estimated capture time
+    double turretAngleRad =
+        robotState
+            .getInterpolatedRobotToTurret(estimatedCaptureTimestamp)
+            .orElse(robotState.getLatestRobotToTurret().getValue());
     double turretFieldHeadingDeg = robotHeading.getDegrees() + Math.toDegrees(turretAngleRad);
     double turretOmegaDegPerSec =
         Units.radiansToDegrees(

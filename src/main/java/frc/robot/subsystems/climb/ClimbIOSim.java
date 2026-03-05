@@ -164,9 +164,16 @@ public class ClimbIOSim implements ClimbIO {
 
   // ── MotionMagic-style trapezoidal profile simulation ──
 
+  // Position correction gain — mimics the real TalonFX's internal PID that closes the loop
+  // around the profile setpoint. Without this, discrete-time integration drift causes the
+  // sim motors to never quite reach their target.
+  private static final double POSITION_CORRECTION_KP = 50.0;
+
   /**
    * Simulate one DT step of a trapezoidal motion profile (MotionMagic). The motor accelerates
    * toward cruise velocity, decelerates to stop at the target, and respects the acceleration limit.
+   * A proportional position correction term (mimicking the real TalonFX PID) eliminates
+   * steady-state error from discrete-time integration.
    *
    * @param currentPos Current mechanism position (rotations)
    * @param currentVel Current mechanism velocity (rot/s)
@@ -180,7 +187,7 @@ public class ClimbIOSim implements ClimbIO {
     double direction = Math.signum(error);
 
     // If very close and slow enough, snap to zero velocity (holding position)
-    if (absError < 1e-5 && Math.abs(currentVel) < 1e-3) {
+    if (absError < 1e-3 && Math.abs(currentVel) < 0.1) {
       return 0.0;
     }
 
@@ -198,6 +205,9 @@ public class ClimbIOSim implements ClimbIO {
       // Acceleration/cruise phase
       desiredVel = direction * CRUISE_VEL;
     }
+
+    // Add proportional position correction (like real TalonFX PID slot)
+    desiredVel += error * POSITION_CORRECTION_KP;
 
     // Apply acceleration limit to velocity change
     return rampVelocity(currentVel, desiredVel);

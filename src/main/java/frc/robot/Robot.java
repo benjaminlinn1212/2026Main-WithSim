@@ -7,6 +7,8 @@
 
 package frc.robot;
 
+import com.pathplanner.lib.commands.FollowPathCommand;
+import com.pathplanner.lib.commands.PathfindingCommand;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -95,6 +97,13 @@ public class Robot extends LoggedRobot {
 
     // Instantiate our RobotContainer
     robotContainer = new RobotContainer();
+
+    // Warm up PathPlanner commands. Java class loading + JIT compilation causes a
+    // significant delay on the first pathfinding/path-following call. These warmup
+    // commands run a dummy path in the background (no robot output) during disabled
+    // so subsequent real commands execute instantly.
+    CommandScheduler.getInstance().schedule(FollowPathCommand.warmupCommand());
+    CommandScheduler.getInstance().schedule(PathfindingCommand.warmupCommand());
   }
 
   @Override

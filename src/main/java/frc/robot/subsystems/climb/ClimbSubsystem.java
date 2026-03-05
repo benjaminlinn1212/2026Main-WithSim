@@ -1,7 +1,10 @@
 package frc.robot.subsystems.climb;
 
+import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
 import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
@@ -12,10 +15,13 @@ import edu.wpi.first.wpilibj.util.Color8Bit;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.Constants.AutoConstants;
 import frc.robot.Constants.ClimbConstants;
+import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.util.ClimbIK;
 import frc.robot.subsystems.climb.util.ClimbIK.ClimbIKResult;
 import frc.robot.subsystems.climb.util.ClimbPathPlanner;
+import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import java.util.List;
 import java.util.Set;
 import java.util.function.DoubleSupplier;
@@ -37,15 +43,15 @@ import org.littletonrobotics.junction.Logger;
 public class ClimbSubsystem extends SubsystemBase {
 
   /**
-   * Operator-selectable climb level for teleop. Determines which sequence the operator's
-   * nextClimbStep / previousClimbStep commands follow.
+   * Dashboard-selectable climb level. Determines which climb sequence is used by teleop
+   * nextClimbStep / previousClimbStep and the auto-climb command.
    *
    * <ul>
    *   <li>{@code L1} — Uses the auto L1 sequence (EXTEND_L1_AUTO → RETRACT_L1_AUTO). Quick climb.
    *   <li>{@code L2L3} — Uses the full teleop sequence through L1 → L2 → L3 with servo operations.
    * </ul>
    */
-  public enum OperatorClimbLevel {
+  public enum ClimbLevel {
     L1,
     L2L3
   }
@@ -57,8 +63,12 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d leftTargetPosition = ClimbState.STOWED.getTargetPosition();
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
 
-  // ─── Operator climb level (set from RobotContainer via supplier) ───
-  private Supplier<OperatorClimbLevel> operatorClimbLevelSupplier = () -> OperatorClimbLevel.L2L3;
+  // ─── Climb level (set from RobotContainer via supplier) ───
+  private Supplier<ClimbLevel> climbLevelSupplier = () -> ClimbLevel.L2L3;
+
+  // ─── Path execution tracking ───
+  /** True while a climb path command is actively running (between initialize and end). */
+  private boolean pathRunning = false;
 
   // ─── Calibration mode ───
   private boolean calibrationMode = false;
@@ -311,16 +321,16 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
-   * Set the supplier for the operator climb level chooser. Called from RobotContainer after
-   * constructing the SendableChooser.
+   * Set the supplier for the climb level chooser. Called from RobotContainer after constructing the
+   * SendableChooser.
    */
-  public void setOperatorClimbLevelSupplier(Supplier<OperatorClimbLevel> supplier) {
-    this.operatorClimbLevelSupplier = supplier;
+  public void setClimbLevelSupplier(Supplier<ClimbLevel> supplier) {
+    this.climbLevelSupplier = supplier;
   }
 
-  /** Get the current operator-selected climb level. */
-  public OperatorClimbLevel getOperatorClimbLevel() {
-    return operatorClimbLevelSupplier.get();
+  /** Get the current dashboard-selected climb level. */
+  public ClimbLevel getClimbLevel() {
+    return climbLevelSupplier.get();
   }
 
   @Override
@@ -329,11 +339,13 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.processInputs("Climb", inputs);
     // State is logged by commands (setState, runPath)
     Logger.recordOutput("Climb/CalibrationMode", calibrationMode);
-    Logger.recordOutput("Climb/OperatorClimbLevel", getOperatorClimbLevel().name());
+    Logger.recordOutput("Climb/ClimbLevel", getClimbLevel().name());
 
-    // Skip FK/IK visualization when stowed and not in calibration/manual mode
+    // Skip FK/IK visualization when stowed and no path is actively running.
+    // Without the pathRunning check, previousState() → STOWED would freeze the visualization
+    // mid-motion because it sets currentState = STOWED before the return path starts.
     boolean skipVisualization =
-        currentState == ClimbState.STOWED && !calibrationMode && !manualMode;
+        currentState == ClimbState.STOWED && !pathRunning && !calibrationMode && !manualMode;
 
     if (!skipVisualization) {
       Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
@@ -564,6 +576,91 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
+   * Build the teleop auto-climb command. Deferred so the climb pose is read at press-time.
+   *
+   * <p><b>Sequence:</b>
+   *
+   * <ol>
+   *   <li>Idle superstructure (stows intake for arm clearance).
+   *   <li>Parallel: pathfind to standoff pose + (wait intake stowed → extend L1 arms).
+   *   <li>PID drive-to-pose into the tower.
+   *   <li>Stop drivetrain.
+   *   <li>If operator selected L1 → retract immediately. If L2L3 → stop (driver uses POV Right to
+   *       continue the manual sequence).
+   * </ol>
+   *
+   * <p>For L1 the auto-only states (EXTEND_L1_AUTO / RETRACT_L1_AUTO) are used. For L2L3 the teleop
+   * state (EXTEND_L1) is used so {@code nextClimbStep()} continues the teleop chain (EXTEND_L1 →
+   * RETRACT_L1 → RELEASE_ANGLE_L1 → …).
+   *
+   * @param drive the swerve drivetrain subsystem
+   * @param superstructure the superstructure coordinator
+   * @param climbTargetSupplier supplies the target climb {@link Pose2d} (read at command-creation
+   *     time inside {@code Commands.defer})
+   */
+  public Command buildTeleopAutoClimb(
+      DriveSwerveDrivetrain drive,
+      Superstructure superstructure,
+      Supplier<Pose2d> climbTargetSupplier) {
+    return Commands.defer(
+        () -> {
+          // Read dashboard selections at command-creation time (inside defer)
+          Pose2d climbTarget = climbTargetSupplier.get();
+          boolean isL1 = getClimbLevel() == ClimbLevel.L1;
+          ClimbState extendState = isL1 ? ClimbState.EXTEND_L1_AUTO : ClimbState.EXTEND_L1;
+
+          // Standoff pose: offset away from the wall so pathfinding ends short of the tower
+          double approachDist = AutoConstants.CLIMB_APPROACH_DISTANCE_M;
+          Translation2d standoffOffset =
+              new Translation2d(approachDist, climbTarget.getRotation().plus(Rotation2d.k180deg));
+          Pose2d standoffPose =
+              new Pose2d(
+                  climbTarget.getTranslation().plus(standoffOffset), climbTarget.getRotation());
+
+          // PID controllers for the final straight-line approach
+          double maxVelocity = AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS;
+          double driveTolerance = AutoConstants.CLIMB_APPROACH_TOLERANCE_M;
+          double thetaTolerance = AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD;
+
+          // Drive-to-point command using DriveSwerveDrivetrain's 2910-style state
+          Command driveToPose =
+              Commands.sequence(
+                  Commands.runOnce(
+                      () -> drive.setDesiredPoseForDriveToPoint(climbTarget, maxVelocity), drive),
+                  Commands.waitUntil(
+                      () -> drive.isAtDriveToPointSetpoint(driveTolerance, thetaTolerance)));
+
+          // Assemble the full sequence
+          Command sequence =
+              Commands.sequence(
+                  // Phase 0: Idle superstructure so intake stows (arm clearance)
+                  superstructure.idle(),
+                  // Phase 1: Pathfind to standoff while extending climb arms in parallel
+                  Commands.parallel(
+                      Commands.defer(
+                          () ->
+                              AutoBuilder.pathfindToPose(
+                                  standoffPose, drive.getPathConstraints(), 0.0),
+                          Set.of(drive)),
+                      Commands.sequence(
+                          Commands.waitUntil(superstructure::isIntakeStowed),
+                          setStateCommand(extendState))),
+                  // Phase 2: PID straight-line approach into the tower
+                  driveToPose,
+                  Commands.runOnce(() -> drive.stop(), drive));
+
+          // Phase 3: If L1, retract immediately. L2L3 → command ends, driver continues via POV
+          // Right.
+          if (isL1) {
+            sequence = sequence.andThen(setStateCommand(ClimbState.RETRACT_L1_AUTO));
+          }
+
+          return sequence.withName("TeleopAutoClimb_" + (isL1 ? "L1" : "L2L3"));
+        },
+        Set.of(drive, superstructure, this));
+  }
+
+  /**
    * Release from auto L1 climb by reversing RETRACT_L1_AUTO. After auto ends with the robot latched
    * at RETRACT_L1_AUTO, this reverses the retract path back to the EXTEND_L1_AUTO position (arm
    * extended, released from bar). Use {@link #stowFromCurrentState()} (POV Down) afterward to stow
@@ -652,6 +749,7 @@ public class ClimbSubsystem extends SubsystemBase {
       @Override
       public void initialize() {
         executor = null;
+        pathRunning = true;
         params = paramSupplier.get();
         System.out.println(
             "[Climb] runPath '"
@@ -741,8 +839,18 @@ public class ClimbSubsystem extends SubsystemBase {
 
       @Override
       public void end(boolean interrupted) {
+        pathRunning = false;
         System.out.println("[Climb] runPath '" + name + "' end: interrupted=" + interrupted);
         if (executor != null) executor.stop();
+
+        // Command zero velocity first to actively decelerate the motors before switching
+        // to position hold. Without this, the motors carry residual velocity from the last
+        // execute() cycle and overshoot the target before MotionMagic can arrest them.
+        io.setLeftFrontVelocity(0.0, 0.0);
+        io.setLeftBackVelocity(0.0, 0.0);
+        io.setRightFrontVelocity(0.0, 0.0);
+        io.setRightBackVelocity(0.0, 0.0);
+
         if (!interrupted && params != null && !params.waypoints().isEmpty()) {
           Translation2d finalPos = params.waypoints().get(params.waypoints().size() - 1);
           setTargetPositionsInternal(finalPos, finalPos);
@@ -826,10 +934,25 @@ public class ClimbSubsystem extends SubsystemBase {
       measuredRightPosition = rightTargetPosition;
     }
 
+    // Position correction: add proportional feedback to the feedforward velocities.
+    // This compensates for velocity tracking error that would otherwise accumulate as
+    // position drift during the path. kP * (target - measured) → corrective velocity.
+    double kP = ClimbConstants.PATH_POSITION_CORRECTION_KP;
+    Translation2d leftPosError = leftPosition.minus(measuredLeftPosition);
+    Translation2d rightPosError = rightPosition.minus(measuredRightPosition);
+    Translation2d correctedLeftVel =
+        new Translation2d(
+            leftVelocity.getX() + kP * leftPosError.getX(),
+            leftVelocity.getY() + kP * leftPosError.getY());
+    Translation2d correctedRightVel =
+        new Translation2d(
+            rightVelocity.getX() + kP * rightPosError.getX(),
+            rightVelocity.getY() + kP * rightPosError.getY());
+
     // Use numerical Jacobian to calculate motor velocities from end effector velocities
     ClimbIK.ClimbVelocityResult velocityResult =
         ClimbIK.calculateVelocityIKBothSides(
-            measuredLeftPosition, measuredRightPosition, leftVelocity, rightVelocity);
+            measuredLeftPosition, measuredRightPosition, correctedLeftVel, correctedRightVel);
 
     if (!velocityResult.isValid()) {
       Logger.recordOutput("Climb/VelocityIK/Valid", false);
@@ -1268,7 +1391,7 @@ public class ClimbSubsystem extends SubsystemBase {
     return Commands.defer(
         () -> {
           // ── L1 mode: auto L1 sequence ──
-          if (getOperatorClimbLevel() == OperatorClimbLevel.L1) {
+          if (getClimbLevel() == ClimbLevel.L1) {
             switch (currentState) {
               case STOWED:
                 return setStateCommand(ClimbState.EXTEND_L1_AUTO);
@@ -1360,7 +1483,7 @@ public class ClimbSubsystem extends SubsystemBase {
     return Commands.defer(
         () -> {
           // ── L1 mode: reverse auto L1 sequence (no servos) ──
-          if (getOperatorClimbLevel() == OperatorClimbLevel.L1) {
+          if (getClimbLevel() == ClimbLevel.L1) {
             switch (currentState) {
               case EXTEND_L1_AUTO:
                 // Direct path back to STOWED — no servos, no getPreviousState dependency
@@ -1687,9 +1810,11 @@ public class ClimbSubsystem extends SubsystemBase {
     return runOnce(
             () -> {
               calibrationMode = true;
+              currentState = ClimbState.CALIBRATION;
               io.stop();
               io.setCalibrationCurrentLimits();
               Logger.recordOutput("Climb/CalibrationMode", true);
+              Logger.recordOutput("Climb/CurrentState", currentState.getName());
               System.out.println("[Climb] Entered calibration mode");
             })
         .withName("ClimbEnterCalibration");

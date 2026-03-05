@@ -116,6 +116,13 @@ public class VisionSubsystem extends SubsystemBase {
       return;
     }
 
+    // Reject turret camera frames captured while the turret or chassis was spinning
+    // too fast — the heading sent via SetRobotOrientation can't keep up with rapid
+    // rotation, producing large pose errors.  254 does the same in shouldUsePinhole().
+    if (isTurretCamera && shouldRejectTurretVision(updateTimestamp, logPreface)) {
+      return;
+    }
+
     // Process MegaTag2 (preferred)
     Optional<VisionFieldPoseEstimate> megatag2Estimate =
         processMegatag2PoseEstimate(megatag2PoseEstimate, isTurretCamera, logPreface);
@@ -278,6 +285,47 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   /**
+   * Check whether the turret camera vision frame at the given timestamp should be rejected due to
+   * high angular velocity (turret or chassis). When spinning fast, the heading sent to the
+   * Limelight can't track the true camera orientation closely enough, producing large pose errors.
+   *
+   * <p>Mirrors Team 254's shouldUsePinhole() rejection logic.
+   *
+   * @return true if the frame should be rejected (too much angular velocity).
+   */
+  private boolean shouldRejectTurretVision(double captureTimestamp, String logPreface) {
+    double lookback = Constants.Vision.VELOCITY_REJECTION_LOOKBACK;
+    double minTime = captureTimestamp - lookback;
+    double maxTime = captureTimestamp + lookback;
+
+    var maxTurretVel = state.getMaxAbsTurretAngularVelocityInRange(minTime, maxTime);
+    var maxDriveVel = state.getMaxAbsDriveAngularVelocityInRange(minTime, maxTime);
+
+    boolean turretTooFast =
+        maxTurretVel.isPresent()
+            && maxTurretVel.get() > Constants.Vision.MAX_TURRET_ANGULAR_VELOCITY_FOR_VISION;
+    boolean driveTooFast =
+        maxDriveVel.isPresent()
+            && maxDriveVel.get() > Constants.Vision.MAX_DRIVE_ANGULAR_VELOCITY_FOR_VISION;
+
+    if (turretTooFast || driveTooFast) {
+      Logger.recordOutput(
+          logPreface + "RejectReason",
+          "angular velocity too high (turret="
+              + (maxTurretVel.isPresent()
+                  ? String.format("%.1f", Math.toDegrees(maxTurretVel.get()))
+                  : "?")
+              + "°/s, drive="
+              + (maxDriveVel.isPresent()
+                  ? String.format("%.1f", Math.toDegrees(maxDriveVel.get()))
+                  : "?")
+              + "°/s)");
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Calculate field-to-robot pose from vision data.
    *
    * <p>For drivetrain cameras: Limelight has camerapose_robotspace_set configured, so
@@ -302,12 +350,10 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     if (isTurretCamera) {
-      // Use the turret angle at the vision timestamp for an accurate transform.
-      // MT1 solves from geometry alone so timestamp alignment is straightforward.
-      // MT2 uses SetRobotOrientation heading (sent as "now"), but the yaw-rate we provide
-      // lets the LL interpolate back to the image capture instant, so timestamped angle
-      // is still the correct choice here.
-      var turretAtTimestamp = state.getRobotToTurret(poseEstimate.timestampSeconds);
+      // Use the interpolated turret angle at the vision timestamp for an accurate transform.
+      // Interpolation between bracketing entries eliminates up-to-one-period staleness
+      // that floorEntry alone would introduce.
+      var turretAtTimestamp = state.getInterpolatedRobotToTurret(poseEstimate.timestampSeconds);
       double turretAngleRad = turretAtTimestamp.orElse(state.getLatestRobotToTurret().getValue());
       Rotation2d robotToTurretRotation = new Rotation2d(turretAngleRad);
 

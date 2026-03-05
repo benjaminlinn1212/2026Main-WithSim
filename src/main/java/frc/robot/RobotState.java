@@ -21,6 +21,7 @@ public class RobotState {
   private final TreeMap<Double, Double> robotToTurretRad = new TreeMap<>();
 
   private final TreeMap<Double, Double> turretAngularVelocity = new TreeMap<>();
+  private final TreeMap<Double, Double> driveAngularVelocity = new TreeMap<>();
 
   private ChassisSpeeds measuredFieldRelativeChassisSpeeds = new ChassisSpeeds();
   private ChassisSpeeds robotRelativeChassisSpeed = new ChassisSpeeds();
@@ -58,11 +59,16 @@ public class RobotState {
     maybeCleanUp();
   }
 
-  /** Update the measured chassis speeds */
+  /**
+   * Update the measured chassis speeds and record drive angular velocity for rejection filtering.
+   */
   public void updateChassisSpeeds(
       ChassisSpeeds fieldRelativeSpeeds, ChassisSpeeds robotRelativeSpeeds) {
     this.measuredFieldRelativeChassisSpeeds = fieldRelativeSpeeds;
     this.robotRelativeChassisSpeed = robotRelativeSpeeds;
+    synchronized (this) {
+      driveAngularVelocity.put(Timer.getFPGATimestamp(), robotRelativeSpeeds.omegaRadiansPerSecond);
+    }
   }
 
   /** Get the most recent robot pose */
@@ -97,6 +103,33 @@ public class RobotState {
     return Optional.of(entry.getValue());
   }
 
+  /**
+   * Get an interpolated robot-to-turret rotation at a specific timestamp (raw radians, unwrapped).
+   *
+   * <p>Unlike {@link #getRobotToTurret(double)} which returns the floor entry (potentially stale by
+   * one update period), this method linearly interpolates between the two nearest entries that
+   * bracket the requested timestamp. Falls back to exact floor entry when only one side is
+   * available.
+   */
+  public synchronized Optional<Double> getInterpolatedRobotToTurret(double timestamp) {
+    var floor = robotToTurretRad.floorEntry(timestamp);
+    var ceiling = robotToTurretRad.ceilingEntry(timestamp);
+
+    if (floor == null && ceiling == null) {
+      return Optional.empty();
+    }
+    if (floor == null) {
+      return Optional.of(ceiling.getValue());
+    }
+    if (ceiling == null || floor.getKey().equals(ceiling.getKey())) {
+      return Optional.of(floor.getValue());
+    }
+
+    // Linear interpolation between the two bracketing entries
+    double t = (timestamp - floor.getKey()) / (ceiling.getKey() - floor.getKey());
+    return Optional.of(floor.getValue() + t * (ceiling.getValue() - floor.getValue()));
+  }
+
   /** Get the latest turret angular velocity */
   public synchronized double getLatestTurretAngularVelocity() {
     var entry = turretAngularVelocity.lastEntry();
@@ -104,6 +137,41 @@ public class RobotState {
       return 0.0;
     }
     return entry.getValue();
+  }
+
+  /**
+   * Get the maximum absolute turret angular velocity (rad/s) in a time range. Used to reject vision
+   * frames captured while the turret was spinning fast (heading mismatch is amplified).
+   */
+  public synchronized Optional<Double> getMaxAbsTurretAngularVelocityInRange(
+      double minTime, double maxTime) {
+    return getMaxAbsInRange(turretAngularVelocity, minTime, maxTime);
+  }
+
+  /**
+   * Get the maximum absolute drive angular velocity (rad/s) in a time range. Used to reject vision
+   * frames captured while the chassis was spinning fast.
+   */
+  public synchronized Optional<Double> getMaxAbsDriveAngularVelocityInRange(
+      double minTime, double maxTime) {
+    return getMaxAbsInRange(driveAngularVelocity, minTime, maxTime);
+  }
+
+  /** Return the max-absolute value stored in a TreeMap within the given time window. */
+  private static Optional<Double> getMaxAbsInRange(
+      TreeMap<Double, Double> buffer, double minTime, double maxTime) {
+    var submap = buffer.subMap(minTime, true, maxTime, true);
+    if (submap.isEmpty()) {
+      return Optional.empty();
+    }
+    double maxAbs = 0.0;
+    for (double v : submap.values()) {
+      double abs = Math.abs(v);
+      if (abs > maxAbs) {
+        maxAbs = abs;
+      }
+    }
+    return Optional.of(maxAbs);
   }
 
   /** Cached 2D turret-to-camera transform (constant — computed once at class load). */
@@ -154,6 +222,9 @@ public class RobotState {
     }
     while (!turretAngularVelocity.isEmpty() && turretAngularVelocity.firstKey() < cutoffTime) {
       turretAngularVelocity.pollFirstEntry();
+    }
+    while (!driveAngularVelocity.isEmpty() && driveAngularVelocity.firstKey() < cutoffTime) {
+      driveAngularVelocity.pollFirstEntry();
     }
   }
 

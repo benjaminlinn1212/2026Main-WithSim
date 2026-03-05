@@ -32,7 +32,6 @@ import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.climb.ClimbIO;
 import frc.robot.subsystems.climb.ClimbIOSim;
 import frc.robot.subsystems.climb.ClimbIOTalonFX;
-import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.conveyor.ConveyorIO;
 import frc.robot.subsystems.conveyor.ConveyorIOSim;
@@ -104,8 +103,8 @@ public class RobotContainer {
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
 
-  // Operator climb level chooser (L1 auto sequence vs full L2L3 teleop sequence)
-  private final SendableChooser<ClimbSubsystem.OperatorClimbLevel> operatorClimbLevelChooser =
+  // Climb level chooser (L1 quick climb vs full L2L3 teleop sequence)
+  private final SendableChooser<ClimbSubsystem.ClimbLevel> climbLevelChooser =
       new SendableChooser<>();
 
   // Dashboard-driven autonomous system (254/6328 style)
@@ -254,14 +253,14 @@ public class RobotContainer {
     // Trench assist controller — always snaps to nearest cardinal heading
     trenchAssist = new TrenchAssistController();
 
-    // Operator climb level chooser
-    operatorClimbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.OperatorClimbLevel.L2L3);
-    operatorClimbLevelChooser.addOption("L1", ClimbSubsystem.OperatorClimbLevel.L1);
-    SmartDashboard.putData("Operator/Climb Level", operatorClimbLevelChooser);
-    climb.setOperatorClimbLevelSupplier(
+    // Climb level chooser (L1 quick climb vs L2L3 full sequence)
+    climbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.ClimbLevel.L2L3);
+    climbLevelChooser.addOption("L1", ClimbSubsystem.ClimbLevel.L1);
+    SmartDashboard.putData("Climb/Level", climbLevelChooser);
+    climb.setClimbLevelSupplier(
         () -> {
-          var selected = operatorClimbLevelChooser.getSelected();
-          return selected != null ? selected : ClimbSubsystem.OperatorClimbLevel.L2L3;
+          var selected = climbLevelChooser.getSelected();
+          return selected != null ? selected : ClimbSubsystem.ClimbLevel.L2L3;
         });
 
     // Wire IMU roll supplier for auto-level climb assist
@@ -483,11 +482,30 @@ public class RobotContainer {
         .rightTrigger(0.2)
         .onTrue(Commands.runOnce(() -> superstructure.setFeedingRequested(true)))
         .onFalse(Commands.runOnce(() -> superstructure.setFeedingRequested(false)));
+
+    // ===== CLIMB STATE CONTROLS (driver POV) =====
+    // POV Left: Previous climb step (handles release, stow, and all reverse transitions)
+    controller.povLeft().onTrue(climb.previousClimbStep());
+
+    // POV Right: Next climb step
+    controller.povRight().onTrue(climb.nextClimbStep());
+
+    // Right bumper: TEST — pathfind to climb pose only (no climb)
+    controller
+        .rightBumper()
+        .onTrue(
+            Commands.defer(
+                () ->
+                    AutoBuilder.pathfindToPose(
+                        dashboardAutoManager.getSettings().getClimbPose().getPose(),
+                        drive.getPathConstraints(),
+                        0.0),
+                Set.of(drive)));
   }
 
   /**
-   * Configure operator controller bindings (port 1). Controls climb state machine, intake shake,
-   * and climb calibration/manual modes. Climb is independent from Superstructure.
+   * Configure operator controller bindings (port 1). Controls climb calibration and manual modes.
+   * Climb state stepping is on the driver POV. Climb is independent from Superstructure.
    */
   private void configureOperatorBindings() {
     System.out.println("[RobotContainer] Configuring operator bindings...");
@@ -508,83 +526,46 @@ public class RobotContainer {
             Commands.either(
                 climb.exitManualMode(), climb.enterManualMode(), climb::isInManualMode));
 
-    // ===== CALIBRATION MOTOR CONTROLS (only active in calibration mode) =====
+    // ===== POV + A/Y: Calibration mode → climb motors =====
+    // POV Up: left front forward
     operator.povUp().and(climb::isInCalibrationMode).whileTrue(climb.calibrationLeftFrontForward());
-    operator.povUp().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseFromAutoL1());
 
+    // POV Down: left front reverse
     operator
         .povDown()
         .and(climb::isInCalibrationMode)
         .whileTrue(climb.calibrationLeftFrontReverse());
-    // POV Down (normal mode): Stow climb
-    operator
-        .povDown()
-        .and(() -> !climb.isInCalibrationMode())
-        .onTrue(
-            Commands.either(
-                climb.stowPathOnly(),
-                climb.stowFromCurrentState(),
-                () ->
-                    climb.getOperatorClimbLevel() == ClimbSubsystem.OperatorClimbLevel.L1
-                        && (climb.getState() == ClimbState.EXTEND_L1_AUTO
-                            || climb.getState() == ClimbState.RETRACT_L1_AUTO
-                            || climb.getState() == ClimbState.STOWED)));
 
+    // POV Left: left back reverse
     operator
         .povLeft()
         .and(climb::isInCalibrationMode)
         .whileTrue(climb.calibrationLeftBackReverse());
-    operator.povLeft().and(() -> !climb.isInCalibrationMode()).onTrue(climb.previousClimbStep());
 
+    // POV Right: left back forward
     operator
         .povRight()
         .and(climb::isInCalibrationMode)
         .whileTrue(climb.calibrationLeftBackForward());
-    operator.povRight().and(() -> !climb.isInCalibrationMode()).onTrue(climb.nextClimbStep());
 
-    // Y/A: Right front motor (cal mode) / intake shake toggle (normal mode)
-    operator
-        .y()
-        .whileTrue(
-            Commands.either(
-                climb.calibrationRightFrontForward(),
-                Commands.either(
-                    superstructure.setIntakeHalfDeploy(),
-                    Commands.none(),
-                    superstructure::isIntakeDeployed),
-                climb::isInCalibrationMode));
+    // Y: right front forward
+    operator.y().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightFrontForward());
 
-    operator
-        .a()
-        .whileTrue(
-            Commands.either(
-                climb.calibrationRightFrontReverse(),
-                Commands.either(
-                    superstructure.setIntakeFullDeploy(),
-                    Commands.none(),
-                    superstructure::isIntakeDeployed),
-                climb::isInCalibrationMode));
+    // A: right front reverse
+    operator.a().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightFrontReverse());
 
-    // X/B: Right back motor (cal mode) / angle servo stow/release (normal mode)
+    // X/B: Right back motor (cal mode only)
     operator.x().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackForward());
-    operator.x().and(() -> !climb.isInCalibrationMode()).onTrue(climb.stowAngleServosCommand());
 
     operator.b().and(climb::isInCalibrationMode).whileTrue(climb.calibrationRightBackReverse());
-    operator.b().and(() -> !climb.isInCalibrationMode()).onTrue(climb.releaseAngleServosCommand());
 
-    // LT/RT: Hardstop servo stow/release (cal mode only)
-    operator
-        .leftTrigger(0.3)
-        .and(climb::isInCalibrationMode)
-        .onTrue(climb.stowHardstopServosCommand());
-    operator
-        .rightTrigger(0.3)
-        .and(climb::isInCalibrationMode)
-        .onTrue(climb.releaseHardstopServosCommand());
+    // LT/RT: Hardstop servo stow/release (available in all modes)
+    operator.leftTrigger(0.3).onTrue(climb.stowHardstopServosCommand());
+    operator.rightTrigger(0.3).onTrue(climb.releaseHardstopServosCommand());
 
-    // Left/Right joystick buttons: Angle servo stow/release (cal mode only)
-    operator.leftStick().and(climb::isInCalibrationMode).onTrue(climb.stowAngleServosCommand());
-    operator.rightStick().and(climb::isInCalibrationMode).onTrue(climb.releaseAngleServosCommand());
+    // Left/Right joystick buttons: Angle servo stow/release (available in all modes)
+    operator.leftStick().onTrue(climb.stowAngleServosCommand());
+    operator.rightStick().onTrue(climb.releaseAngleServosCommand());
 
     // ===== MANUAL CONTROL: mushroom heads control EE velocity in manual mode =====
     // Left stick → left climb arm, Right stick → right climb arm

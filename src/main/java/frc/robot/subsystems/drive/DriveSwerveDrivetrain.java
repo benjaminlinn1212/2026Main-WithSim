@@ -8,15 +8,24 @@
 
 package frc.robot.subsystems.drive;
 
+import com.ctre.phoenix6.swerve.SwerveModule;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveRequest.ForwardPerspectiveValue;
+import com.ctre.phoenix6.swerve.utility.PhoenixPIDController;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
+import frc.robot.Constants.AutoConstants;
 import frc.robot.RobotState;
 import org.littletonrobotics.junction.Logger;
 
@@ -38,6 +47,30 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   private final SwerveRequest.FieldCentric fieldCentricDrive =
       new SwerveRequest.FieldCentric().withForwardPerspective(ForwardPerspectiveValue.BlueAlliance);
   private final SwerveRequest.RobotCentric robotCentricDrive = new SwerveRequest.RobotCentric();
+
+  // ── DriveToPoint (2910-style) ──────────────────────────────────────────────
+  // Uses FieldCentricFacingAngle so CTRE's 250 Hz odometry thread handles heading,
+  // while a software PID (auto or teleop gains) computes the translation velocity.
+  private final SwerveRequest.FieldCentricFacingAngle driveToPointRequest =
+      new SwerveRequest.FieldCentricFacingAngle()
+          .withForwardPerspective(ForwardPerspectiveValue.BlueAlliance)
+          .withDriveRequestType(SwerveModule.DriveRequestType.Velocity);
+
+  private final PIDController autoDriveToPointController =
+      new PIDController(
+          AutoConstants.DRIVE_TO_POINT_AUTO_KP, 0, AutoConstants.DRIVE_TO_POINT_AUTO_KD);
+  private final PIDController teleopDriveToPointController =
+      new PIDController(
+          AutoConstants.DRIVE_TO_POINT_TELEOP_KP, 0, AutoConstants.DRIVE_TO_POINT_TELEOP_KD);
+
+  /** Whether the drive-to-point state is currently active. */
+  private boolean driveToPointActive = false;
+
+  private Pose2d desiredPoseForDriveToPoint = new Pose2d();
+  private double maxVelocityOutputForDriveToPoint =
+      AutoConstants.DRIVE_TO_POINT_DEFAULT_MAX_VELOCITY_MPS;
+  /** NaN = no angular velocity constraint (use default PID). */
+  private double maximumAngularVelocityForDriveToPoint = Double.NaN;
 
   // Acceleration tracking (computed from speed deltas each periodic cycle)
   private ChassisSpeeds previousSpeeds = new ChassisSpeeds();
@@ -63,6 +96,11 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   public DriveSwerveDrivetrain(DriveIOHardware driveIO, RobotState robotState) {
     this.driveIO = driveIO;
     this.robotState = robotState;
+
+    // Configure the CTRE PhoenixPIDController for heading (runs at 250 Hz in odometry thread)
+    driveToPointRequest.HeadingController =
+        new PhoenixPIDController(AutoConstants.DRIVE_TO_POINT_HEADING_KP, 0, 0);
+    driveToPointRequest.HeadingController.enableContinuousInput(-Math.PI, Math.PI);
 
     // Publish Field2d to SmartDashboard/Shuffleboard for field visualization at comp
     SmartDashboard.putData("Field", field2d);
@@ -116,6 +154,11 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     // Log simulated pose if using DriveIOSim
     if (driveIO instanceof DriveIOSim) {
       ((DriveIOSim) driveIO).logSimulatedPose();
+    }
+
+    // ── DriveToPoint state application ─────────────────────────────────────
+    if (driveToPointActive) {
+      applyDriveToPoint();
     }
   }
 
@@ -175,6 +218,7 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
    * @param omega Rotational velocity in rad/s
    */
   public void driveFieldRelative(double vx, double vy, double omega) {
+    driveToPointActive = false;
     driveIO.setControl(
         fieldCentricDrive.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega));
   }
@@ -204,9 +248,159 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     driveIO.setControl(request);
   }
 
-  /** Stop the drivetrain. */
+  /** Stop the drivetrain and clear any drive-to-point state. */
   public void stop() {
+    driveToPointActive = false;
     driveRobotRelative(0, 0, 0);
+  }
+
+  // ── DriveToPoint public API (2910-style) ─────────────────────────────────
+
+  /**
+   * Activate drive-to-point mode with default max velocity and no angular velocity constraint.
+   *
+   * @param pose The target pose (translation + heading)
+   */
+  public void setDesiredPoseForDriveToPoint(Pose2d pose) {
+    this.desiredPoseForDriveToPoint = pose;
+    this.maxVelocityOutputForDriveToPoint = AutoConstants.DRIVE_TO_POINT_DEFAULT_MAX_VELOCITY_MPS;
+    this.maximumAngularVelocityForDriveToPoint = Double.NaN;
+    this.driveToPointActive = true;
+  }
+
+  /**
+   * Activate drive-to-point mode with a custom max velocity output.
+   *
+   * @param pose The target pose (translation + heading)
+   * @param maxVelocityOutput Maximum translation velocity (m/s)
+   */
+  public void setDesiredPoseForDriveToPoint(Pose2d pose, double maxVelocityOutput) {
+    this.desiredPoseForDriveToPoint = pose;
+    this.maxVelocityOutputForDriveToPoint = maxVelocityOutput;
+    this.maximumAngularVelocityForDriveToPoint = Double.NaN;
+    this.driveToPointActive = true;
+  }
+
+  /**
+   * Activate drive-to-point mode with a custom max velocity and an angular velocity constraint.
+   * This is useful when the arm or mechanism needs time to settle before the robot can rotate
+   * freely.
+   *
+   * @param pose The target pose (translation + heading)
+   * @param maxVelocityOutput Maximum translation velocity (m/s)
+   * @param maxAngularVelocity Maximum angular velocity (rad/s); NaN = unconstrained
+   */
+  public void setDesiredPoseForDriveToPointWithConstraints(
+      Pose2d pose, double maxVelocityOutput, double maxAngularVelocity) {
+    this.desiredPoseForDriveToPoint = pose;
+    this.maxVelocityOutputForDriveToPoint = maxVelocityOutput;
+    this.maximumAngularVelocityForDriveToPoint = maxAngularVelocity;
+    this.driveToPointActive = true;
+  }
+
+  /** Deactivate drive-to-point mode. The next teleop command will resume normal driving. */
+  public void clearDriveToPoint() {
+    this.driveToPointActive = false;
+  }
+
+  /** Whether the drive-to-point state is currently active. */
+  public boolean isDriveToPointActive() {
+    return driveToPointActive;
+  }
+
+  /**
+   * Check whether the robot is within tolerance of the drive-to-point setpoint (translation only).
+   */
+  public boolean isAtDriveToPointSetpoint() {
+    double distance = getDistanceFromDriveToPointSetpoint();
+    Logger.recordOutput("Drive/DriveToPoint/DistanceFromEndpoint", distance);
+    return MathUtil.isNear(0.0, distance, AutoConstants.DRIVE_TO_POINT_POSITION_TOLERANCE_M);
+  }
+
+  /**
+   * Check whether the robot is within the given tolerances of the drive-to-point setpoint
+   * (translation and heading).
+   *
+   * @param positionTolerance Position tolerance in meters
+   * @param headingTolerance Heading tolerance in radians
+   */
+  public boolean isAtDriveToPointSetpoint(double positionTolerance, double headingTolerance) {
+    double distance = getDistanceFromDriveToPointSetpoint();
+    double headingError =
+        Math.abs(
+            MathUtil.angleModulus(
+                cachedPose.getRotation().getRadians()
+                    - desiredPoseForDriveToPoint.getRotation().getRadians()));
+    Logger.recordOutput("Drive/DriveToPoint/DistanceFromEndpoint", distance);
+    Logger.recordOutput("Drive/DriveToPoint/HeadingError", Math.toDegrees(headingError));
+    return distance <= positionTolerance && headingError <= headingTolerance;
+  }
+
+  /** Get the scalar distance (m) from the current position to the drive-to-point setpoint. */
+  public double getDistanceFromDriveToPointSetpoint() {
+    return desiredPoseForDriveToPoint.getTranslation().minus(cachedPose.getTranslation()).getNorm();
+  }
+
+  /**
+   * Core drive-to-point logic (called from periodic when active). Mirrors FRC 2910's DRIVE_TO_POINT
+   * state: PID on scalar distance → velocity magnitude, decompose along direction, use CTRE's
+   * FieldCentricFacingAngle for 250 Hz heading control.
+   */
+  private void applyDriveToPoint() {
+    Translation2d translationToDesiredPoint =
+        desiredPoseForDriveToPoint.getTranslation().minus(cachedPose.getTranslation());
+    double linearDistance = translationToDesiredPoint.getNorm();
+
+    // Static friction feedforward: only apply when > 0.5 inches to prevent oscillation at zero
+    double frictionFF = 0.0;
+    if (linearDistance >= Units.inchesToMeters(0.5)) {
+      frictionFF = AutoConstants.DRIVE_TO_POINT_FRICTION_FF * maxVelocityOutputForDriveToPoint;
+    }
+
+    // Direction of travel (angle from current position toward target)
+    Rotation2d directionOfTravel = translationToDesiredPoint.getAngle();
+
+    // Select auto or teleop PID gains based on current mode
+    double velocityOutput;
+    if (DriverStation.isAutonomous()) {
+      velocityOutput =
+          Math.min(
+              Math.abs(autoDriveToPointController.calculate(linearDistance, 0.0)) + frictionFF,
+              maxVelocityOutputForDriveToPoint);
+    } else {
+      velocityOutput =
+          Math.min(
+              Math.abs(teleopDriveToPointController.calculate(linearDistance, 0.0)) + frictionFF,
+              maxVelocityOutputForDriveToPoint);
+    }
+
+    // Decompose scalar velocity into field-relative X/Y components
+    double xComponent = velocityOutput * directionOfTravel.getCos();
+    double yComponent = velocityOutput * directionOfTravel.getSin();
+
+    // Log telemetry
+    Logger.recordOutput("Drive/DriveToPoint/XVelocity", xComponent);
+    Logger.recordOutput("Drive/DriveToPoint/YVelocity", yComponent);
+    Logger.recordOutput("Drive/DriveToPoint/VelocityOutput", velocityOutput);
+    Logger.recordOutput("Drive/DriveToPoint/LinearDistance", linearDistance);
+    Logger.recordOutput("Drive/DriveToPoint/DirectionOfTravel", directionOfTravel);
+    Logger.recordOutput("Drive/DriveToPoint/DesiredPoint", desiredPoseForDriveToPoint);
+
+    // Apply using FieldCentricFacingAngle — heading PID runs at 250 Hz in CTRE odometry thread
+    if (Double.isNaN(maximumAngularVelocityForDriveToPoint)) {
+      driveIO.setControl(
+          driveToPointRequest
+              .withVelocityX(xComponent)
+              .withVelocityY(yComponent)
+              .withTargetDirection(desiredPoseForDriveToPoint.getRotation()));
+    } else {
+      driveIO.setControl(
+          driveToPointRequest
+              .withVelocityX(xComponent)
+              .withVelocityY(yComponent)
+              .withTargetDirection(desiredPoseForDriveToPoint.getRotation())
+              .withMaxAbsRotationalRate(maximumAngularVelocityForDriveToPoint));
+    }
   }
 
   /** Get the underlying DriveIO instance. */

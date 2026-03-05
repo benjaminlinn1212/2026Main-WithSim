@@ -1,5 +1,6 @@
 package frc.robot.subsystems.hood;
 
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -49,7 +50,7 @@ public class HoodSubsystem extends SubsystemBase {
     Logger.processInputs("Hood", inputs);
 
     Logger.recordOutput("Hood/State", currentState.toString());
-    Logger.recordOutput("Hood/SetpointRad", positionSetpointRad);
+    Logger.recordOutput("Hood/SetpointDeg", Units.radiansToDegrees(positionSetpointRad));
   }
 
   /** Command to set hood to stow position (safe angle). */

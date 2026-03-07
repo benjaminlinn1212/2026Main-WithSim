@@ -403,7 +403,7 @@ public final class Constants {
      * Launch height above ground (meters) for neutral zone shots. Typically turret height + hood
      * offset. Approximated from MechanismVisualization constants (~0.45m).
      */
-    public static final double NEUTRAL_ZONE_LAUNCH_HEIGHT_M = 0.45;
+    public static final double NEUTRAL_ZONE_LAUNCH_HEIGHT_M = 0.55;
 
     /**
      * Flywheel RPS per m/s of required launch speed. This is the single fudge factor that maps
@@ -411,7 +411,7 @@ public final class Constants {
      * decrease if they overshoot. Starting estimate derived from hub shot data: ~65 RPS produces
      * roughly 6–7 m/s effective ball speed → ~10 RPS/mps.
      */
-    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 15.0;
+    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 12.0;
   }
 
   public static class TurretConstants {

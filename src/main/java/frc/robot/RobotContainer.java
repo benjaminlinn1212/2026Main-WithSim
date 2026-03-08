@@ -23,7 +23,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import frc.robot.auto.HardcodedAutos;
+import frc.robot.auto.OutpostAuto;
 import frc.robot.auto.SweepAuto;
 import frc.robot.auto.dashboard.DashboardAutoManager;
 import frc.robot.auto.dashboard.FieldConstants;
@@ -110,8 +110,12 @@ public class RobotContainer {
   // Dashboard-driven autonomous system (254/6328 style)
   private DashboardAutoManager dashboardAutoManager;
 
-  // Hardcoded fallback autos (one per lane)
-  private HardcodedAutos hardcodedAutos;
+  // Hardcoded auto chooser (select specific hardcoded auto routines)
+  private final LoggedDashboardChooser<String> hardcodedAutoChooser =
+      new LoggedDashboardChooser<>("Auto/Hardcoded Auto Choices");
+
+  // Hardcoded auto instances (built once, getCommand() defers internally)
+  private OutpostAuto outpostAuto;
 
   // Orchestra manager for playing music through Kraken motors
   private OrchestraManager orchestraManager;
@@ -302,9 +306,11 @@ public class RobotContainer {
         "Dashboard Auto",
         Commands.defer(() -> dashboardAutoManager.getAutoCommand(), Set.of(drive)));
 
-    // Hardcoded fallback autos
-    hardcodedAutos = new HardcodedAutos(drive, superstructure, dashboardAutoManager);
-    autoChooser.addOption("Hardcoded Auto", hardcodedAutos.getCommand());
+    // Hardcoded auto chooser — individual named hardcoded autos
+    outpostAuto = new OutpostAuto(drive, superstructure);
+    hardcodedAutoChooser.addDefaultOption("Outpost", "Outpost");
+    autoChooser.addOption(
+        "Hardcoded Auto", Commands.defer(() -> getHardcodedAutoCommand(), Set.of(drive)));
 
     // Sweep auto
     SweepAuto sweepAuto = new SweepAuto(drive, superstructure, climb, dashboardAutoManager);
@@ -364,9 +370,10 @@ public class RobotContainer {
 
       new edu.wpi.first.wpilibj2.command.button.Trigger(
               () ->
-                  FieldConstants.isNearTrench(
-                      drive.getPose().getTranslation(),
-                      Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER))
+                  DriverStation.isTeleopEnabled()
+                      && FieldConstants.isNearTrench(
+                          drive.getPose().getTranslation(),
+                          Constants.DriveConstants.TrenchAssist.APPROACH_BUFFER))
           .onTrue(
               Commands.runOnce(
                   () -> {
@@ -632,6 +639,54 @@ public class RobotContainer {
   /** Get the autonomous command selected on the dashboard. */
   public Command getAutonomousCommand() {
     return autoChooser.get();
+  }
+
+  /**
+   * Returns the starting pose for the currently selected auto mode. Used by Robot.java for
+   * pre-seeding odometry during disabled and SIM hard-reset.
+   *
+   * <ul>
+   *   <li>"Hardcoded Auto" → delegates to the hardcoded auto's {@code START_POSE}
+   *   <li>"Dashboard Auto" → {@code dashboardAutoManager.getStartingPose()}
+   *   <li>Otherwise → {@code null} (no pre-seeding for Do Nothing, Sweep, Music, etc.)
+   * </ul>
+   */
+  public Pose2d getAutoStartingPose() {
+    String selected = autoChooser.getSendableChooser().getSelected();
+    if ("Hardcoded Auto".equals(selected)) {
+      return getHardcodedAutoStartingPose();
+    } else if ("Dashboard Auto".equals(selected)) {
+      return dashboardAutoManager.getStartingPose();
+    }
+    return null;
+  }
+
+  /**
+   * Returns the starting pose for the currently selected hardcoded auto. Reads from the hardcoded
+   * auto chooser and maps each selection to its constant START_POSE. As new hardcoded autos are
+   * added, extend this switch.
+   */
+  private Pose2d getHardcodedAutoStartingPose() {
+    String selection = hardcodedAutoChooser.get();
+    // Currently only one hardcoded auto — extend with additional cases as needed
+    if ("Outpost".equals(selection)) {
+      return OutpostAuto.START_POSE.getPose();
+    }
+    return OutpostAuto.START_POSE.getPose(); // Default fallback
+  }
+
+  /**
+   * Resolve the hardcoded auto chooser selection to a fresh command. Called inside a {@code
+   * Commands.defer()} so a new command graph is built each auto run, avoiding the "already
+   * composed" error.
+   */
+  private Command getHardcodedAutoCommand() {
+    String selection = hardcodedAutoChooser.get();
+    // Currently only one hardcoded auto — extend with additional cases as needed
+    if ("Outpost".equals(selection)) {
+      return outpostAuto.buildCommand();
+    }
+    return outpostAuto.buildCommand(); // Default fallback
   }
 
   /**

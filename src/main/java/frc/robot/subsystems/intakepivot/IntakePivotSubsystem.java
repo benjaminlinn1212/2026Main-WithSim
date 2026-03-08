@@ -106,6 +106,21 @@ public class IntakePivotSubsystem extends SubsystemBase {
     io.setPosition(IntakePivotConstants.OUTPOST_POSITION);
   }
 
+  /**
+   * Directly apply the outpost jiggle oscillation. Alternates between OUTPOST_POSITION and
+   * OUTPOST_JIGGLE_POSITION at the configured jiggle period. Used in auto at the OUTPOST to
+   * dislodge FUEL from the CHUTE after an initial dwell at the outpost position.
+   */
+  public void applyOutpostJiggle() {
+    double half = IntakePivotConstants.JIGGLE_PERIOD_SECONDS;
+    double phase = Timer.getFPGATimestamp() % (2.0 * half);
+    if (phase < half) {
+      io.setPosition(IntakePivotConstants.OUTPOST_POSITION);
+    } else {
+      io.setPosition(IntakePivotConstants.OUTPOST_JIGGLE_POSITION);
+    }
+  }
+
   /** Check if intake is currently within the jiggle range (between A and B positions). */
   public boolean isJiggling() {
     double pos = inputs.positionRotations;

@@ -146,6 +146,14 @@ public final class Constants {
     public static final edu.wpi.first.math.geometry.Pose2d DEFAULT_RESET_POSE =
         new edu.wpi.first.math.geometry.Pose2d(
             0.3, 0.3, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
+
+    /**
+     * Auto trench approach buffer (meters). How far outside the trench walls the heading snap
+     * activates during autonomous. Separate from teleop's {@link
+     * DriveConstants.TrenchAssist#APPROACH_BUFFER} — auto paths are more precise and need a tighter
+     * zone to avoid premature snapping that interferes with PathPlanner's planned heading.
+     */
+    public static final double TRENCH_APPROACH_BUFFER = 0.5;
   }
 
   public static class DriveConstants {
@@ -319,6 +327,7 @@ public final class Constants {
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0;
     public static final double OUTPOST_POSITION = 7.784;
+    public static final double OUTPOST_JIGGLE_POSITION = 4.784;
     public static final double DEPLOYED_POSITION = 27.0;
 
     // Jiggle positions — pivot alternates between these two during feeding to dislodge FUEL

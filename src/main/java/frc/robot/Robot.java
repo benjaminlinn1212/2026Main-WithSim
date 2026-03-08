@@ -47,6 +47,13 @@ public class Robot extends LoggedRobot {
 
   private static final int DISABLED_PERIODIC_CHECK_INTERVAL = 50; // every ~1 second (50 * 20ms)
 
+  /**
+   * Last starting pose we pre-seeded to during disabled. Used to detect auto selection changes
+   * independently of dashboardAutoManager.didSettingsChange() (which only tracks the dashboard
+   * auto's own dropdown changes, not the top-level auto chooser).
+   */
+  private Pose2d lastPreSeededPose = null;
+
   public Robot() {
     // Record metadata
     Logger.recordMetadata("ProjectName", BuildConstants.MAVEN_NAME);
@@ -119,13 +126,15 @@ public class Robot extends LoggedRobot {
       autonomousCommand = null;
     }
 
-    // Reset the periodic counter so the first disabledPeriodic immediately pre-seeds
+    // Reset tracking so the first disabledPeriodic check immediately pre-seeds
     disabledPeriodicCount = 0;
+    lastPreSeededPose = null;
   }
 
   /**
-   * 254-style pose pre-seeding: periodically check if auto settings changed, and when they do,
-   * pre-seed odometry with the selected auto's starting pose (alliance-corrected).
+   * 254-style pose pre-seeding: periodically check if auto settings changed (either the dashboard
+   * auto settings or the top-level auto chooser selection), and when they do, pre-seed odometry
+   * with the selected auto's starting pose (alliance-corrected).
    */
   @Override
   public void disabledPeriodic() {
@@ -134,19 +143,27 @@ public class Robot extends LoggedRobot {
     // 254-style: Only run the heavy check every N iterations (~1s)
     disabledPeriodicCount++;
     if (disabledPeriodicCount % DISABLED_PERIODIC_CHECK_INTERVAL == 0) {
-      var dashboardAutoManager = robotContainer.getDashboardAutoManager();
+      // Centralized starting pose that accounts for all auto modes
+      Pose2d startingPose = robotContainer.getAutoStartingPose();
 
       // Publish "Near Auto Starting Pose" indicator
-      Pose2d startingPose = dashboardAutoManager.getStartingPose();
       if (startingPose != null) {
         boolean nearStartPose = robotContainer.odometryCloseToPose(startingPose);
         SmartDashboard.putBoolean("Near Auto Starting Pose", nearStartPose);
         Logger.recordOutput("Auto/NearAutoStartingPose", nearStartPose);
       }
 
-      // Pre-seed odometry when auto settings change
-      if (dashboardAutoManager.didSettingsChange()) {
+      // Detect changes from either source:
+      //  1. Dashboard auto settings changed (start pose dropdown, intake locations, etc.)
+      //  2. Top-level auto chooser or hardcoded auto chooser selection changed
+      boolean dashboardSettingsChanged =
+          robotContainer.getDashboardAutoManager().didSettingsChange();
+      boolean autoSelectionChanged =
+          startingPose != null && !startingPose.equals(lastPreSeededPose);
+
+      if (dashboardSettingsChanged || autoSelectionChanged) {
         if (startingPose != null) {
+          lastPreSeededPose = startingPose;
           robotContainer.getDriveSubsystem().setPose(startingPose);
           System.out.println(
               "[Robot] 254-style: Pre-seeded odometry to auto start pose: " + startingPose);
@@ -166,7 +183,7 @@ public class Robot extends LoggedRobot {
 
     // SIM-only: Hard-reset pose to the selected auto's starting pose
     if (Constants.currentMode == Constants.Mode.SIM) {
-      Pose2d startingPose = robotContainer.getDashboardAutoManager().getStartingPose();
+      Pose2d startingPose = robotContainer.getAutoStartingPose();
       if (startingPose != null) {
         robotContainer.getDriveSubsystem().setPose(startingPose);
         System.out.println("[Robot] SIM: Reset pose to auto start pose: " + startingPose);

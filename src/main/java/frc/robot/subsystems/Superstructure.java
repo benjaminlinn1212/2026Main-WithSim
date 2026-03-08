@@ -80,6 +80,13 @@ public class Superstructure extends SubsystemBase {
   private boolean intakeOutpostMode = false;
 
   /**
+   * Whether the intake pivot should jiggle between outpost position and outpost jiggle position.
+   * Auto-only flag — set after dwelling at the OUTPOST to dislodge FUEL from the CHUTE. Takes
+   * priority over {@link #intakeOutpostMode}. Cleared on {@link #forceIdleState()}.
+   */
+  private boolean intakeOutpostJiggleMode = false;
+
+  /**
    * Robot pose supplier — used to detect when the robot is near a TRENCH so we can override the
    * hood to stow (the trench is only 22.25in tall, hood must be down to fit).
    */
@@ -320,6 +327,7 @@ public class Superstructure extends SubsystemBase {
    * Apply the correct intake pivot position. Priority (highest → lowest):
    *
    * <ol>
+   *   <li>{@link #intakeOutpostJiggleMode} → jiggle between outpost and outpost jiggle positions
    *   <li>{@link #intakeOutpostMode} → outpost position (auto OUTPOST CHUTE)
    *   <li>{@code shouldJiggle} → jiggle between two positions to dislodge stuck FUEL (only when
    *       actively feeding in AIMING_WHILE_INTAKING)
@@ -327,7 +335,9 @@ public class Superstructure extends SubsystemBase {
    * </ol>
    */
   private void applyIntakePivotDeploy(boolean shouldJiggle) {
-    if (intakeOutpostMode) {
+    if (intakeOutpostJiggleMode) {
+      intakePivot.applyOutpostJiggle();
+    } else if (intakeOutpostMode) {
       intakePivot.applyOutpostDeploy();
     } else if (shouldJiggle) {
       intakePivot.applyJiggle();
@@ -407,6 +417,23 @@ public class Superstructure extends SubsystemBase {
   /** Whether the intake is in outpost mode (outpost pivot position, rollers stopped). */
   public boolean isIntakeOutpostMode() {
     return intakeOutpostMode;
+  }
+
+  /**
+   * Enable or disable outpost jiggle mode. When enabled, the intake pivot jiggles between the
+   * outpost position and outpost jiggle position to dislodge FUEL from the CHUTE. Takes priority
+   * over normal outpost mode. Auto-only — set after dwelling at the OUTPOST, cleared when leaving.
+   *
+   * @param enabled true to jiggle between outpost and outpost jiggle positions
+   */
+  public void setIntakeOutpostJiggleMode(boolean enabled) {
+    this.intakeOutpostJiggleMode = enabled;
+    Logger.recordOutput("Superstructure/IntakeOutpostJiggleMode", enabled);
+  }
+
+  /** Whether the intake is in outpost jiggle mode. */
+  public boolean isIntakeOutpostJiggleMode() {
+    return intakeOutpostJiggleMode;
   }
 
   // ==================== Release from Auto Climb ====================
@@ -515,6 +542,7 @@ public class Superstructure extends SubsystemBase {
     this.currentState = SuperstructureState.IDLE;
     this.feedingRequested = false;
     this.intakeOutpostMode = false;
+    this.intakeOutpostJiggleMode = false;
   }
 
   /**

@@ -82,14 +82,14 @@ public final class Constants {
   public static class AutoConstants {
     // Path following PID controllers
     public static final double PATH_FOLLOWING_TRANSLATION_KP = 3.0;
-    public static final double PATH_FOLLOWING_ROTATION_KP = 5.0;
+    public static final double PATH_FOLLOWING_ROTATION_KP = 8.0;
 
     // PathPlanner pathfinding constraints (single source of truth)
     public static final double PATHFINDING_MAX_VELOCITY_MPS = 3.0;
     public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 4.0;
-    public static final double PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC = Math.toRadians(360);
+    public static final double PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC = Math.toRadians(720);
     public static final double PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2 =
-        Math.toRadians(540);
+        Math.toRadians(900);
 
     // Climb straight-line approach (final segment after pathfinding)
     /**
@@ -586,10 +586,10 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 25.0 / FULL_RANGE_DEG;
-      public static final double LEFT_RELEASED_POSITION = 80.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_STOWED_POSITION = 26.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_RELEASED_POSITION = 81.0 / FULL_RANGE_DEG;
+      public static final double LEFT_STOWED_POSITION = 65.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 120.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 66.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_RELEASED_POSITION = 121.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the hardstop servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 0.6;

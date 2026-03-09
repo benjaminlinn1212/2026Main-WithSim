@@ -235,7 +235,11 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
         robotCentricDrive.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega));
   }
 
-  /** Drive using chassis speeds. */
+  /**
+   * Drive using chassis speeds (robot-relative). Called by PathPlanner's AutoBuilder output.
+   * Delegates to robot-centric drive — PathPlanner's holonomic controller manages both translation
+   * and rotation.
+   */
   public void runVelocity(ChassisSpeeds chassisSpeeds) {
     driveRobotRelative(
         chassisSpeeds.vxMetersPerSecond,

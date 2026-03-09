@@ -357,7 +357,9 @@ public class ClimbPathPlanner {
         return new Translation2d[] {leftVel, rightVel};
       }
 
-      // Fallback: numerical derivative (for legacy paths)
+      // Fallback: numerical derivative (for legacy / linear paths without a trajectory).
+      // The raw derivative gives constant velocity because waypoints are uniformly spaced.
+      // Apply a trapezoidal velocity envelope so the path decelerates to zero at the end.
       double dt = 0.02; // 20ms lookahead
       double maxDuration = Math.max(leftPath.getTotalDuration(), rightPath.getTotalDuration());
       if (maxDuration <= dt) {
@@ -372,6 +374,20 @@ public class ClimbPathPlanner {
 
       Translation2d leftVel = leftFuture.minus(leftCurrent).div(dt);
       Translation2d rightVel = rightFuture.minus(rightCurrent).div(dt);
+
+      // Trapezoidal velocity envelope: ramp down to zero at both ends of the path.
+      // accelTime = v_max / a_max. Scale factor is 0→1 during accel, 1→0 during decel.
+      double maxVel = ClimbConstants.PATH_MAX_VELOCITY_MPS;
+      double maxAccel = ClimbConstants.PATH_MAX_ACCELERATION_MPS2;
+      double accelTime = maxVel / maxAccel;
+      double rampUp = (accelTime > 0) ? Math.min(1.0, elapsed / accelTime) : 1.0;
+      double timeLeft = maxDuration - elapsed;
+      double rampDown = (accelTime > 0) ? Math.min(1.0, timeLeft / accelTime) : 1.0;
+      double envelope = Math.min(rampUp, rampDown);
+      envelope = Math.max(0.0, envelope); // safety clamp
+
+      leftVel = leftVel.times(envelope);
+      rightVel = rightVel.times(envelope);
 
       return new Translation2d[] {leftVel, rightVel};
     }

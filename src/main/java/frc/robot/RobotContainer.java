@@ -23,6 +23,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.auto.OutpostAuto;
+import frc.robot.auto.UpperClimbAuto;
 import frc.robot.auto.dashboard.DashboardAutoManager;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.Superstructure;
@@ -109,6 +110,7 @@ public class RobotContainer {
 
   // Hardcoded auto instance (built once, getCommand() defers internally)
   private OutpostAuto outpostAuto;
+  private UpperClimbAuto upperClimbAuto;
 
   // Orchestra manager for playing music through Kraken motors
   private OrchestraManager orchestraManager;
@@ -303,6 +305,11 @@ public class RobotContainer {
     outpostAuto = new OutpostAuto(drive, superstructure);
     autoChooser.addOption(
         "Outpost Auto", Commands.defer(() -> outpostAuto.buildCommand(), Set.of(drive)));
+
+    // Hardcoded auto — UpperClimbAuto (upper lane, 2 cycles, SWD to L1 climb)
+    upperClimbAuto = new UpperClimbAuto(drive, superstructure, climb);
+    autoChooser.addOption(
+        "Upper Climb Auto", Commands.defer(() -> upperClimbAuto.buildCommand(), Set.of(drive)));
 
     // ===== ORCHESTRA (Play Music) AUTO =====
     if (Constants.currentMode == Constants.Mode.REAL) {
@@ -610,6 +617,7 @@ public class RobotContainer {
    *
    * <ul>
    *   <li>"Outpost Auto" → {@code OutpostAuto.START_POSE}
+   *   <li>"Upper Climb Auto" → {@code UpperClimbAuto.START_POSE}
    *   <li>"Dashboard Auto" → {@code dashboardAutoManager.getStartingPose()}
    *   <li>Otherwise → {@code null} (no pre-seeding for Do Nothing, Music, etc.)
    * </ul>
@@ -618,6 +626,8 @@ public class RobotContainer {
     String selected = autoChooser.getSendableChooser().getSelected();
     if ("Outpost Auto".equals(selected)) {
       return OutpostAuto.START_POSE.getPose();
+    } else if ("Upper Climb Auto".equals(selected)) {
+      return UpperClimbAuto.START_POSE.getPose();
     } else if ("Dashboard Auto".equals(selected)) {
       return dashboardAutoManager.getStartingPose();
     }

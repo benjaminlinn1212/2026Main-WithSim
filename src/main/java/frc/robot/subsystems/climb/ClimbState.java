@@ -114,8 +114,8 @@ public enum ClimbState {
       List.of(
           new Translation2d(0.6, 0.63),
           new Translation2d(0.63, 0.60),
-          new Translation2d(0.65, 0.46),
-          new Translation2d(0.56, 0.42)),
+          new Translation2d(0.60, 0.56),
+          new Translation2d(0.50, 0.50)),
       true),
 
   // ── Special states ──

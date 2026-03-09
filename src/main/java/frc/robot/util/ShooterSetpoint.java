@@ -81,16 +81,16 @@ public class ShooterSetpoint {
     hoodAngleMap.put(4.83, Rotation2d.fromDegrees(37.0));
 
     // Flywheel speed vs distance (rotations per second)
-    flywheelSpeedMap.put(1.25, 45.0);
-    flywheelSpeedMap.put(1.5, 50.0);
-    flywheelSpeedMap.put(1.75, 50.0);
-    flywheelSpeedMap.put(2.0, 50.0);
-    flywheelSpeedMap.put(2.5, 55.0);
-    flywheelSpeedMap.put(3.0, 55.0);
-    flywheelSpeedMap.put(3.5, 60.0);
-    flywheelSpeedMap.put(4.0, 65.0);
-    flywheelSpeedMap.put(4.5, 65.0);
-    flywheelSpeedMap.put(4.83, 65.0);
+    flywheelSpeedMap.put(1.25, 43.0);
+    flywheelSpeedMap.put(1.5, 48.0);
+    flywheelSpeedMap.put(1.75, 48.0);
+    flywheelSpeedMap.put(2.0, 48.0);
+    flywheelSpeedMap.put(2.5, 53.0);
+    flywheelSpeedMap.put(3.0, 53.0);
+    flywheelSpeedMap.put(3.5, 58.0);
+    flywheelSpeedMap.put(4.0, 63.0);
+    flywheelSpeedMap.put(4.5, 63.0);
+    flywheelSpeedMap.put(4.83, 63.0);
 
     // Time of flight vs distance (seconds) — for motion compensation
     timeOfFlightMap.put(1.25, 1.0);

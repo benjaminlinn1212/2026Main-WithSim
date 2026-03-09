@@ -289,7 +289,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Velocity Setpoints (rotations per second)
-    public static final double UPPER_INTAKE_VELOCITY_RPS = 60.0;
+    public static final double UPPER_INTAKE_VELOCITY_RPS = 75.0;
     public static final double LOWER_INTAKE_VELOCITY_RPS = 15.0;
     public static final double LOWER_INTAKE_EJECT_RPS = -20.0;
   }
@@ -393,7 +393,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Indexer Percent Output
-    public static final double TO_SHOOTER_PERCENT = 0.6;
+    public static final double TO_SHOOTER_PERCENT = 0.75;
   }
 
   public static class Aiming {
@@ -406,7 +406,7 @@ public final class Constants {
 
     // Neutral Zone Feed Shot — physics-based (no interp maps needed)
     /** Fixed hood angle (degrees) for neutral zone ground-level lob shots. */
-    public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG = 35.0;
+    public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG = 45.0;
 
     /**
      * Launch height above ground (meters) for neutral zone shots. Typically turret height + hood
@@ -420,7 +420,7 @@ public final class Constants {
      * decrease if they overshoot. Starting estimate derived from hub shot data: ~65 RPS produces
      * roughly 6–7 m/s effective ball speed → ~10 RPS/mps.
      */
-    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 12.0;
+    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 8.0;
   }
 
   public static class TurretConstants {
@@ -586,10 +586,10 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 65.0 / FULL_RANGE_DEG;
-      public static final double LEFT_RELEASED_POSITION = 120.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_STOWED_POSITION = 66.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_RELEASED_POSITION = 121.0 / FULL_RANGE_DEG;
+      public static final double LEFT_STOWED_POSITION = 25.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 82.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 26.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_RELEASED_POSITION = 85.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the hardstop servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 0.6;

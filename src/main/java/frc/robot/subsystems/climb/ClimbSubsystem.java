@@ -769,8 +769,12 @@ public class ClimbSubsystem extends SubsystemBase {
         }
 
         try {
-          var path =
-              ClimbPathPlanner.createMultiBezierPath(params.waypoints(), 0.15, params.isPulling());
+          // Always decelerate to zero at the final waypoint. Previously this passed
+          // params.isPulling() as maintainEndVelocity, which caused pulling (retract)
+          // paths to arrive at full speed — the motors couldn't stop in time, producing
+          // overshoot. Gravity feedforward (VELOCITY_KG_PULLING) handles the load
+          // during the path; there's no need to maintain velocity at the endpoint.
+          var path = ClimbPathPlanner.createMultiBezierPath(params.waypoints(), 0.15, false);
           boolean valid = ClimbPathPlanner.isPathValid(path);
           System.out.println(
               "[Climb] runPath '"
@@ -843,14 +847,13 @@ public class ClimbSubsystem extends SubsystemBase {
         System.out.println("[Climb] runPath '" + name + "' end: interrupted=" + interrupted);
         if (executor != null) executor.stop();
 
-        // Command zero velocity first to actively decelerate the motors before switching
-        // to position hold. Without this, the motors carry residual velocity from the last
-        // execute() cycle and overshoot the target before MotionMagic can arrest them.
-        io.setLeftFrontVelocity(0.0, 0.0);
-        io.setLeftBackVelocity(0.0, 0.0);
-        io.setRightFrontVelocity(0.0, 0.0);
-        io.setRightBackVelocity(0.0, 0.0);
-
+        // Switch directly to MotionMagic position hold at the final waypoint.
+        // Do NOT send zero-velocity commands before position hold — in the sim,
+        // each setXxxVelocity() call integrates position by one DT step, and
+        // the subsequent setXxxPosition() integrates again, causing a double-step
+        // overshoot. MotionMagic's internal profile handles deceleration from any
+        // residual velocity, so going straight to position hold is both simpler
+        // and more accurate.
         if (!interrupted && params != null && !params.waypoints().isEmpty()) {
           Translation2d finalPos = params.waypoints().get(params.waypoints().size() - 1);
           setTargetPositionsInternal(finalPos, finalPos);

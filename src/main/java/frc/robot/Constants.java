@@ -289,7 +289,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
     // Velocity Setpoints (rotations per second)
-    public static final double UPPER_INTAKE_VELOCITY_RPS = 75.0;
+    public static final double UPPER_INTAKE_VELOCITY_RPS = 67.0;
     public static final double LOWER_INTAKE_VELOCITY_RPS = 15.0;
     public static final double LOWER_INTAKE_EJECT_RPS = -20.0;
   }

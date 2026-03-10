@@ -570,10 +570,10 @@ public final class Constants {
       public static final int PULSE_MAX_US = 2500;
 
       // Per-servo stowed/released positions (0.0-1.0, before inversion)
-      public static final double LEFT_STOWED_POSITION = 20.0 / FULL_RANGE_DEG;
-      public static final double LEFT_RELEASED_POSITION = 164.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_STOWED_POSITION = 14.0 / FULL_RANGE_DEG;
-      public static final double RIGHT_RELEASED_POSITION = 160.0 / FULL_RANGE_DEG;
+      public static final double LEFT_STOWED_POSITION = 5.0 / FULL_RANGE_DEG;
+      public static final double LEFT_RELEASED_POSITION = 155.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_STOWED_POSITION = 6.0 / FULL_RANGE_DEG;
+      public static final double RIGHT_RELEASED_POSITION = 156.0 / FULL_RANGE_DEG;
 
       /** Time (seconds) for the angle servo to travel its full range. */
       public static final double TRAVEL_TIME_SEC = 1.2;

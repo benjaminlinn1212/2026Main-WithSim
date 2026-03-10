@@ -199,6 +199,9 @@ public class UpperClimbAuto {
             Commands.print("[UpperClimbAuto] Cycle 2 — SWD to climb standoff"),
             Commands.parallel(
                 // Group 1: Drive to standoff with zone-aware SWD
+                // Uses ONLY_AIMING (intake stowed, turret active) inside the aiming zone
+                // so the intake retracts and the climb arms can start extending mid-transit.
+                // This matches AutoCommandBuilder.buildDriveAndClimb() behavior.
                 Commands.deadline(
                     followPath(PATH_NEUTRAL_TO_CLIMB),
                     Commands.run(
@@ -208,8 +211,7 @@ public class UpperClimbAuto {
                             superstructure.forceWantedState(SuperstructureState.ONLY_INTAKE);
                             superstructure.setFeedingRequested(false);
                           } else {
-                            superstructure.forceWantedState(
-                                SuperstructureState.AIMING_WHILE_INTAKING);
+                            superstructure.forceWantedState(SuperstructureState.ONLY_AIMING);
                             superstructure.setFeedingRequested(isInAllianceZone());
                           }
                           Logger.recordOutput("UpperClimbAuto/SWD/Active", true);

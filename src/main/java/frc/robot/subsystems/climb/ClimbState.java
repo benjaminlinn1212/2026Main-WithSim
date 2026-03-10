@@ -45,7 +45,7 @@ public enum ClimbState {
           new Translation2d(0.63, 0.60),
           new Translation2d(0.65, 0.46),
           new Translation2d(0.56, 0.42),
-          new Translation2d(0.491, 0.246)),
+          new Translation2d(0.471, 0.151)),
       true),
 
   /** Release angle servos after L1 retract (servo-only, no path) */

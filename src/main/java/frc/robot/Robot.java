@@ -11,6 +11,8 @@ import com.pathplanner.lib.commands.FollowPathCommand;
 import com.pathplanner.lib.commands.PathfindingCommand;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -53,6 +55,13 @@ public class Robot extends LoggedRobot {
    * auto's own dropdown changes, not the top-level auto chooser).
    */
   private Pose2d lastPreSeededPose = null;
+
+  /**
+   * FPGA timestamp captured at the start of autonomous. Used to compute a global auto countdown
+   * timer ({@code AUTO_DURATION - elapsed}) that works regardless of which auto routine is
+   * selected.
+   */
+  private double autoStartTimestamp = 0.0;
 
   public Robot() {
     // Record metadata
@@ -116,6 +125,13 @@ public class Robot extends LoggedRobot {
   @Override
   public void robotPeriodic() {
     CommandScheduler.getInstance().run();
+
+    // Global auto countdown timer — works for every auto routine
+    if (DriverStation.isAutonomous() && autoStartTimestamp > 0.0) {
+      double elapsed = Timer.getFPGATimestamp() - autoStartTimestamp;
+      double remaining = Math.max(0.0, FieldConstants.AUTO_DURATION - elapsed);
+      Logger.recordOutput("Auto/TimeRemaining", remaining);
+    }
   }
 
   @Override
@@ -125,6 +141,11 @@ public class Robot extends LoggedRobot {
       autonomousCommand.cancel();
       autonomousCommand = null;
     }
+
+    // Throttle Limelight frame processing while disabled to reduce thermal output.
+    // The LL4 skips N frames between each processed frame — 100-200 is recommended by the docs.
+    LimelightHelpers.SetThrottle(Constants.Vision.FRONT_LIMELIGHT_NAME, 150);
+    LimelightHelpers.SetThrottle(Constants.Vision.TURRET_LIMELIGHT_NAME, 150);
 
     // Reset tracking so the first disabledPeriodic check immediately pre-seeds
     disabledPeriodicCount = 0;
@@ -181,6 +202,13 @@ public class Robot extends LoggedRobot {
   public void autonomousInit() {
     hasBeenEnabled = true;
 
+    // Remove Limelight throttle — full framerate for match
+    LimelightHelpers.SetThrottle(Constants.Vision.FRONT_LIMELIGHT_NAME, 0);
+    LimelightHelpers.SetThrottle(Constants.Vision.TURRET_LIMELIGHT_NAME, 0);
+
+    // Capture FPGA timestamp for global auto countdown timer
+    autoStartTimestamp = Timer.getFPGATimestamp();
+
     // SIM-only: Hard-reset pose to the selected auto's starting pose
     if (Constants.currentMode == Constants.Mode.SIM) {
       Pose2d startingPose = robotContainer.getAutoStartingPose();
@@ -230,6 +258,10 @@ public class Robot extends LoggedRobot {
     if (autonomousCommand != null) {
       autonomousCommand.cancel();
     }
+
+    // Remove Limelight throttle — full framerate for match
+    LimelightHelpers.SetThrottle(Constants.Vision.FRONT_LIMELIGHT_NAME, 0);
+    LimelightHelpers.SetThrottle(Constants.Vision.TURRET_LIMELIGHT_NAME, 0);
 
     // 254-style: Fallback heading reset on first enable
     if (!hasBeenEnabled) {

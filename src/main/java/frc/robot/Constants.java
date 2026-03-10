@@ -638,7 +638,7 @@ public final class Constants {
     public static final double VELOCITY_KP = 0.06;
     public static final double VELOCITY_KI = 0.0;
     public static final double VELOCITY_KD = 0.0;
-    public static final double VELOCITY_KS = 0.0;
+    public static final double VELOCITY_KS = 0.15;
     public static final double VELOCITY_KV = 0.115;
     public static final double VELOCITY_KA = 0.0;
 
@@ -728,7 +728,12 @@ public final class Constants {
     public static final double PATH_MAX_ACCELERATION_MPS2 =
         ACCELERATION * MID_LAYER_CIRCUMFERENCE_M;
 
-    public static final double VELOCITY_KG_PULLING = 0.0;
+    // Gravity + spring feedforward voltage for pulling (retract) paths.
+    // During retract the motors must overcome both gravity AND the extension springs.
+    // This voltage is multiplied by the Jacobian-transpose (-Y direction) to distribute
+    // the correct torque across front/back motors at each arm configuration.
+    // Increase if retract paths lag behind; decrease if they overshoot.
+    public static final double VELOCITY_KG_PULLING = 1.5;
 
     // Cartesian position correction gain applied during velocity-mode path following.
     // Adds a proportional velocity correction = kP * (targetPos - measuredPos) to the
@@ -736,7 +741,7 @@ public final class Constants {
     // Units: (m/s) per (m) of position error. Applies to both sim and real hardware.
     // Set to 0.0 to disable — the TalonFX inner velocity PID handles tracking well enough
     // on real hardware, and the outer P loop can cause overshoot due to FK latency.
-    public static final double PATH_POSITION_CORRECTION_KP = 0.0;
+    public static final double PATH_POSITION_CORRECTION_KP = 2.0;
 
     // ==================== IMU Climb Assist (Auto-Level) ====================
     // Uses IMU roll to differentially adjust left/right end-effector velocities

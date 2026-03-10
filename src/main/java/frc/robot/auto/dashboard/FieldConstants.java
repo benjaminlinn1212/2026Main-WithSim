@@ -567,11 +567,11 @@ public final class FieldConstants {
   // ===== Climb Poses =====
   public enum ClimbPose {
     /** Starting pose near DRIVER STATION 1 (upper side, near OUTPOST). */
-    DEPOT_SIDE(new Pose2d(1.554, 3.943, Rotation2d.fromDegrees(180))),
+    DEPOT_SIDE(new Pose2d(1.554, 4.0, Rotation2d.fromDegrees(180))),
     /** Mid-tower pose (centered between DEPOT_SIDE and OUTPOST_SIDE). */
     MID(new Pose2d(1.554, 3.770, Rotation2d.fromDegrees(180))),
     /** Starting pose near DRIVER STATION 2 (center, near TOWER). */
-    OUTPOST_SIDE(new Pose2d(1.554, 3.598, Rotation2d.fromDegrees(180)));
+    OUTPOST_SIDE(new Pose2d(1.554, 3.55, Rotation2d.fromDegrees(180)));
 
     public final Pose2d bluePose;
 

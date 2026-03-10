@@ -63,6 +63,14 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d leftTargetPosition = ClimbState.STOWED.getTargetPosition();
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
 
+  // ─── Last successful FK results (used as Newton solver initial guess) ───
+  // Using the previous measured position as the initial guess gives the Newton solver a
+  // much closer starting point than the target position, which may diverge from measured
+  // during velocity-controlled motions with tracking lag. This prevents the FK solve from
+  // failing mid-stow (or any path) and freezing the Mechanism2d measured arm.
+  private Translation2d lastMeasuredLeft = ClimbState.STOWED.getTargetPosition();
+  private Translation2d lastMeasuredRight = ClimbState.STOWED.getTargetPosition();
+
   // ─── Climb level (set from RobotContainer via supplier) ───
   private Supplier<ClimbLevel> climbLevelSupplier = () -> ClimbLevel.L2L3;
 
@@ -341,11 +349,23 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/CalibrationMode", calibrationMode);
     Logger.recordOutput("Climb/ClimbLevel", getClimbLevel().name());
 
-    // Skip FK/IK visualization when stowed and no path is actively running.
-    // Without the pathRunning check, previousState() → STOWED would freeze the visualization
-    // mid-motion because it sets currentState = STOWED before the return path starts.
+    // Skip FK/IK visualization when stowed, no path is actively running, AND motors have
+    // actually settled near the stowed position. Without the pathRunning check,
+    // previousState() → STOWED would freeze the visualization mid-motion because it sets
+    // currentState = STOWED before the return path starts. Without the settling check,
+    // the measured arm would freeze when MotionMagic is still driving motors to STOWED
+    // after a path ends (path velocity control undershoots, MotionMagic fills the gap).
+    boolean motorsSettled =
+        lastMeasuredLeft.getDistance(ClimbState.STOWED.getTargetPosition())
+                < ClimbConstants.IK_POSITION_TOLERANCE_METERS
+            && lastMeasuredRight.getDistance(ClimbState.STOWED.getTargetPosition())
+                < ClimbConstants.IK_POSITION_TOLERANCE_METERS;
     boolean skipVisualization =
-        currentState == ClimbState.STOWED && !pathRunning && !calibrationMode && !manualMode;
+        currentState == ClimbState.STOWED
+            && !pathRunning
+            && motorsSettled
+            && !calibrationMode
+            && !manualMode;
 
     if (!skipVisualization) {
       Logger.recordOutput("Climb/LeftTargetPosition", leftTargetPosition);
@@ -353,20 +373,24 @@ public class ClimbSubsystem extends SubsystemBase {
       Logger.recordOutput("Climb/AutoLevel/Enabled", autoLevelEnabled);
 
       // Estimate and log actual end effector positions from motor encoders (FK)
+      // Use last successful FK result as initial guess — it's closer to the true position
+      // than the target, especially when motors lag behind during velocity-controlled paths.
       Translation2d measuredLeft =
           ClimbIK.estimateEndEffectorPosition(
               inputs.leftFrontPositionRotations,
               inputs.leftBackPositionRotations,
-              leftTargetPosition);
+              lastMeasuredLeft);
       Translation2d measuredRight =
           ClimbIK.estimateEndEffectorPosition(
               inputs.rightFrontPositionRotations,
               inputs.rightBackPositionRotations,
-              rightTargetPosition);
+              lastMeasuredRight);
       if (measuredLeft != null) {
+        lastMeasuredLeft = measuredLeft;
         Logger.recordOutput("Climb/LeftMeasuredPosition", measuredLeft);
       }
       if (measuredRight != null) {
+        lastMeasuredRight = measuredRight;
         Logger.recordOutput("Climb/RightMeasuredPosition", measuredRight);
       }
 
@@ -487,6 +511,9 @@ public class ClimbSubsystem extends SubsystemBase {
   public void resetToStowed() {
     io.resetToStowed();
     setState(ClimbState.STOWED);
+    // Reset FK initial guesses so the Newton solver starts from the stowed position
+    lastMeasuredLeft = ClimbState.STOWED.getTargetPosition();
+    lastMeasuredRight = ClimbState.STOWED.getTargetPosition();
     // Re-initialize Mechanism2d ligaments to stowed angles so the visualization resets
     // when auto restarts (periodic() skips visualization updates while STOWED).
     initializeMechanism2dToStowed();
@@ -919,22 +946,27 @@ public class ClimbSubsystem extends SubsystemBase {
     this.leftTargetPosition = leftPosition;
     this.rightTargetPosition = rightPosition;
 
+    // Use lastMeasuredLeft/Right as the Newton solver initial guess — same fix as periodic().
+    // The previous measured position is much closer to the true position than the target,
+    // especially during velocity-controlled paths where tracking lag creates a gap.
     Translation2d measuredLeftPosition =
         ClimbIK.estimateEndEffectorPosition(
-            inputs.leftFrontPositionRotations,
-            inputs.leftBackPositionRotations,
-            leftTargetPosition);
+            inputs.leftFrontPositionRotations, inputs.leftBackPositionRotations, lastMeasuredLeft);
     Translation2d measuredRightPosition =
         ClimbIK.estimateEndEffectorPosition(
             inputs.rightFrontPositionRotations,
             inputs.rightBackPositionRotations,
-            rightTargetPosition);
+            lastMeasuredRight);
 
     if (measuredLeftPosition == null) {
       measuredLeftPosition = leftTargetPosition;
+    } else {
+      lastMeasuredLeft = measuredLeftPosition;
     }
     if (measuredRightPosition == null) {
       measuredRightPosition = rightTargetPosition;
+    } else {
+      lastMeasuredRight = measuredRightPosition;
     }
 
     // Position correction: add proportional feedback to the feedforward velocities.

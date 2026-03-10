@@ -6,6 +6,7 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.math.trajectory.TrajectoryConfig;
 import edu.wpi.first.math.trajectory.TrajectoryGenerator;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.wpilibj.Timer;
 import frc.robot.Constants.ClimbConstants;
 import java.util.ArrayList;
@@ -225,7 +226,9 @@ public class ClimbPathPlanner {
       return state.poseMeters.getTranslation();
     }
 
-    // Fallback: linear interpolation through waypoints (for legacy paths without trajectory)
+    // Fallback: trapezoidal position profile through waypoints (for linear paths without
+    // trajectory). Uses the same accel/cruise/decel phases as the velocity envelope so that
+    // position targets and velocity feedforward are perfectly consistent.
     List<Translation2d> waypoints = path.getWaypoints();
 
     if (elapsedTime <= 0) {
@@ -236,8 +239,12 @@ public class ClimbPathPlanner {
       return waypoints.get(waypoints.size() - 1);
     }
 
-    // Simple time-based interpolation
-    double progress = elapsedTime / path.getTotalDuration();
+    // Compute progress (0→1) using WPILib TrapezoidProfile. The profile plans accel/cruise/decel
+    // over the straight-line distance, and we sample it at elapsedTime to get how far along the
+    // path we should be. This keeps position targets consistent with the velocity derivative.
+    double totalDistance = waypoints.get(0).getDistance(waypoints.get(waypoints.size() - 1));
+    double progress = trapezoidalProgress(elapsedTime, totalDistance);
+
     int waypointCount = waypoints.size();
     double floatIndex = progress * (waypointCount - 1);
     int index = (int) Math.floor(floatIndex);
@@ -250,6 +257,31 @@ public class ClimbPathPlanner {
     Translation2d current = waypoints.get(index);
     Translation2d next = waypoints.get(index + 1);
     return current.interpolate(next, t);
+  }
+
+  /**
+   * Compute normalized progress (0→1) along a trapezoidal velocity profile using WPILib's {@link
+   * TrapezoidProfile}. The profile accelerates at maxAccel up to maxVel, cruises, then decelerates
+   * to zero at the goal distance. Returns the fraction of total distance traveled at the given
+   * time.
+   *
+   * @param elapsed Time since path start (seconds)
+   * @param totalDistance Total path distance (meters)
+   * @return Fraction of total path distance completed (0.0 to 1.0)
+   */
+  private static double trapezoidalProgress(double elapsed, double totalDistance) {
+    if (totalDistance <= 0 || elapsed <= 0) return 0.0;
+
+    TrapezoidProfile.Constraints constraints =
+        new TrapezoidProfile.Constraints(
+            ClimbConstants.PATH_MAX_VELOCITY_MPS, ClimbConstants.PATH_MAX_ACCELERATION_MPS2);
+    TrapezoidProfile profile = new TrapezoidProfile(constraints);
+
+    TrapezoidProfile.State initial = new TrapezoidProfile.State(0.0, 0.0);
+    TrapezoidProfile.State goal = new TrapezoidProfile.State(totalDistance, 0.0);
+
+    TrapezoidProfile.State state = profile.calculate(elapsed, initial, goal);
+    return Math.max(0.0, Math.min(1.0, state.position / totalDistance));
   }
 
   /**
@@ -357,9 +389,10 @@ public class ClimbPathPlanner {
         return new Translation2d[] {leftVel, rightVel};
       }
 
-      // Fallback: numerical derivative (for legacy / linear paths without a trajectory).
-      // The raw derivative gives constant velocity because waypoints are uniformly spaced.
-      // Apply a trapezoidal velocity envelope so the path decelerates to zero at the end.
+      // Fallback: numerical derivative of the trapezoidal position profile.
+      // getPositionAtTime() already uses trapezoidalProgress() for linear paths, so the
+      // derivative naturally produces a trapezoidal velocity shape (accel → cruise → decel).
+      // No explicit envelope is needed — applying one would double-ramp the velocity.
       double dt = 0.02; // 20ms lookahead
       double maxDuration = Math.max(leftPath.getTotalDuration(), rightPath.getTotalDuration());
       if (maxDuration <= dt) {
@@ -374,20 +407,6 @@ public class ClimbPathPlanner {
 
       Translation2d leftVel = leftFuture.minus(leftCurrent).div(dt);
       Translation2d rightVel = rightFuture.minus(rightCurrent).div(dt);
-
-      // Trapezoidal velocity envelope: ramp down to zero at both ends of the path.
-      // accelTime = v_max / a_max. Scale factor is 0→1 during accel, 1→0 during decel.
-      double maxVel = ClimbConstants.PATH_MAX_VELOCITY_MPS;
-      double maxAccel = ClimbConstants.PATH_MAX_ACCELERATION_MPS2;
-      double accelTime = maxVel / maxAccel;
-      double rampUp = (accelTime > 0) ? Math.min(1.0, elapsed / accelTime) : 1.0;
-      double timeLeft = maxDuration - elapsed;
-      double rampDown = (accelTime > 0) ? Math.min(1.0, timeLeft / accelTime) : 1.0;
-      double envelope = Math.min(rampUp, rampDown);
-      envelope = Math.max(0.0, envelope); // safety clamp
-
-      leftVel = leftVel.times(envelope);
-      rightVel = rightVel.times(envelope);
 
       return new Translation2d[] {leftVel, rightVel};
     }

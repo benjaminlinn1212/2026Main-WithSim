@@ -47,8 +47,11 @@ public class ClimbIOSim implements ClimbIO {
   private static final double DT = 0.02;
 
   // Motion profile constraints (mechanism rotations, matching ClimbConstants)
-  private static final double CRUISE_VEL = ClimbConstants.CRUISE_VELOCITY;
-  private static final double MAX_ACCEL = ClimbConstants.ACCELERATION;
+  // Front and back motors have different gear ratios → different max drum speeds.
+  private static final double FRONT_CRUISE_VEL = ClimbConstants.CRUISE_VELOCITY;
+  private static final double FRONT_MAX_ACCEL = ClimbConstants.ACCELERATION;
+  private static final double BACK_CRUISE_VEL = ClimbConstants.BACK_CRUISE_VELOCITY;
+  private static final double BACK_MAX_ACCEL = ClimbConstants.BACK_ACCELERATION;
 
   public ClimbIOSim() {
     // Initialize to STOWED cable-length rotations so the sim starts at the correct position
@@ -110,7 +113,11 @@ public class ClimbIOSim implements ClimbIO {
   public void setRightFrontPosition(double positionRotations) {
     rightFrontVelocityRotPerSec =
         simulateMotionMagicStep(
-            rightFrontPositionRotations, rightFrontVelocityRotPerSec, positionRotations);
+            rightFrontPositionRotations,
+            rightFrontVelocityRotPerSec,
+            positionRotations,
+            FRONT_CRUISE_VEL,
+            FRONT_MAX_ACCEL);
     rightFrontPositionRotations += rightFrontVelocityRotPerSec * DT;
   }
 
@@ -118,7 +125,11 @@ public class ClimbIOSim implements ClimbIO {
   public void setRightBackPosition(double positionRotations) {
     rightBackVelocityRotPerSec =
         simulateMotionMagicStep(
-            rightBackPositionRotations, rightBackVelocityRotPerSec, positionRotations);
+            rightBackPositionRotations,
+            rightBackVelocityRotPerSec,
+            positionRotations,
+            BACK_CRUISE_VEL,
+            BACK_MAX_ACCEL);
     rightBackPositionRotations += rightBackVelocityRotPerSec * DT;
   }
 
@@ -126,7 +137,11 @@ public class ClimbIOSim implements ClimbIO {
   public void setLeftFrontPosition(double positionRotations) {
     leftFrontVelocityRotPerSec =
         simulateMotionMagicStep(
-            leftFrontPositionRotations, leftFrontVelocityRotPerSec, positionRotations);
+            leftFrontPositionRotations,
+            leftFrontVelocityRotPerSec,
+            positionRotations,
+            FRONT_CRUISE_VEL,
+            FRONT_MAX_ACCEL);
     leftFrontPositionRotations += leftFrontVelocityRotPerSec * DT;
   }
 
@@ -134,31 +149,42 @@ public class ClimbIOSim implements ClimbIO {
   public void setLeftBackPosition(double positionRotations) {
     leftBackVelocityRotPerSec =
         simulateMotionMagicStep(
-            leftBackPositionRotations, leftBackVelocityRotPerSec, positionRotations);
+            leftBackPositionRotations,
+            leftBackVelocityRotPerSec,
+            positionRotations,
+            BACK_CRUISE_VEL,
+            BACK_MAX_ACCEL);
     leftBackPositionRotations += leftBackVelocityRotPerSec * DT;
   }
 
   @Override
   public void setRightFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    rightFrontVelocityRotPerSec = rampVelocity(rightFrontVelocityRotPerSec, velocityRotPerSec);
+    rightFrontVelocityRotPerSec =
+        rampVelocity(
+            rightFrontVelocityRotPerSec, velocityRotPerSec, FRONT_CRUISE_VEL, FRONT_MAX_ACCEL);
     rightFrontPositionRotations += rightFrontVelocityRotPerSec * DT;
   }
 
   @Override
   public void setRightBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    rightBackVelocityRotPerSec = rampVelocity(rightBackVelocityRotPerSec, velocityRotPerSec);
+    rightBackVelocityRotPerSec =
+        rampVelocity(
+            rightBackVelocityRotPerSec, velocityRotPerSec, BACK_CRUISE_VEL, BACK_MAX_ACCEL);
     rightBackPositionRotations += rightBackVelocityRotPerSec * DT;
   }
 
   @Override
   public void setLeftFrontVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    leftFrontVelocityRotPerSec = rampVelocity(leftFrontVelocityRotPerSec, velocityRotPerSec);
+    leftFrontVelocityRotPerSec =
+        rampVelocity(
+            leftFrontVelocityRotPerSec, velocityRotPerSec, FRONT_CRUISE_VEL, FRONT_MAX_ACCEL);
     leftFrontPositionRotations += leftFrontVelocityRotPerSec * DT;
   }
 
   @Override
   public void setLeftBackVelocity(double velocityRotPerSec, double feedforwardVolts) {
-    leftBackVelocityRotPerSec = rampVelocity(leftBackVelocityRotPerSec, velocityRotPerSec);
+    leftBackVelocityRotPerSec =
+        rampVelocity(leftBackVelocityRotPerSec, velocityRotPerSec, BACK_CRUISE_VEL, BACK_MAX_ACCEL);
     leftBackPositionRotations += leftBackVelocityRotPerSec * DT;
   }
 
@@ -178,10 +204,12 @@ public class ClimbIOSim implements ClimbIO {
    * @param currentPos Current mechanism position (rotations)
    * @param currentVel Current mechanism velocity (rot/s)
    * @param targetPos Desired mechanism position (rotations)
+   * @param cruiseVel Max cruise velocity for this motor (drum rot/s)
+   * @param maxAccel Max acceleration for this motor (drum rot/s²)
    * @return New velocity for this cycle (rot/s)
    */
   private static double simulateMotionMagicStep(
-      double currentPos, double currentVel, double targetPos) {
+      double currentPos, double currentVel, double targetPos, double cruiseVel, double maxAccel) {
     double error = targetPos - currentPos;
     double absError = Math.abs(error);
     double direction = Math.signum(error);
@@ -192,41 +220,44 @@ public class ClimbIOSim implements ClimbIO {
     }
 
     // Calculate braking distance at current velocity: d = v² / (2*a)
-    double brakingDistance = (currentVel * currentVel) / (2.0 * MAX_ACCEL);
+    double brakingDistance = (currentVel * currentVel) / (2.0 * maxAccel);
 
     double desiredVel;
-    if (absError <= brakingDistance + CRUISE_VEL * DT) {
+    if (absError <= brakingDistance + cruiseVel * DT) {
       // Deceleration phase: ramp down to stop at target
       // Target velocity to reach zero at target position: v = sqrt(2 * a * remaining)
-      desiredVel = direction * Math.sqrt(Math.max(0, 2.0 * MAX_ACCEL * absError));
+      desiredVel = direction * Math.sqrt(Math.max(0, 2.0 * maxAccel * absError));
       // Don't exceed cruise
-      desiredVel = MathUtil.clamp(desiredVel, -CRUISE_VEL, CRUISE_VEL);
+      desiredVel = MathUtil.clamp(desiredVel, -cruiseVel, cruiseVel);
     } else {
       // Acceleration/cruise phase
-      desiredVel = direction * CRUISE_VEL;
+      desiredVel = direction * cruiseVel;
     }
 
     // Add proportional position correction (like real TalonFX PID slot)
     desiredVel += error * POSITION_CORRECTION_KP;
 
     // Apply acceleration limit to velocity change
-    return rampVelocity(currentVel, desiredVel);
+    return rampVelocity(currentVel, desiredVel, cruiseVel, maxAccel);
   }
 
   /**
-   * Ramp current velocity toward a target velocity, limited by MAX_ACCEL * DT per cycle.
+   * Ramp current velocity toward a target velocity, limited by maxAccel * DT per cycle.
    *
    * @param currentVel Current velocity (rot/s)
    * @param targetVel Desired velocity (rot/s)
+   * @param cruiseVel Max cruise velocity for this motor (drum rot/s)
+   * @param maxAccel Max acceleration for this motor (drum rot/s²)
    * @return New velocity after one DT step, acceleration-limited
    */
-  private static double rampVelocity(double currentVel, double targetVel) {
-    double maxDeltaVel = MAX_ACCEL * DT;
+  private static double rampVelocity(
+      double currentVel, double targetVel, double cruiseVel, double maxAccel) {
+    double maxDeltaVel = maxAccel * DT;
     double deltaVel = targetVel - currentVel;
     deltaVel = MathUtil.clamp(deltaVel, -maxDeltaVel, maxDeltaVel);
     double newVel = currentVel + deltaVel;
     // Also clamp absolute velocity to cruise
-    return MathUtil.clamp(newVel, -CRUISE_VEL, CRUISE_VEL);
+    return MathUtil.clamp(newVel, -cruiseVel, cruiseVel);
   }
 
   @Override

@@ -127,11 +127,11 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightBackConfig.Slot0 = baseConfig.Slot0;
     rightBackConfig.Slot1 = baseConfig.Slot1;
     rightBackConfig.MotionMagic.MotionMagicCruiseVelocity =
-        ClimbConstants.CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
+        ClimbConstants.BACK_CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
     rightBackConfig.MotionMagic.MotionMagicAcceleration =
-        ClimbConstants.ACCELERATION / ClimbConstants.BACK_GEAR_RATIO;
+        ClimbConstants.BACK_ACCELERATION / ClimbConstants.BACK_GEAR_RATIO;
     rightBackConfig.MotionMagic.MotionMagicJerk =
-        ClimbConstants.JERK / ClimbConstants.BACK_GEAR_RATIO;
+        ClimbConstants.BACK_JERK / ClimbConstants.BACK_GEAR_RATIO;
     rightBackConfig.CurrentLimits = baseConfig.CurrentLimits;
     rightBackConfig.Feedback.SensorToMechanismRatio = 1.0;
 
@@ -157,11 +157,11 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftBackConfig.Slot0 = baseConfig.Slot0;
     leftBackConfig.Slot1 = baseConfig.Slot1;
     leftBackConfig.MotionMagic.MotionMagicCruiseVelocity =
-        ClimbConstants.CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
+        ClimbConstants.BACK_CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
     leftBackConfig.MotionMagic.MotionMagicAcceleration =
-        ClimbConstants.ACCELERATION / ClimbConstants.BACK_GEAR_RATIO;
+        ClimbConstants.BACK_ACCELERATION / ClimbConstants.BACK_GEAR_RATIO;
     leftBackConfig.MotionMagic.MotionMagicJerk =
-        ClimbConstants.JERK / ClimbConstants.BACK_GEAR_RATIO;
+        ClimbConstants.BACK_JERK / ClimbConstants.BACK_GEAR_RATIO;
     leftBackConfig.CurrentLimits = baseConfig.CurrentLimits;
     leftBackConfig.Feedback.SensorToMechanismRatio = 1.0;
 

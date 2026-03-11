@@ -645,10 +645,20 @@ public final class Constants {
     // Motion Magic Constants (mechanism/drum rotations per second)
     public static final double MOTOR_FREE_SPEED_RPS = 100.0;
     public static final double SPEED_UTILIZATION = 0.90;
+    // CRUISE_VELOCITY is expressed in drum rotations/s. Front and back motors have
+    // different gear ratios, so they have different max drum speeds:
+    //   Front: 100 * (1/48) * 0.9 = 1.875 drumRot/s
+    //   Back:  100 * (1/27) * 0.9 = 3.333 drumRot/s
+    // CRUISE_VELOCITY uses the FRONT (slower) ratio as the bottleneck for path
+    // velocity constraints and MotionMagic. BACK_CRUISE_VELOCITY is for back motors.
     public static final double CRUISE_VELOCITY =
         MOTOR_FREE_SPEED_RPS * FRONT_GEAR_RATIO * SPEED_UTILIZATION;
+    public static final double BACK_CRUISE_VELOCITY =
+        MOTOR_FREE_SPEED_RPS * BACK_GEAR_RATIO * SPEED_UTILIZATION;
     public static final double ACCELERATION = CRUISE_VELOCITY * 3.75;
+    public static final double BACK_ACCELERATION = BACK_CRUISE_VELOCITY * 3.75;
     public static final double JERK = ACCELERATION * 4.0;
+    public static final double BACK_JERK = BACK_ACCELERATION * 4.0;
 
     // Current Limits
     public static final double STATOR_CURRENT_LIMIT = 80.0;
@@ -728,12 +738,42 @@ public final class Constants {
     public static final double PATH_MAX_ACCELERATION_MPS2 =
         ACCELERATION * MID_LAYER_CIRCUMFERENCE_M;
 
-    // Gravity + spring feedforward voltage for pulling (retract) paths.
-    // During retract the motors must overcome both gravity AND the extension springs.
-    // This voltage is multiplied by the Jacobian-transpose (-Y direction) to distribute
-    // the correct torque across front/back motors at each arm configuration.
-    // Increase if retract paths lag behind; decrease if they overshoot.
-    public static final double VELOCITY_KG_PULLING = 1.5;
+    // ==================== Path Following Feedforward ====================
+    // These feedforward terms are applied during velocity-mode path following via
+    // the Jacobian transpose: J^T * F_external → per-motor voltage.  Each term
+    // compensates a specific physical force so they can be tuned independently.
+    //
+    // TalonFX Slot 1 already handles:
+    //   kS (0.15 V) — static friction
+    //   kV (0.115 V·s/rot) — back-EMF (velocity feedforward)
+    //   kP (0.06) — velocity error feedback
+    //
+    // These ADDITIONAL feedforward voltages are computed in Cartesian space,
+    // transformed through the Jacobian, and passed as the FeedForward parameter
+    // to VelocityVoltage (additive voltage on top of kS+kV+kP).
+
+    // ── Feedforward Voltages ──
+    //
+    // During EXTEND the arm moves while the robot sits on the ground — the only
+    // gravitational load is the arm's own weight.
+    // During RETRACT (isPulling) the arm pulls the ENTIRE ROBOT up — the load
+    // is the full robot weight PLUS the extension springs fighting the motion.
+    //
+    // EXTEND_GRAVITY_FF_VOLTS — light arm-only gravity compensation (extend).
+    // RETRACT_GRAVITY_FF_VOLTS — full robot-weight gravity compensation (retract).
+    // SPRING_FF_VOLTS — extra voltage to overcome extension springs (retract only).
+    //
+    // All three are fed through J^T * (0, -voltage) so the Jacobian maps them
+    // to per-motor voltages automatically.  Tune by:
+    //   1. Hold arm still in velocity mode on the ground → tune EXTEND_GRAVITY_FF_VOLTS
+    //      until it holds position against gravity.
+    //   2. Hold arm still in velocity mode while robot hangs → tune RETRACT_GRAVITY_FF_VOLTS
+    //      until it holds position (this is much larger — full robot weight).
+    //   3. Run a slow retract path → increase SPRING_FF_VOLTS until path tracks
+    //      without the position correction loop doing all the work.
+    public static final double EXTEND_GRAVITY_FF_VOLTS = 0.8;
+    public static final double RETRACT_GRAVITY_FF_VOLTS = 3.0;
+    public static final double SPRING_FF_VOLTS = 1.0;
 
     // Cartesian position correction gain applied during velocity-mode path following.
     // Adds a proportional velocity correction = kP * (targetPos - measuredPos) to the

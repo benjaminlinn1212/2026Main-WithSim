@@ -799,7 +799,7 @@ public class ClimbSubsystem extends SubsystemBase {
           // Always decelerate to zero at the final waypoint. Previously this passed
           // params.isPulling() as maintainEndVelocity, which caused pulling (retract)
           // paths to arrive at full speed — the motors couldn't stop in time, producing
-          // overshoot. Gravity feedforward (VELOCITY_KG_PULLING) handles the load
+          // overshoot. Gravity/spring feedforward handles the load
           // during the path; there's no need to maintain velocity at the endpoint.
           var path = ClimbPathPlanner.createMultiBezierPath(params.waypoints(), 0.15, false);
           boolean valid = ClimbPathPlanner.isPathValid(path);
@@ -998,6 +998,7 @@ public class ClimbSubsystem extends SubsystemBase {
 
     Logger.recordOutput("Climb/VelocityIK/Valid", true);
 
+    // Clamp each motor to its own max drum velocity (front and back have different gear ratios)
     double leftFrontVel =
         MathUtil.clamp(
             velocityResult.leftSide.frontMotorVelocity,
@@ -1006,8 +1007,8 @@ public class ClimbSubsystem extends SubsystemBase {
     double leftBackVel =
         MathUtil.clamp(
             velocityResult.leftSide.backMotorVelocity,
-            -frc.robot.Constants.ClimbConstants.CRUISE_VELOCITY,
-            frc.robot.Constants.ClimbConstants.CRUISE_VELOCITY);
+            -frc.robot.Constants.ClimbConstants.BACK_CRUISE_VELOCITY,
+            frc.robot.Constants.ClimbConstants.BACK_CRUISE_VELOCITY);
     double rightFrontVel =
         MathUtil.clamp(
             velocityResult.rightSide.frontMotorVelocity,
@@ -1016,27 +1017,25 @@ public class ClimbSubsystem extends SubsystemBase {
     double rightBackVel =
         MathUtil.clamp(
             velocityResult.rightSide.backMotorVelocity,
-            -frc.robot.Constants.ClimbConstants.CRUISE_VELOCITY,
-            frc.robot.Constants.ClimbConstants.CRUISE_VELOCITY);
+            -frc.robot.Constants.ClimbConstants.BACK_CRUISE_VELOCITY,
+            frc.robot.Constants.ClimbConstants.BACK_CRUISE_VELOCITY);
 
-    // Apply gravity compensation feedforward using Jacobian transpose if pulling
-    // J^T * F_gravity gives geometrically-correct torque distribution across motors
-    double leftFrontFF = 0.0;
-    double leftBackFF = 0.0;
-    double rightFrontFF = 0.0;
-    double rightBackFF = 0.0;
-    if (isPulling) {
-      double[] leftGravFF =
-          ClimbIK.calculateGravityFeedforward(
-              measuredLeftPosition, frc.robot.Constants.ClimbConstants.VELOCITY_KG_PULLING);
-      double[] rightGravFF =
-          ClimbIK.calculateGravityFeedforward(
-              measuredRightPosition, frc.robot.Constants.ClimbConstants.VELOCITY_KG_PULLING);
-      leftFrontFF = leftGravFF[0];
-      leftBackFF = leftGravFF[1];
-      rightFrontFF = rightGravFF[0];
-      rightBackFF = rightGravFF[1];
-    }
+    // ── Feedforward: gravity + spring ──
+    // EXTEND: arm-only weight (light).
+    // RETRACT: full robot weight (heavy) + spring force.
+    double gravityVolts =
+        isPulling
+            ? ClimbConstants.RETRACT_GRAVITY_FF_VOLTS
+            : ClimbConstants.EXTEND_GRAVITY_FF_VOLTS;
+    double totalFFVolts = isPulling ? gravityVolts + ClimbConstants.SPRING_FF_VOLTS : gravityVolts;
+
+    double[] leftFF = ClimbIK.calculateGravityFeedforward(measuredLeftPosition, totalFFVolts);
+    double[] rightFF = ClimbIK.calculateGravityFeedforward(measuredRightPosition, totalFFVolts);
+
+    double leftFrontFF = leftFF[0];
+    double leftBackFF = leftFF[1];
+    double rightFrontFF = rightFF[0];
+    double rightBackFF = rightFF[1];
 
     // Send velocity commands to all 4 motors
     io.setLeftFrontVelocity(leftFrontVel, leftFrontFF);
@@ -1044,6 +1043,7 @@ public class ClimbSubsystem extends SubsystemBase {
     io.setRightFrontVelocity(rightFrontVel, rightFrontFF);
     io.setRightBackVelocity(rightBackVel, rightBackFF);
 
+    // ── Telemetry ──
     Logger.recordOutput("Climb/VelocityIK/LeftFrontVel", leftFrontVel);
     Logger.recordOutput("Climb/VelocityIK/LeftBackVel", leftBackVel);
     Logger.recordOutput("Climb/VelocityIK/RightFrontVel", rightFrontVel);
@@ -1055,6 +1055,21 @@ public class ClimbSubsystem extends SubsystemBase {
     Logger.recordOutput("Climb/VelocityIK/RightVelY", rightVelocity.getY());
     Logger.recordOutput("Climb/VelocityIK/LeftMeasured", measuredLeftPosition);
     Logger.recordOutput("Climb/VelocityIK/RightMeasured", measuredRightPosition);
+
+    Logger.recordOutput("Climb/FF/GravityVolts", gravityVolts);
+    Logger.recordOutput("Climb/FF/TotalVolts", totalFFVolts);
+    Logger.recordOutput("Climb/FF/IsPulling", isPulling);
+    Logger.recordOutput("Climb/FF/LeftFront", leftFrontFF);
+    Logger.recordOutput("Climb/FF/LeftBack", leftBackFF);
+    Logger.recordOutput("Climb/FF/RightFront", rightFrontFF);
+    Logger.recordOutput("Climb/FF/RightBack", rightBackFF);
+
+    Logger.recordOutput("Climb/PosError/LeftX", leftPosition.getX() - measuredLeftPosition.getX());
+    Logger.recordOutput("Climb/PosError/LeftY", leftPosition.getY() - measuredLeftPosition.getY());
+    Logger.recordOutput(
+        "Climb/PosError/RightX", rightPosition.getX() - measuredRightPosition.getX());
+    Logger.recordOutput(
+        "Climb/PosError/RightY", rightPosition.getY() - measuredRightPosition.getY());
 
     // Still calculate IK for position logging
     ClimbIKResult ikResult = ClimbIK.calculateBothSides(leftPosition, rightPosition);

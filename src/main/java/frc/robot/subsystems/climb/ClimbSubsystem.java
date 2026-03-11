@@ -543,7 +543,9 @@ public class ClimbSubsystem extends SubsystemBase {
           // the end of the original path, not from the arm's current position.
           Translation2d start = leftTargetPosition;
           Translation2d end = prev.getTargetPosition();
-          boolean isPulling = !currentState.isPulling();
+          // Reverse transitions invert isPulling — except when stowing, which is always
+          // arm-weight-only (not pulling) regardless of the state we came from.
+          boolean isPulling = prev == ClimbState.STOWED ? false : !currentState.isPulling();
           currentState = prev;
           Logger.recordOutput("Climb/CurrentState", prev.getName());
           return new PathParams(List.of(start, end), isPulling);

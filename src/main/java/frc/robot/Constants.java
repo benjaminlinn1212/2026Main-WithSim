@@ -658,12 +658,12 @@ public final class Constants {
 
     // Front motor feedforward voltages (1:48 ratio)
     public static final double FRONT_EXTEND_GRAVITY_FF_VOLTS = 0.0;
-    public static final double FRONT_RETRACT_GRAVITY_FF_VOLTS = 0.0;
+    public static final double FRONT_RETRACT_GRAVITY_FF_VOLTS = -0.11;
     public static final double FRONT_SPRING_FF_VOLTS = 0.0;
 
     // Back motor feedforward voltages (1:27 ratio)
     public static final double BACK_EXTEND_GRAVITY_FF_VOLTS = 0.0;
-    public static final double BACK_RETRACT_GRAVITY_FF_VOLTS = 0.0;
+    public static final double BACK_RETRACT_GRAVITY_FF_VOLTS = -0.0225;
     public static final double BACK_SPRING_FF_VOLTS = 0.0;
 
     // Position correction kP ((m/s) per (m) error). Adds corrective velocity during path

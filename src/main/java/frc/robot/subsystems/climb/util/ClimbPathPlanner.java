@@ -368,23 +368,23 @@ public class ClimbPathPlanner {
         double rightTotal = rightPath.getTrajectory().getTotalTimeSeconds();
         double dt = 0.01;
 
-        double leftTime = Math.min(elapsed, leftTotal);
-        double rightTime = Math.min(elapsed, rightTotal);
-        double leftNext = Math.min(leftTime + dt, leftTotal);
-        double rightNext = Math.min(rightTime + dt, rightTotal);
+        // At or past the end of the trajectory, command zero velocity to avoid overshoot.
+        double maxTotal = Math.max(leftTotal, rightTotal);
+        if (elapsed >= maxTotal - dt) {
+          return new Translation2d[] {new Translation2d(), new Translation2d()};
+        }
 
         Translation2d leftPos =
-            leftPath.getTrajectory().sample(leftTime).poseMeters.getTranslation();
+            leftPath.getTrajectory().sample(elapsed).poseMeters.getTranslation();
         Translation2d leftPosNext =
-            leftPath.getTrajectory().sample(leftNext).poseMeters.getTranslation();
+            leftPath.getTrajectory().sample(elapsed + dt).poseMeters.getTranslation();
         Translation2d rightPos =
-            rightPath.getTrajectory().sample(rightTime).poseMeters.getTranslation();
+            rightPath.getTrajectory().sample(elapsed).poseMeters.getTranslation();
         Translation2d rightPosNext =
-            rightPath.getTrajectory().sample(rightNext).poseMeters.getTranslation();
+            rightPath.getTrajectory().sample(elapsed + dt).poseMeters.getTranslation();
 
-        Translation2d leftVel = leftPosNext.minus(leftPos).div(Math.max(1e-6, leftNext - leftTime));
-        Translation2d rightVel =
-            rightPosNext.minus(rightPos).div(Math.max(1e-6, rightNext - rightTime));
+        Translation2d leftVel = leftPosNext.minus(leftPos).div(dt);
+        Translation2d rightVel = rightPosNext.minus(rightPos).div(dt);
 
         return new Translation2d[] {leftVel, rightVel};
       }
@@ -395,15 +395,18 @@ public class ClimbPathPlanner {
       // No explicit envelope is needed — applying one would double-ramp the velocity.
       double dt = 0.02; // 20ms lookahead
       double maxDuration = Math.max(leftPath.getTotalDuration(), rightPath.getTotalDuration());
-      if (maxDuration <= dt) {
+
+      // At or past the end of the path, command zero velocity so the arm doesn't overshoot
+      // into the MotionMagic hold transition. Previously, clamping to maxDuration-dt always
+      // produced a small residual velocity from the last finite-difference sample.
+      if (elapsed >= maxDuration - dt || maxDuration <= dt) {
         return new Translation2d[] {new Translation2d(), new Translation2d()};
       }
-      double clampedElapsed = Math.min(elapsed, maxDuration - dt);
 
-      Translation2d leftCurrent = getPositionAtTime(leftPath, clampedElapsed);
-      Translation2d leftFuture = getPositionAtTime(leftPath, clampedElapsed + dt);
-      Translation2d rightCurrent = getPositionAtTime(rightPath, clampedElapsed);
-      Translation2d rightFuture = getPositionAtTime(rightPath, clampedElapsed + dt);
+      Translation2d leftCurrent = getPositionAtTime(leftPath, elapsed);
+      Translation2d leftFuture = getPositionAtTime(leftPath, elapsed + dt);
+      Translation2d rightCurrent = getPositionAtTime(rightPath, elapsed);
+      Translation2d rightFuture = getPositionAtTime(rightPath, elapsed + dt);
 
       Translation2d leftVel = leftFuture.minus(leftCurrent).div(dt);
       Translation2d rightVel = rightFuture.minus(rightCurrent).div(dt);

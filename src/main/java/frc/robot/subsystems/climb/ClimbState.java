@@ -41,11 +41,11 @@ public enum ClimbState {
   RETRACT_L1(
       "Retracting on L1",
       List.of(
-          new Translation2d(0.63, 0.61),
+          new Translation2d(0.6, 0.63),
           new Translation2d(0.63, 0.60),
           new Translation2d(0.65, 0.46),
           new Translation2d(0.56, 0.42),
-          new Translation2d(0.471, 0.151)),
+          new Translation2d(0.451, 0.081)),
       true),
 
   /** Release angle servos after L1 retract (servo-only, no path) */

@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj.Timer;
 import frc.robot.Constants;
 import frc.robot.LimelightHelpers;
 import frc.robot.RobotState;
+import org.littletonrobotics.junction.Logger;
 
 public class VisionIOHardwareLimelight implements VisionIO {
   private final NetworkTable frontTable =
@@ -25,6 +26,16 @@ public class VisionIOHardwareLimelight implements VisionIO {
   // Cache NT entry objects to avoid repeated table lookups every cycle
   private final NetworkTableEntry frontTvEntry = frontTable.getEntry("tv");
   private final NetworkTableEntry turretTvEntry = turretTable.getEntry("tv");
+
+  // Heartbeat watchdog — detect LL4 freezes. The "hb" entry increments every frame;
+  // if it stalls for HEARTBEAT_TIMEOUT_S the camera has likely frozen.
+  private final NetworkTableEntry frontHbEntry = frontTable.getEntry("hb");
+  private final NetworkTableEntry turretHbEntry = turretTable.getEntry("hb");
+  private static final double HEARTBEAT_TIMEOUT_S = 0.5; // 500ms without a new frame → stale
+  private double lastFrontHb = -1;
+  private double lastTurretHb = -1;
+  private double lastFrontHbChangeTime = 0;
+  private double lastTurretHbChangeTime = 0;
 
   private final RobotState robotState;
 
@@ -95,8 +106,11 @@ public class VisionIOHardwareLimelight implements VisionIO {
         Units.radiansToDegrees(
             robotState.getLatestRobotRelativeChassisSpeed().omegaRadiansPerSecond);
 
-    // Drivetrain camera — send robot heading (gyro is time-aligned, no correction needed)
-    LimelightHelpers.SetRobotOrientation(
+    // Drivetrain camera — send robot heading (gyro is time-aligned, no correction needed).
+    // Use NoFlush variant; we flush once after both cameras are updated to avoid
+    // double-flushing per cycle which can saturate the LL4's NT receiver and contribute
+    // to freezes.
+    LimelightHelpers.SetRobotOrientation_NoFlush(
         Constants.Vision.FRONT_LIMELIGHT_NAME,
         robotHeading.getDegrees(),
         robotOmegaDegPerSec,
@@ -137,6 +151,7 @@ public class VisionIOHardwareLimelight implements VisionIO {
   @Override
   public void updateInputs(VisionIOInputs inputs) {
     updateOrientations();
+    checkHeartbeats();
 
     // Front camera
     inputs.frontCameraSeesTarget = frontTvEntry.getDouble(0) == 1.0;
@@ -161,5 +176,30 @@ public class VisionIOHardwareLimelight implements VisionIO {
       inputs.turretCameraMegatagPoseEstimate = MegatagPoseEstimate.fromLimelight(megatag);
       inputs.turretCameraMegatag2PoseEstimate = MegatagPoseEstimate.fromLimelight(megatag2);
     }
+  }
+
+  /**
+   * Monitor Limelight heartbeats to detect freezes. The "hb" NT key increments each frame the
+   * camera processes. If it stops changing for longer than HEARTBEAT_TIMEOUT_S, the camera is
+   * likely frozen (thermal lockup, firmware crash, etc.).
+   */
+  private void checkHeartbeats() {
+    double now = Timer.getFPGATimestamp();
+
+    double frontHb = frontHbEntry.getDouble(-1);
+    if (frontHb != lastFrontHb) {
+      lastFrontHb = frontHb;
+      lastFrontHbChangeTime = now;
+    }
+    boolean frontStale = (now - lastFrontHbChangeTime) > HEARTBEAT_TIMEOUT_S;
+    Logger.recordOutput("Vision/Front/Stale", frontStale);
+
+    double turretHb = turretHbEntry.getDouble(-1);
+    if (turretHb != lastTurretHb) {
+      lastTurretHb = turretHb;
+      lastTurretHbChangeTime = now;
+    }
+    boolean turretStale = (now - lastTurretHbChangeTime) > HEARTBEAT_TIMEOUT_S;
+    Logger.recordOutput("Vision/Turret/Stale", turretStale);
   }
 }

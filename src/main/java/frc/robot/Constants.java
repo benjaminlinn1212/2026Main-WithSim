@@ -543,13 +543,21 @@ public final class Constants {
     public static final double KG = 0.0;
 
     // Velocity PID and Feedforward Constants (Slot 1 -- VelocityVoltage path following)
-    // Matched to ShooterConstants velocity control gains
-    public static final double VELOCITY_KP = 0.06;
-    public static final double VELOCITY_KI = 0.0;
-    public static final double VELOCITY_KD = 0.0;
-    public static final double VELOCITY_KS = 0.15;
-    public static final double VELOCITY_KV = 0.115;
-    public static final double VELOCITY_KA = 0.0;
+    // Front motors (1:48 ratio) and back motors (1:27 ratio) need separate FF tuning
+    // because VelocityVoltage operates in motor rotations and the gear ratios differ.
+    public static final double FRONT_VELOCITY_KP = 0.06;
+    public static final double FRONT_VELOCITY_KI = 0.0;
+    public static final double FRONT_VELOCITY_KD = 0.0;
+    public static final double FRONT_VELOCITY_KS = 0.15;
+    public static final double FRONT_VELOCITY_KV = 0.115;
+    public static final double FRONT_VELOCITY_KA = 0.0;
+
+    public static final double BACK_VELOCITY_KP = 0.06;
+    public static final double BACK_VELOCITY_KI = 0.0;
+    public static final double BACK_VELOCITY_KD = 0.0;
+    public static final double BACK_VELOCITY_KS = 0.15;
+    public static final double BACK_VELOCITY_KV = 0.115;
+    public static final double BACK_VELOCITY_KA = 0.0;
 
     // Motion Magic Constants (mechanism/drum rotations per second)
     public static final double MOTOR_FREE_SPEED_RPS = 100.0;
@@ -645,14 +653,25 @@ public final class Constants {
     // ==================== Path Following Feedforward ====================
     // Additional Cartesian-space FF applied via Jacobian transpose on top of Slot 1 (kS+kV+kP).
     // EXTEND uses arm-only gravity comp; RETRACT uses full robot weight + spring comp.
+    // Front and back are separate because different gear ratios (1:48 vs 1:27) cause
+    // different torque-to-voltage relationships at the motor.
 
-    // Feedforward voltages (V) -- mapped through J^T to per-motor voltages
-    public static final double EXTEND_GRAVITY_FF_VOLTS = 0.8; // arm-only gravity (extend)
-    public static final double RETRACT_GRAVITY_FF_VOLTS = 3.0; // full robot weight (retract)
-    public static final double SPRING_FF_VOLTS = 1.0; // extension spring comp (retract)
+    // Front motor feedforward voltages (1:48 ratio)
+    public static final double FRONT_EXTEND_GRAVITY_FF_VOLTS = 0.0;
+    public static final double FRONT_RETRACT_GRAVITY_FF_VOLTS = 0.0;
+    public static final double FRONT_SPRING_FF_VOLTS = 0.0;
 
-    // Position correction kP ((m/s) per (m) error). 0 to disable.
-    public static final double PATH_POSITION_CORRECTION_KP = 2.0;
+    // Back motor feedforward voltages (1:27 ratio)
+    public static final double BACK_EXTEND_GRAVITY_FF_VOLTS = 0.0;
+    public static final double BACK_RETRACT_GRAVITY_FF_VOLTS = 0.0;
+    public static final double BACK_SPRING_FF_VOLTS = 0.0;
+
+    // Position correction kP ((m/s) per (m) error). Adds corrective velocity during path
+    // following to close the gap between target and measured position. Higher values reduce
+    // end-of-path error that MotionMagic must fill, but too high causes oscillation.
+    // Split for extend/retract since retract has natural damping from robot weight.
+    public static final double EXTEND_PATH_POSITION_CORRECTION_KP = 0.65;
+    public static final double RETRACT_PATH_POSITION_CORRECTION_KP = 0.1;
 
     // ==================== IMU Climb Assist (Auto-Level) ====================
     // Uses IMU roll to adjust L/R velocity during RETRACT, keeping robot level.

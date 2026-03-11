@@ -105,6 +105,7 @@ public enum ClimbState {
       List.of(
           new Translation2d(
               ClimbConstants.START_POSITION_X_METERS, ClimbConstants.START_POSITION_Y_METERS),
+          new Translation2d(0.52, 0.62),
           new Translation2d(0.6, 0.63)),
       false),
 

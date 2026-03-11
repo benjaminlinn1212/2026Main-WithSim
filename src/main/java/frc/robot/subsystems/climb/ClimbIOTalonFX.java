@@ -1,5 +1,6 @@
 package frc.robot.subsystems.climb;
 
+import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
@@ -92,13 +93,13 @@ public class ClimbIOTalonFX implements ClimbIO {
     baseConfig.Slot0.kA = ClimbConstants.KA;
     baseConfig.Slot0.kG = ClimbConstants.KG;
 
-    // Slot 1: VelocityVoltage path following
-    baseConfig.Slot1.kP = ClimbConstants.VELOCITY_KP;
-    baseConfig.Slot1.kI = ClimbConstants.VELOCITY_KI;
-    baseConfig.Slot1.kD = ClimbConstants.VELOCITY_KD;
-    baseConfig.Slot1.kS = ClimbConstants.VELOCITY_KS;
-    baseConfig.Slot1.kV = ClimbConstants.VELOCITY_KV;
-    baseConfig.Slot1.kA = ClimbConstants.VELOCITY_KA;
+    // Slot 1: VelocityVoltage path following (front motors — 1:48 ratio)
+    baseConfig.Slot1.kP = ClimbConstants.FRONT_VELOCITY_KP;
+    baseConfig.Slot1.kI = ClimbConstants.FRONT_VELOCITY_KI;
+    baseConfig.Slot1.kD = ClimbConstants.FRONT_VELOCITY_KD;
+    baseConfig.Slot1.kS = ClimbConstants.FRONT_VELOCITY_KS;
+    baseConfig.Slot1.kV = ClimbConstants.FRONT_VELOCITY_KV;
+    baseConfig.Slot1.kA = ClimbConstants.FRONT_VELOCITY_KA;
 
     baseConfig.CurrentLimits.StatorCurrentLimit = ClimbConstants.STATOR_CURRENT_LIMIT;
     baseConfig.CurrentLimits.StatorCurrentLimitEnable = true;
@@ -125,7 +126,13 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightBackConfig.MotorOutput.Inverted = ClimbConstants.RIGHT_BACK_MOTOR_INVERTED;
     rightBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     rightBackConfig.Slot0 = baseConfig.Slot0;
-    rightBackConfig.Slot1 = baseConfig.Slot1;
+    // Back motors use separate velocity gains (different gear ratio)
+    rightBackConfig.Slot1.kP = ClimbConstants.BACK_VELOCITY_KP;
+    rightBackConfig.Slot1.kI = ClimbConstants.BACK_VELOCITY_KI;
+    rightBackConfig.Slot1.kD = ClimbConstants.BACK_VELOCITY_KD;
+    rightBackConfig.Slot1.kS = ClimbConstants.BACK_VELOCITY_KS;
+    rightBackConfig.Slot1.kV = ClimbConstants.BACK_VELOCITY_KV;
+    rightBackConfig.Slot1.kA = ClimbConstants.BACK_VELOCITY_KA;
     rightBackConfig.MotionMagic.MotionMagicCruiseVelocity =
         ClimbConstants.BACK_CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
     rightBackConfig.MotionMagic.MotionMagicAcceleration =
@@ -155,7 +162,13 @@ public class ClimbIOTalonFX implements ClimbIO {
     leftBackConfig.MotorOutput.Inverted = ClimbConstants.LEFT_BACK_MOTOR_INVERTED;
     leftBackConfig.MotorOutput.NeutralMode = baseConfig.MotorOutput.NeutralMode;
     leftBackConfig.Slot0 = baseConfig.Slot0;
-    leftBackConfig.Slot1 = baseConfig.Slot1;
+    // Back motors use separate velocity gains (different gear ratio)
+    leftBackConfig.Slot1.kP = ClimbConstants.BACK_VELOCITY_KP;
+    leftBackConfig.Slot1.kI = ClimbConstants.BACK_VELOCITY_KI;
+    leftBackConfig.Slot1.kD = ClimbConstants.BACK_VELOCITY_KD;
+    leftBackConfig.Slot1.kS = ClimbConstants.BACK_VELOCITY_KS;
+    leftBackConfig.Slot1.kV = ClimbConstants.BACK_VELOCITY_KV;
+    leftBackConfig.Slot1.kA = ClimbConstants.BACK_VELOCITY_KA;
     leftBackConfig.MotionMagic.MotionMagicCruiseVelocity =
         ClimbConstants.BACK_CRUISE_VELOCITY / ClimbConstants.BACK_GEAR_RATIO;
     leftBackConfig.MotionMagic.MotionMagicAcceleration =
@@ -190,6 +203,17 @@ public class ClimbIOTalonFX implements ClimbIO {
     rightBackMotor.optimizeBusUtilization();
     leftFrontMotor.optimizeBusUtilization();
     leftBackMotor.optimizeBusUtilization();
+
+    // Re-enable status signals needed by updateInputs() at 50 Hz (default is 0 Hz after
+    // optimizeBusUtilization). Position and velocity are critical for the Jacobian velocity
+    // loop and FK; current/voltage for telemetry. Temperature is low-priority (4 Hz).
+    for (TalonFX motor :
+        new TalonFX[] {rightFrontMotor, rightBackMotor, leftFrontMotor, leftBackMotor}) {
+      BaseStatusSignal.setUpdateFrequencyForAll(
+          50.0, motor.getPosition(), motor.getVelocity(), motor.getMotorVoltage());
+      motor.getStatorCurrent().setUpdateFrequency(50.0);
+      motor.getDeviceTemp().setUpdateFrequency(4.0);
+    }
   }
 
   @Override

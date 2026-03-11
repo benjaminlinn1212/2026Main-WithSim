@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 // Used when superstructure motors are enabled
 import frc.robot.Constants.OrchestraConstants;
+import frc.robot.Constants;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,27 +31,12 @@ public class OrchestraManager extends SubsystemBase {
     // These point to the SAME physical motors as the subsystem IO classes.
     // Orchestra will send MusicTone control requests while playing.
 
-    // Superstructure motors (all on SUPERSTRUCTURE_CAN_BUS) — uncomment to include
-    // CANBus superstructureBus = Constants.SUPERSTRUCTURE_CAN_BUS;
-    // addMotor(Constants.IntakeConstants.UPPER_MOTOR_CAN_ID, superstructureBus); // Intake upper
-    // addMotor(Constants.IntakeConstants.LOWER_MOTOR_CAN_ID, superstructureBus); // Intake lower
-    // addMotor(Constants.IntakePivotConstants.MOTOR_CAN_ID, superstructureBus); // Intake pivot
-    // addMotor(Constants.TurretConstants.MOTOR_CAN_ID, superstructureBus); // Turret
-    // addMotor(Constants.ConveyorConstants.MOTOR_CAN_ID, superstructureBus); // Conveyor
-    // addMotor(Constants.IndexerConstants.LEADER_MOTOR_CAN_ID, superstructureBus); // Indexer
-    // leader
-    // addMotor(Constants.IndexerConstants.FOLLOWER_MOTOR_CAN_ID, superstructureBus); // Indexer
-    // follow
-    // addMotor(Constants.ShooterConstants.MOTOR_CAN_ID, superstructureBus); // Shooter
-    // addMotor(Constants.HoodConstants.MOTOR_CAN_ID, superstructureBus); // Hood
+    // Superstructure motors
+    CANBus superstructureBus = Constants.SUPERSTRUCTURE_CAN_BUS;
+    addMotor(Constants.ClimbConstants.LEFT_FRONT_MOTOR_CAN_ID, superstructureBus);
+    addMotor(Constants.ClimbConstants.LEFT_BACK_MOTOR_CAN_ID, superstructureBus);
 
-    // Climb motors (also on SUPERSTRUCTURE_CAN_BUS) — uncomment to include
-    // addMotor(Constants.ClimbConstants.RIGHT_FRONT_MOTOR_CAN_ID, superstructureBus);
-    // addMotor(Constants.ClimbConstants.RIGHT_BACK_MOTOR_CAN_ID, superstructureBus);
-    // addMotor(Constants.ClimbConstants.LEFT_FRONT_MOTOR_CAN_ID, superstructureBus);
-    // addMotor(Constants.ClimbConstants.LEFT_BACK_MOTOR_CAN_ID, superstructureBus);
-
-    // Drivetrain motors (on Drivetrain CAN bus)
+    // Drivetrain motors
     CANBus drivetrainBus = frc.robot.generated.TunerConstants.kCANBus;
     addMotor(21, drivetrainBus); // FL drive
     addMotor(24, drivetrainBus); // FR drive

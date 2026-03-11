@@ -673,13 +673,13 @@ public final class Constants {
 
   public static class OrchestraConstants {
     /** CHRP file in src/main/deploy/. Convert MIDI via Phoenix Tuner X. */
-    public static final String CHRP_FILE = "4trackCruelAngel.chrp";
+    public static final String CHRP_FILE = "10trackCruelAngel.chrp";
 
     /** Allow Orchestra playback while robot is disabled. */
     public static final boolean ALLOW_MUSIC_DURING_DISABLE = true;
 
     /** Tracks in the CHRP file. Motors are distributed across tracks via modulo. */
-    public static final int NUM_TRACKS = 4;
+    public static final int NUM_TRACKS = 10;
   }
 
   // ==================== Maple-Sim Tuning Constants ====================

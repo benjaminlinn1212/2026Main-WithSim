@@ -609,7 +609,7 @@ public final class Constants {
     public static final double CABLE_DRUM_CIRCUMFERENCE_METERS = 0.0439941;
 
     // Cable Layer Buildup -- effective circumference grows as cable stacks on the drum
-    public static final double ROTATIONS_PER_LAYER = 4.0;
+    public static final double ROTATIONS_PER_LAYER = 3.8;
     public static final double CIRCUMFERENCE_PER_LAYER_METERS = 0.012;
 
     // Absolute rotations wound on the drum at the STOW pose

@@ -9,8 +9,8 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 // Used when superstructure motors are enabled
-import frc.robot.Constants.OrchestraConstants;
 import frc.robot.Constants;
+import frc.robot.Constants.OrchestraConstants;
 import java.util.ArrayList;
 import java.util.List;
 

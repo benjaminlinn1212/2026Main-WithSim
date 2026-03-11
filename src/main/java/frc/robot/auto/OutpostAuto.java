@@ -19,40 +19,9 @@ import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Hardcoded outpost autonomous routine using pre-drawn PathPlanner paths.
- *
- * <p>All driving legs use {@link PathPlannerPath#fromPathFile} so heading profiles (especially
- * through the trench) are designed in the PathPlanner GUI rather than computed at runtime. This
- * eliminates trench collision issues caused by pathfindToPose generating unpredictable rotation
- * trajectories.
- *
- * <h3>Required Paths (draw/edit in PathPlanner GUI)</h3>
- *
- * <ul>
- *   <li>{@code "Outpost Start To Hub"} — Start pose → HUB_LOWER scoring position
- *   <li>{@code "Outpost Hub To Neutral"} — HUB_LOWER → NEUTRAL_ZONE_LOWER (through trench, 0°
- *       heading)
- *   <li>{@code "Outpost Neutral To Hub"} — NEUTRAL_ZONE_LOWER → HUB_LOWER (through trench, 0°
- *       heading)
- *   <li>{@code "Outpost Neutral To Outpost"} — NEUTRAL_ZONE_LOWER → OUTPOST (through trench, 0°
- *       heading)
- * </ul>
- *
- * <h3>Sequence</h3>
- *
- * <ol>
- *   <li>Seed pose at {@link StartPose#LOWER} (alliance-corrected)
- *   <li>Follow "Outpost Start To Hub", stop-and-shoot preload
- *   <li>Follow "Outpost Hub To Neutral", intake FUEL (Cycle 1)
- *   <li>Follow "Outpost Neutral To Hub", stop-and-shoot (Cycle 1)
- *   <li>Follow "Outpost Hub To Neutral", intake FUEL (Cycle 2)
- *   <li>Follow "Outpost Neutral To Outpost" with shoot-while-driving (feed only in alliance zone)
- *   <li>At outpost: dwell → jiggle intake pivot → stop-and-shoot
- *   <li>Cleanup and idle
- * </ol>
- *
- * <p>This is a fully hardcoded auto — no dashboard timing system or start-pose selector needed.
- * Select "Hardcoded Auto" → "Outpost" in the auto choosers.
+ * Hardcoded outpost auto using pre-drawn PathPlanner paths for trench traversal. Sequence: seed
+ * pose -> start-to-hub -> shoot preload -> 2x (hub-to-neutral intake, neutral-to-hub shoot) -> SWD
+ * to outpost -> dwell/jiggle -> final shoot -> idle.
  */
 public class OutpostAuto {
 

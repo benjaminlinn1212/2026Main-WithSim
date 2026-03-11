@@ -37,12 +37,8 @@ public class VisionSubsystem extends SubsystemBase {
   // gyro echoed back. Use a massive std dev so the pose estimator ignores MT2 rotation entirely.
   private static final double MEGATAG2_ROTATION_STD_DEV = 999999.0;
 
-  // Turret camera std dev multiplier — the extra camera→turret→robot transform chain
-  // amplifies noise compared to drivetrain cameras, so we trust it less.
-  // NOTE: The turret heading sent via SetRobotOrientation is "now" but the Limelight
-  // image was captured ~20-50 ms ago when the turret was at a different angle.
-  // This timing mismatch injects angular error into the pose that feeds back into
-  // the turret setpoint, causing oscillation.  A high multiplier dampens this loop.
+  // Turret camera std dev multiplier — extra camera->turret->robot transform amplifies noise.
+  // Also compensates for turret heading timing mismatch (~20-50ms stale).
   private static final double TURRET_CAMERA_STD_DEV_MULTIPLIER = 6.0;
 
   private final VisionIO io;
@@ -285,13 +281,8 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   /**
-   * Check whether the turret camera vision frame at the given timestamp should be rejected due to
-   * high angular velocity (turret or chassis). When spinning fast, the heading sent to the
-   * Limelight can't track the true camera orientation closely enough, producing large pose errors.
-   *
-   * <p>Mirrors Team 254's shouldUsePinhole() rejection logic.
-   *
-   * @return true if the frame should be rejected (too much angular velocity).
+   * Reject turret camera frames captured during high angular velocity (turret or chassis). Mirrors
+   * Team 254's shouldUsePinhole() rejection logic.
    */
   private boolean shouldRejectTurretVision(double captureTimestamp, String logPreface) {
     double lookback = Constants.Vision.VELOCITY_REJECTION_LOOKBACK;
@@ -326,20 +317,9 @@ public class VisionSubsystem extends SubsystemBase {
   }
 
   /**
-   * Calculate field-to-robot pose from vision data.
-   *
-   * <p>For drivetrain cameras: Limelight has camerapose_robotspace_set configured, so
-   * botpose_wpiblue directly returns field-to-robot.
-   *
-   * <p>For turret camera <b>MT2</b>: camerapose_robotspace_set is configured to TURRET_TO_CAMERA,
-   * so botpose_wpiblue already returns the <b>turret center's</b> field pose. We only need to chain
-   * turret→robot (one step).
-   *
-   * <p>For turret camera <b>MT1</b>: MT1 does not apply camerapose_robotspace_set — it returns the
-   * raw <b>camera</b> field pose. We chain: field→camera → camera→turret → turret→robot (two
-   * steps).
-   *
-   * @param isMT2 true when processing a MegaTag2 estimate. Affects the turret transform chain.
+   * Calculate field-to-robot from vision. Drivetrain cameras return field-to-robot directly. Turret
+   * camera MT2: returns turret field pose (one transform to robot). Turret camera MT1: returns
+   * camera field pose (two transforms to robot).
    */
   private Optional<Pose2d> getFieldToRobotEstimate(
       MegatagPoseEstimate poseEstimate, boolean isTurretCamera, boolean isMT2) {

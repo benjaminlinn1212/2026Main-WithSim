@@ -6,15 +6,8 @@ import frc.robot.Constants.ClimbConstants;
 import frc.robot.subsystems.climb.util.ClimbIK;
 
 /**
- * Simulated ClimbIO that models MotionMagic-style trapezoidal motion profiles.
- *
- * <p>All positions and velocities in this class are in <b>mechanism (drum) rotations</b>, matching
- * the IO interface contract. The real hardware converts to motor rotations via gear ratio
- * internally (TalonFX SensorToMechanismRatio=1.0, code divides by GEAR_RATIO before sending to
- * motor).
- *
- * <p>The sim enforces the same cruise-velocity and acceleration constraints as the real MotionMagic
- * config, so the Mechanism2d visualization moves at a physically realistic speed.
+ * Simulated ClimbIO with MotionMagic-style trapezoidal profiles. All positions/velocities in drum
+ * (mechanism) rotations, matching the IO interface contract.
  */
 public class ClimbIOSim implements ClimbIO {
 
@@ -190,23 +183,12 @@ public class ClimbIOSim implements ClimbIO {
 
   // ── MotionMagic-style trapezoidal profile simulation ──
 
-  // Position correction gain — mimics the real TalonFX's internal PID that closes the loop
-  // around the profile setpoint. Without this, discrete-time integration drift causes the
-  // sim motors to never quite reach their target.
+  // P gain that mimics TalonFX PID closing the loop around the profile setpoint
   private static final double POSITION_CORRECTION_KP = 50.0;
 
   /**
-   * Simulate one DT step of a trapezoidal motion profile (MotionMagic). The motor accelerates
-   * toward cruise velocity, decelerates to stop at the target, and respects the acceleration limit.
-   * A proportional position correction term (mimicking the real TalonFX PID) eliminates
-   * steady-state error from discrete-time integration.
-   *
-   * @param currentPos Current mechanism position (rotations)
-   * @param currentVel Current mechanism velocity (rot/s)
-   * @param targetPos Desired mechanism position (rotations)
-   * @param cruiseVel Max cruise velocity for this motor (drum rot/s)
-   * @param maxAccel Max acceleration for this motor (drum rot/s²)
-   * @return New velocity for this cycle (rot/s)
+   * Simulate one DT step of trapezoidal motion profile. Accel → cruise → decel with proportional
+   * position correction to eliminate steady-state integration drift.
    */
   private static double simulateMotionMagicStep(
       double currentPos, double currentVel, double targetPos, double cruiseVel, double maxAccel) {
@@ -241,15 +223,7 @@ public class ClimbIOSim implements ClimbIO {
     return rampVelocity(currentVel, desiredVel, cruiseVel, maxAccel);
   }
 
-  /**
-   * Ramp current velocity toward a target velocity, limited by maxAccel * DT per cycle.
-   *
-   * @param currentVel Current velocity (rot/s)
-   * @param targetVel Desired velocity (rot/s)
-   * @param cruiseVel Max cruise velocity for this motor (drum rot/s)
-   * @param maxAccel Max acceleration for this motor (drum rot/s²)
-   * @return New velocity after one DT step, acceleration-limited
-   */
+  /** Ramp velocity toward target, limited by maxAccel * DT per cycle. */
   private static double rampVelocity(
       double currentVel, double targetVel, double cruiseVel, double maxAccel) {
     double maxDeltaVel = maxAccel * DT;
@@ -328,8 +302,7 @@ public class ClimbIOSim implements ClimbIO {
 
   @Override
   public void recalibrateEncoders() {
-    // Re-seed simulated positions to match STOWED cable-length rotations (same as resetToStowed
-    // but without zeroing velocities/voltages — just re-align the encoder frame).
+    // Re-seed simulated positions to STOWED (re-aligns encoder frame)
     Translation2d stowedPos = ClimbState.STOWED.getTargetPosition();
     ClimbIK.ClimbSideIKResult stowedIK = ClimbIK.calculateIK(stowedPos);
     if (stowedIK.isValid) {

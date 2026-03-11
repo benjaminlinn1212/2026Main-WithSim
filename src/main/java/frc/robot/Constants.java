@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2026 Littleton Robotics
+﻿// Copyright (c) 2021-2026 Littleton Robotics
 // http://github.com/Mechanical-Advantage
 //
 // Use of this source code is governed by a BSD
@@ -18,22 +18,17 @@ import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.RobotBase;
 
-/**
- * This class defines the runtime mode used by AdvantageKit. The mode is always "real" when running
- * on a roboRIO. Change the value of "simMode" to switch between "sim" (physics sim) and "replay"
- * (log replay from a file).
- */
+/** AdvantageKit runtime mode. Change simMode to switch between SIM and REPLAY. */
 public final class Constants {
   public static final Mode simMode = Mode.SIM;
   public static final Mode currentMode = RobotBase.isReal() ? Mode.REAL : simMode;
 
-  /** Whether to write .wpilog files to disk (USB stick or roboRIO). Set false to save storage. */
+  /** Whether to write .wpilog files to USB/roboRIO. */
   public static final boolean ENABLE_FILE_LOGGING = false;
 
-  // Shared CAN bus used by all superstructure subsystems
   public static final CANBus SUPERSTRUCTURE_CAN_BUS = new CANBus("Superstructure");
 
-  // Odometry proximity check thresholds (used in RobotContainer.odometryCloseToPose)
+  // Odometry proximity check thresholds (meters, degrees)
   public static final double ODOMETRY_CLOSE_TRANSLATION_METERS = 0.25;
   public static final double ODOMETRY_CLOSE_ROTATION_DEGREES = 8.0;
 
@@ -67,15 +62,13 @@ public final class Constants {
     public static final Translation2d ROBOT_TO_TURRET =
         TurretConstants.TURRET_OFFSET_FROM_ROBOT_CENTER;
 
-    // Angular velocity rejection thresholds for turret camera vision.
-    // If the turret or chassis was spinning faster than these limits during the
-    // image capture window, the frame is rejected to avoid heading-mismatch error.
-    // Values in rad/s. 254 uses similar logic in shouldUsePinhole().
+    // Angular velocity rejection thresholds (rad/s) for turret camera vision.
+    // Frames captured while turret or chassis spins faster than this are rejected.
     public static final double MAX_TURRET_ANGULAR_VELOCITY_FOR_VISION =
         Units.degreesToRadians(200.0);
     public static final double MAX_DRIVE_ANGULAR_VELOCITY_FOR_VISION =
         Units.degreesToRadians(200.0);
-    /** How far back (seconds) to check for peak angular velocity relative to the capture time. */
+    /** Lookback window (seconds) for peak angular velocity check. */
     public static final double VELOCITY_REJECTION_LOOKBACK = 0.10;
   }
 
@@ -84,62 +77,42 @@ public final class Constants {
     public static final double PATH_FOLLOWING_TRANSLATION_KP = 3.0;
     public static final double PATH_FOLLOWING_ROTATION_KP = 8.0;
 
-    // PathPlanner pathfinding constraints (single source of truth)
+    // PathPlanner pathfinding constraints
     public static final double PATHFINDING_MAX_VELOCITY_MPS = 3.0;
     public static final double PATHFINDING_MAX_ACCELERATION_MPS2 = 4.0;
     public static final double PATHFINDING_MAX_ANGULAR_VELOCITY_RAD_PER_SEC = Math.toRadians(720);
     public static final double PATHFINDING_MAX_ANGULAR_ACCELERATION_RAD_PER_SEC2 =
         Math.toRadians(900);
 
-    // Climb straight-line approach (final segment after pathfinding)
-    /**
-     * Distance (m) from the climb target at which the robot stops pathfinding and drives straight
-     */
+    // Climb straight-line approach
+    /** Distance (m) from climb target to switch from pathfinding to straight-line drive. */
     public static final double CLIMB_APPROACH_DISTANCE_M = 0.2;
-    /** Max velocity (m/s) cap for the PID-controlled straight-line drive into the tower */
+    /** Max velocity (m/s) for straight-line approach PID. */
     public static final double CLIMB_APPROACH_MAX_VELOCITY_MPS = 3.0;
-    /** Position tolerance (m) to consider the robot arrived at the climb target */
+    /** Position tolerance (m). */
     public static final double CLIMB_APPROACH_TOLERANCE_M = 0.01;
-    /** Heading tolerance (rad) to consider the robot arrived at the climb target */
+    /** Heading tolerance (rad). */
     public static final double CLIMB_APPROACH_THETA_TOLERANCE_RAD = Math.toRadians(1.0);
 
-    // DriveToPoint PID gains (2910-style: PID on scalar distance + CTRE heading PID)
-    // Separate auto/teleop gains for translation — auto is tighter, teleop is more aggressive.
-    /** Proportional gain for linear distance PID in autonomous */
+    // DriveToPoint PID gains (auto vs teleop)
     public static final double DRIVE_TO_POINT_AUTO_KP = 3.0;
-    /** Derivative gain for linear distance PID in autonomous */
     public static final double DRIVE_TO_POINT_AUTO_KD = 0.1;
-    /** Proportional gain for linear distance PID in teleop */
     public static final double DRIVE_TO_POINT_TELEOP_KP = 3.0;
-    /** Derivative gain for linear distance PID in teleop */
     public static final double DRIVE_TO_POINT_TELEOP_KD = 0.1;
-    /**
-     * Proportional gain for the CTRE PhoenixPIDController used by FieldCentricFacingAngle. Runs at
-     * 250 Hz in the odometry thread for smoother heading control than a 50 Hz software PID.
-     */
+    /** Heading kP for CTRE FieldCentricFacingAngle (runs at 250 Hz in odometry thread). */
     public static final double DRIVE_TO_POINT_HEADING_KP = 5.0;
-    /**
-     * Static friction feedforward constant. Multiplied by max velocity to produce a minimum
-     * velocity that overcomes drivetrain friction when distance >= 0.5 inches.
-     */
+    /** Static friction FF multiplier -- minimum velocity to overcome drivetrain friction. */
     public static final double DRIVE_TO_POINT_FRICTION_FF = 0.02;
-    /** Default max velocity output (m/s) for drive-to-point when not otherwise specified */
+    /** Default max velocity (m/s). */
     public static final double DRIVE_TO_POINT_DEFAULT_MAX_VELOCITY_MPS = 3.0;
-    /** Translation tolerance (m) to consider the robot at the setpoint */
+    /** Translation tolerance (m). */
     public static final double DRIVE_TO_POINT_POSITION_TOLERANCE_M = Units.inchesToMeters(1.0);
-    /** Heading tolerance (rad) to consider the robot at the setpoint */
+    /** Heading tolerance (rad). */
     public static final double DRIVE_TO_POINT_HEADING_TOLERANCE_RAD = Math.toRadians(2.0);
 
     /**
-     * Derating factor for time estimation. AD* paths are longer than straight-line due to curves
-     * and obstacle avoidance, so we inflate the distance by 1/derating. Since the trapezoidal
-     * motion profile already accounts for acceleration and deceleration phases physically, this
-     * factor only needs to cover path curvature (~10-15% longer than straight-line). 0.9 means we
-     * assume the actual path is ~11% longer than the straight-line distance.
-     *
-     * <p>Note: The old flat-speed model used AVG_SPEED_DERATING=0.7 which covered BOTH curvature
-     * AND accel/decel. With the trapezoidal model handling accel/decel, 0.9 produces comparable
-     * time estimates.
+     * Path distance derating (0-1). AD* paths are ~11% longer than straight-line due to curves.
+     * Trapezoidal model handles accel/decel, so this only covers curvature.
      */
     public static final double PATH_DISTANCE_DERATING = 0.9;
 
@@ -148,10 +121,8 @@ public final class Constants {
             0.3, 0.3, edu.wpi.first.math.geometry.Rotation2d.fromDegrees(0));
 
     /**
-     * Auto trench approach buffer (meters). How far outside the trench walls the heading snap
-     * activates during autonomous. Separate from teleop's {@link
-     * DriveConstants.TrenchAssist#APPROACH_BUFFER} — auto paths are more precise and need a tighter
-     * zone to avoid premature snapping that interferes with PathPlanner's planned heading.
+     * Auto trench approach buffer (meters). Tighter than teleop's buffer to avoid premature
+     * snapping that interferes with PathPlanner's planned heading.
      */
     public static final double TRENCH_APPROACH_BUFFER = 0.5;
   }
@@ -175,85 +146,53 @@ public final class Constants {
      * Trench Teleop Assist tuning. When the robot is near a trench, two effects activate:
      *
      * <ol>
-     *   <li><b>Chassis orientation alignment</b> Ã¢â‚¬â€ injects omega (rotational velocity) to
-     *       LERP the robot's heading toward the nearest cardinal direction, so the bumpers fit
-     *       through the 22.25in tunnel. This modifies {@code omega}, not the velocity direction.
-     *   <li><b>Lateral centering</b> Ã¢â‚¬â€ deflects the velocity vector toward the trench's
-     *       center Y line, guiding the travel path toward the middle of the 48in corridor. Speed
-     *       magnitude is preserved.
+     *   <li><b>Chassis orientation alignment</b> -- injects omega (rotational velocity) to LERP the
+     *       robot's heading toward the nearest cardinal direction, so the bumpers fit through the
+     *       22.25in tunnel. This modifies {@code omega}, not the velocity direction.
+     *   <li><b>Lateral centering</b> -- deflects the velocity vector toward the trench's center Y
+     *       line, guiding the travel path toward the middle of the 48in corridor. Speed magnitude
+     *       is preserved.
      * </ol>
      *
      * Both effects ramp from 0 at the buffer edge to full strength inside the trench.
      */
     public static class TrenchAssist {
 
-      /** Master enable for teleop trench assist. Set to false to disable all trench effects. */
       public static final boolean ENABLED = true;
 
-      /**
-       * Maximum blend factor (0-1). Blend ramps from 0 at the buffer edge to this value inside the
-       * trench. 1.0 = full strength, 0.8 = 80% strength even when fully inside.
-       */
+      /** Max blend factor (0-1). */
       public static final double MAX_BLEND_FACTOR = 0.6;
 
-      /**
-       * Teleop approach buffer (meters). How far outside the trench walls the assist begins
-       * ramping. Larger = assist starts earlier, more time to center.
-       */
+      /** How far outside trench walls (meters) the assist begins ramping. */
       public static final double APPROACH_BUFFER = 1.5;
 
-      /**
-       * Minimum speed (m/s) below which the assist is inactive. Prevents the assist from
-       * interfering with fine positioning / stationary rotation near the trench.
-       */
+      /** Min speed (m/s) below which assist is inactive. */
       public static final double MIN_SPEED_MPS = 2.0;
 
-      /**
-       * Maximum angular error (degrees) between the velocity vector and the X axis before the
-       * assist activates. If the driver is traveling perpendicular to the trench, they clearly
-       * don't intend to go through it.
-       */
+      /** Max angle (degrees) between velocity vector and X axis for assist to activate. */
       public static final double MAX_HEADING_ERROR_DEG = 30.0;
 
-      // ===== Orientation PID (heading -> omega) =====
-
-      /** P-gain for heading snap (rad/s per radian of error). */
+      // Orientation PID (heading -> omega)
       public static final double ORIENTATION_KP = 10.0;
-
-      /** I-gain for heading snap. Usually 0. */
       public static final double ORIENTATION_KI = 0.0;
-
-      /** D-gain for heading snap. Damps overshoot. */
       public static final double ORIENTATION_KD = 0.15;
 
-      /** Maximum omega correction (rad/s) for orientation alignment. */
+      /** Max omega correction (rad/s). */
       public static final double MAX_ORIENTATION_OMEGA_RAD_PER_SEC = 8.0;
 
-      // ===== Lateral Centering PID (Y-position -> vy correction) =====
+      // Lateral Centering PID (Y-offset -> vy correction)
 
-      /**
-       * P-gain (m/s per meter of Y-offset from trench center). At 3.0, a 0.3m offset produces 0.9
-       * m/s of lateral correction. Handles both centering and wall avoidance.
-       */
       public static final double LATERAL_KP = 3.0;
-
-      /** I-gain for lateral centering. Usually 0. */
       public static final double LATERAL_KI = 0.0;
-
-      /** D-gain for lateral centering. Damps lateral oscillation. */
       public static final double LATERAL_KD = 0.1;
-
-      /** Maximum lateral vy correction (m/s). */
+      /** Max lateral vy correction (m/s). */
       public static final double MAX_LATERAL_CORRECTION_MPS = 1.5;
 
-      /** Half the robot's bumper width in meters. */
+      /** Half bumper width (meters). */
       public static final double ROBOT_HALF_WIDTH_M =
           Units.inchesToMeters(BUMPER_WIDTH_INCHES / 2.0);
 
-      /**
-       * Hood stow buffer (meters). Tighter than the teleop assist buffer because we only need to
-       * stow when the robot is actually close enough that the hood could hit the trench ceiling.
-       */
+      /** Hood stow buffer (meters) -- tighter than assist buffer. */
       public static final double HOOD_STOW_BUFFER = 0.5;
     }
   }
@@ -306,7 +245,7 @@ public final class Constants {
     public static final double SOFT_LIMIT_REVERSE = 0.0;
     public static final double SOFT_LIMIT_FORWARD = 28.0;
 
-    // PID and Feedforward Constants
+    // PID and Feedforward
     public static final double KP = 1.3;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -330,7 +269,7 @@ public final class Constants {
     public static final double OUTPOST_JIGGLE_POSITION = 4.784;
     public static final double DEPLOYED_POSITION = 27.0;
 
-    // Jiggle positions — pivot alternates between these two during feeding to dislodge FUEL
+    // Jiggle positions -- pivot alternates between these two during feeding to dislodge FUEL
     public static final double JIGGLE_POSITION_A = 23.0;
     public static final double JIGGLE_POSITION_B = 26.0;
     /** Seconds per half-cycle of the jiggle oscillation. */
@@ -348,14 +287,12 @@ public final class Constants {
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and Feedforward Constants (Slot 0 — VelocityVoltage)
-    // KP=0.5 → at full stall (15 RPS error) produces 7.5V of corrective effort,
-    // giving ~78% duty at stall for jam-busting while cruising gently when unloaded.
+    // PID and Feedforward (Slot 0 -- VelocityVoltage)
     public static final double KP = 0.5;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
-    public static final double KS = 0.15; // overcome static friction
-    public static final double KV = 0.12; // ~12V / 100 RPS free speed
+    public static final double KS = 0.15;
+    public static final double KV = 0.12;
     public static final double KA = 0.0;
 
     // Current Limits
@@ -363,8 +300,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 40.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Feed velocity setpoint (rotations per second). Low speed for gentle feeding —
-    // the velocity PID automatically ramps voltage when the belt meets resistance.
+    // Feed velocity setpoint (rotations per second)
     public static final double FEED_VELOCITY_RPS = 40.0;
   }
 
@@ -378,7 +314,7 @@ public final class Constants {
     public static final InvertedValue FOLLOWER_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and Feedforward Constants (not used for duty cycle control)
+    // PID and Feedforward (unused for duty cycle control)
     public static final double KP = 0.0;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -397,28 +333,22 @@ public final class Constants {
   }
 
   public static class Aiming {
-    // Shot Calculation Parameters
-    public static final double MIN_SHOT_DISTANCE = 1.0;
-    public static final double MAX_SHOT_DISTANCE = 6.0;
-    public static final double PHASE_DELAY = 0.03;
+    public static final double MIN_SHOT_DISTANCE = 1.0; // meters
+    public static final double MAX_SHOT_DISTANCE = 6.0; // meters
+    public static final double PHASE_DELAY = 0.03; // seconds
 
     public static final int FEEDFORWARD_FILTER_TAPS = 5;
 
-    // Neutral Zone Feed Shot — physics-based (no interp maps needed)
-    /** Fixed hood angle (degrees) for neutral zone ground-level lob shots. */
+    // Neutral Zone Feed Shot -- physics-based (no interp maps)
+    /** Hood angle (degrees) for neutral zone lob shots. */
     public static final double NEUTRAL_ZONE_HOOD_ANGLE_DEG = 45.0;
 
-    /**
-     * Launch height above ground (meters) for neutral zone shots. Typically turret height + hood
-     * offset. Approximated from MechanismVisualization constants (~0.45m).
-     */
+    /** Launch height above ground (meters). */
     public static final double NEUTRAL_ZONE_LAUNCH_HEIGHT_M = 0.55;
 
     /**
-     * Flywheel RPS per m/s of required launch speed. This is the single fudge factor that maps
-     * physics-computed launch velocity to actual flywheel command. Increase if balls fall short,
-     * decrease if they overshoot. Starting estimate derived from hub shot data: ~65 RPS produces
-     * roughly 6–7 m/s effective ball speed → ~10 RPS/mps.
+     * Flywheel RPS per m/s of required launch speed. Increase if balls fall short, decrease if
+     * overshoot.
      */
     public static final double NEUTRAL_ZONE_RPS_PER_MPS = 8.0;
   }
@@ -427,20 +357,19 @@ public final class Constants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 44;
     public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
-    public static final double GEAR_RATIO =
-        1.0 / 26.812; // mechanism rotations per motor rotation (reduction)
+    public static final double GEAR_RATIO = 1.0 / 26.812; // mechanism rotations per motor rotation
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // Turret Position Offset from Robot Center (meters)
+    // Turret offset from robot center (m)
     public static final Translation2d TURRET_OFFSET_FROM_ROBOT_CENTER =
         new Translation2d(0.1909, 0.0);
 
-    // Position Limits (radians - mechanism angle limits)
+    // Position limits (rad)
     public static final double MIN_POSITION_RAD = Units.degreesToRadians(-300.0);
     public static final double MAX_POSITION_RAD = Units.degreesToRadians(110.0);
 
-    // PID and Feedforward Constants (MotionMagicVoltage mode)
+    // PID and Feedforward (MotionMagicVoltage)
     public static final double KP = 10.0;
     public static final double KI = 0.0;
     public static final double KD = 0.3;
@@ -462,11 +391,7 @@ public final class Constants {
     // Position Tolerance (radians)
     public static final double AIMING_TOLERANCE_RAD = Units.degreesToRadians(1.0);
 
-    // Boot Position (radians) Ã¢â‚¬â€ the mechanism angle when the robot powers on.
-    // The turret physically starts at -90Ã‚Â° (facing right when viewed from above).
-    // TurretIOTalonFX seeds the encoder to this value via motor.setPosition() at boot
-    // because FeedbackRotorOffset is limited to [0,1) motor rotations and cannot
-    // represent the multi-rotation offset required by the 26.8:1 gear ratio.
+    // Boot position (rad) -- encoder seeded to this at boot via motor.setPosition()
     public static final double BOOT_POSITION_RAD = Units.degreesToRadians(-90.0);
 
     // Position Setpoints (radians)
@@ -481,7 +406,7 @@ public final class Constants {
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.CounterClockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Coast;
 
-    // PID and Feedforward Constants (VelocityVoltage control)
+    // PID and Feedforward (VelocityVoltage)
     public static final double KP = 0.5;
     public static final double KI = 0.0;
     public static final double KD = 0.0;
@@ -494,7 +419,7 @@ public final class Constants {
     public static final double SUPPLY_CURRENT_LIMIT = 60.0;
     public static final double SUPPLY_CURRENT_LOWER_TIME = 0.5;
 
-    // Velocity Tolerance
+    // Velocity tolerance (rot/s)
     public static final double VELOCITY_TOLERANCE = 2.0;
   }
 
@@ -502,12 +427,11 @@ public final class Constants {
     // Hardware Configuration
     public static final int MOTOR_CAN_ID = 50;
     public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
-    public static final double GEAR_RATIO =
-        1.0 / 12.6; // mechanism rotations per motor rotation (reduction)
+    public static final double GEAR_RATIO = 1.0 / 12.6; // mechanism rotations per motor rotation
     public static final InvertedValue MOTOR_INVERTED = InvertedValue.Clockwise_Positive;
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // Position Limits (radians from horizontal)
+    // Position limits (rad from horizontal)
     public static final double MIN_POSITION_RAD = Units.degreesToRadians(21.0);
     public static final double MAX_POSITION_RAD = Units.degreesToRadians(45.0);
 
@@ -546,24 +470,11 @@ public final class Constants {
     public static final CANBus CAN_BUS = Constants.SUPERSTRUCTURE_CAN_BUS;
 
     // ==================== Secondary Hook Servo Configuration ====================
-    //
-    // Two servo types:
-    //   Angle servos   Ã¢â‚¬â€ 180Ã‚Â° travel, 500Ã‚ÂµsÃ¢â‚¬â€œ2500Ã‚Âµs pulse range
-    //   Hardstop servos Ã¢â‚¬â€ 100Ã‚Â° travel, 1000Ã‚ÂµsÃ¢â‚¬â€œ2000Ã‚Âµs pulse range
-    //
-    // Inversion convention (all servos are CCW-positive when non-inverted):
-    //   Non-inverted: set(0.0) = 0Ã‚Â°,   requesting +NÃ‚Â° moves 0Ã‚Â° Ã¢â€ â€™ NÃ‚Â°
-    //   Inverted:     set(0.0) = maxÃ‚Â°, requesting +NÃ‚Â° moves maxÃ‚Â° Ã¢â€ â€™
-    // (maxÃ¢Ë†â€™N)Ã‚Â°
-    //   In code: pwmValue = inverted ? (1.0 Ã¢Ë†â€™ input) : input
-    //
-    // Per-side inversion:
-    //   Right angle   Ã¢â€ â€™ NOT inverted   (CCW-positive, 0Ã‚Â°Ã¢â€ â€™180Ã‚Â°)
-    //   Right hardstop Ã¢â€ â€™ INVERTED      (CW-positive,  100Ã‚Â°Ã¢â€ â€™0Ã‚Â°)
-    //   Left angle    Ã¢â€ â€™ INVERTED       (CW-positive,  180Ã‚Â°Ã¢â€ â€™0Ã‚Â°)
-    //   Left hardstop Ã¢â€ â€™ NOT inverted   (CCW-positive, 0Ã‚Â°Ã¢â€ â€™100Ã‚Â°)
+    // Angle servos: 180deg, 500-2500us. Hardstop servos: 100deg, 1000-2000us.
+    // Right angle: not inverted. Right hardstop: inverted.
+    // Left angle: inverted. Left hardstop: not inverted.
 
-    /** Angle servo config: 180Ã‚Â° range, 500Ã‚ÂµsÃ¢â‚¬â€œ2500Ã‚Âµs pulse. */
+    /** Angle servo config: 180deg range, 500-2500us pulse. */
     public static class AngleServo {
       public static final double FULL_RANGE_DEG = 180.0;
       public static final int PULSE_MIN_US = 500;
@@ -579,7 +490,7 @@ public final class Constants {
       public static final double TRAVEL_TIME_SEC = 1.2;
     }
 
-    /** Hardstop servo config: 100Ã‚Â° range, 1000Ã‚ÂµsÃ¢â‚¬â€œ2000Ã‚Âµs pulse. */
+    /** Hardstop servo config: 100deg range, 1000-2000us pulse. */
     public static class HardstopServo {
       public static final double FULL_RANGE_DEG = 180.0;
       public static final int PULSE_MIN_US = 500;
@@ -601,16 +512,14 @@ public final class Constants {
     public static final int LEFT_ANGLE_SERVO_PWM = 8;
     public static final int LEFT_HARDSTOP_SERVO_PWM = 9;
 
-    // Per-servo inversion flags (true = CW-positive, maxÃ‚Â° at set(0.0))
+    // Per-servo inversion flags (true = CW-positive, maxdeg at set(0.0))
     public static final boolean RIGHT_ANGLE_SERVO_INVERTED = false;
     public static final boolean RIGHT_HARDSTOP_SERVO_INVERTED = true;
     public static final boolean LEFT_ANGLE_SERVO_INVERTED = true;
     public static final boolean LEFT_HARDSTOP_SERVO_INVERTED = false;
 
-    // Gear Ratios: Mechanism rotations per motor rotation (speed reduction)
-    // Front motors: 100:1 reduction Ã¢â€ â€™ 1 motor rotation = 1/100 drum rotation
-    // Back motors: 80:1 reduction Ã¢â€ â€™ 1 motor rotation = 1/80 drum rotation
-    // Used in both Phoenix SensorToMechanismRatio and IK calculations
+    // Gear ratios (mechanism per motor rotation)
+    // Front: 1/48, Back: 1/27
     public static final double FRONT_GEAR_RATIO = 1.0 / 48.0;
     public static final double BACK_GEAR_RATIO = 1.0 / 27.0;
 
@@ -624,7 +533,7 @@ public final class Constants {
 
     public static final NeutralModeValue NEUTRAL_MODE = NeutralModeValue.Brake;
 
-    // PID and Feedforward Constants (Slot 0 Ã¢â‚¬â€ MotionMagicVoltage position control)
+    // PID and Feedforward Constants (Slot 0 -- MotionMagicVoltage position control)
     public static final double KP = 1.0;
     public static final double KI = 0.0;
     public static final double KD = 0.05;
@@ -633,7 +542,7 @@ public final class Constants {
     public static final double KA = 0.0;
     public static final double KG = 0.0;
 
-    // Velocity PID and Feedforward Constants (Slot 1 Ã¢â‚¬â€ VelocityVoltage path following)
+    // Velocity PID and Feedforward Constants (Slot 1 -- VelocityVoltage path following)
     // Matched to ShooterConstants velocity control gains
     public static final double VELOCITY_KP = 0.06;
     public static final double VELOCITY_KI = 0.0;
@@ -645,12 +554,7 @@ public final class Constants {
     // Motion Magic Constants (mechanism/drum rotations per second)
     public static final double MOTOR_FREE_SPEED_RPS = 100.0;
     public static final double SPEED_UTILIZATION = 0.90;
-    // CRUISE_VELOCITY is expressed in drum rotations/s. Front and back motors have
-    // different gear ratios, so they have different max drum speeds:
-    //   Front: 100 * (1/48) * 0.9 = 1.875 drumRot/s
-    //   Back:  100 * (1/27) * 0.9 = 3.333 drumRot/s
-    // CRUISE_VELOCITY uses the FRONT (slower) ratio as the bottleneck for path
-    // velocity constraints and MotionMagic. BACK_CRUISE_VELOCITY is for back motors.
+    // Cruise velocity (drum rot/s) -- front (slower) ratio is the bottleneck
     public static final double CRUISE_VELOCITY =
         MOTOR_FREE_SPEED_RPS * FRONT_GEAR_RATIO * SPEED_UTILIZATION;
     public static final double BACK_CRUISE_VELOCITY =
@@ -696,7 +600,7 @@ public final class Constants {
     // Cable Drum
     public static final double CABLE_DRUM_CIRCUMFERENCE_METERS = 0.0439941;
 
-    // Cable Layer Buildup — effective circumference grows as cable stacks on the drum
+    // Cable Layer Buildup -- effective circumference grows as cable stacks on the drum
     public static final double ROTATIONS_PER_LAYER = 4.0;
     public static final double CIRCUMFERENCE_PER_LAYER_METERS = 0.012;
 
@@ -739,58 +643,23 @@ public final class Constants {
         ACCELERATION * MID_LAYER_CIRCUMFERENCE_M;
 
     // ==================== Path Following Feedforward ====================
-    // These feedforward terms are applied during velocity-mode path following via
-    // the Jacobian transpose: J^T * F_external → per-motor voltage.  Each term
-    // compensates a specific physical force so they can be tuned independently.
-    //
-    // TalonFX Slot 1 already handles:
-    //   kS (0.15 V) — static friction
-    //   kV (0.115 V·s/rot) — back-EMF (velocity feedforward)
-    //   kP (0.06) — velocity error feedback
-    //
-    // These ADDITIONAL feedforward voltages are computed in Cartesian space,
-    // transformed through the Jacobian, and passed as the FeedForward parameter
-    // to VelocityVoltage (additive voltage on top of kS+kV+kP).
+    // Additional Cartesian-space FF applied via Jacobian transpose on top of Slot 1 (kS+kV+kP).
+    // EXTEND uses arm-only gravity comp; RETRACT uses full robot weight + spring comp.
 
-    // ── Feedforward Voltages ──
-    //
-    // During EXTEND the arm moves while the robot sits on the ground — the only
-    // gravitational load is the arm's own weight.
-    // During RETRACT (isPulling) the arm pulls the ENTIRE ROBOT up — the load
-    // is the full robot weight PLUS the extension springs fighting the motion.
-    //
-    // EXTEND_GRAVITY_FF_VOLTS — light arm-only gravity compensation (extend).
-    // RETRACT_GRAVITY_FF_VOLTS — full robot-weight gravity compensation (retract).
-    // SPRING_FF_VOLTS — extra voltage to overcome extension springs (retract only).
-    //
-    // All three are fed through J^T * (0, -voltage) so the Jacobian maps them
-    // to per-motor voltages automatically.  Tune by:
-    //   1. Hold arm still in velocity mode on the ground → tune EXTEND_GRAVITY_FF_VOLTS
-    //      until it holds position against gravity.
-    //   2. Hold arm still in velocity mode while robot hangs → tune RETRACT_GRAVITY_FF_VOLTS
-    //      until it holds position (this is much larger — full robot weight).
-    //   3. Run a slow retract path → increase SPRING_FF_VOLTS until path tracks
-    //      without the position correction loop doing all the work.
-    public static final double EXTEND_GRAVITY_FF_VOLTS = 0.8;
-    public static final double RETRACT_GRAVITY_FF_VOLTS = 3.0;
-    public static final double SPRING_FF_VOLTS = 1.0;
+    // Feedforward voltages (V) -- mapped through J^T to per-motor voltages
+    public static final double EXTEND_GRAVITY_FF_VOLTS = 0.8; // arm-only gravity (extend)
+    public static final double RETRACT_GRAVITY_FF_VOLTS = 3.0; // full robot weight (retract)
+    public static final double SPRING_FF_VOLTS = 1.0; // extension spring comp (retract)
 
-    // Cartesian position correction gain applied during velocity-mode path following.
-    // Adds a proportional velocity correction = kP * (targetPos - measuredPos) to the
-    // feedforward velocity each cycle, reducing position drift from velocity tracking error.
-    // Units: (m/s) per (m) of position error. Applies to both sim and real hardware.
-    // Set to 0.0 to disable — the TalonFX inner velocity PID handles tracking well enough
-    // on real hardware, and the outer P loop can cause overshoot due to FK latency.
+    // Position correction kP ((m/s) per (m) error). 0 to disable.
     public static final double PATH_POSITION_CORRECTION_KP = 2.0;
 
     // ==================== IMU Climb Assist (Auto-Level) ====================
-    // Uses IMU roll to differentially adjust left/right end-effector velocities
-    // during RETRACT paths, keeping the robot level while pulling up.
-    // See docs/AUTO_LEVEL_CLIMB_PLAN.md for full design.
+    // Uses IMU roll to adjust L/R velocity during RETRACT, keeping robot level.
 
-    /** IMU-based auto-level config for climb retract paths. */
+    /** IMU-based auto-level config for climb retract. */
     public static class ImuAssist {
-      /** Master enable â€” set true after tuning on real robot. */
+      /** Master enable -- set true after tuning on real robot. */
       public static final boolean ENABLED = false;
 
       // Velocity PID (input: roll degrees, output: velocity correction m/s)
@@ -803,152 +672,93 @@ public final class Constants {
   }
 
   public static class OrchestraConstants {
-    /**
-     * Name of the .chrp file to play. Place the file in {@code src/main/deploy/} â€” it will be
-     * automatically deployed to the roboRIO. Convert MIDI â†’ CHRP using Phoenix Tuner X's CHRP
-     * Converter (Tools â†’ CHRP Converter).
-     */
+    /** CHRP file in src/main/deploy/. Convert MIDI via Phoenix Tuner X. */
     public static final String CHRP_FILE = "4trackCruelAngel.chrp";
 
-    /**
-     * When true, applies the {@code AllowMusicDurDisable} audio config so Orchestra can play even
-     * when the robot is disabled. Useful for pre-match entertainment.
-     */
+    /** Allow Orchestra playback while robot is disabled. */
     public static final boolean ALLOW_MUSIC_DURING_DISABLE = true;
 
-    /**
-     * Number of tracks in the .chrp file. Motors are distributed across tracks using modulo â€” if
-     * you have 8 motors and 2 tracks, 4 motors play track 0 and 4 motors play track 1. Set to 1 if
-     * your MIDI was exported as a single-track file (all motors play the same part).
-     */
+    /** Tracks in the CHRP file. Motors are distributed across tracks via modulo. */
     public static final int NUM_TRACKS = 4;
   }
 
   // ==================== Maple-Sim Tuning Constants ====================
-  // All tunable parameters for the maple-sim integration (intake, shooter projectiles, conveyor
-  // fuel transfer). Tweak these to dial in simulation behavior without hunting through IO files.
   public static class SimConstants {
 
     // --- Intake Simulation ---
-    /** Width of the intake zone on the chassis (meters). */
+    /** Intake zone width (m). */
     public static final double INTAKE_WIDTH_METERS = 0.67;
 
-    /**
-     * How far the intake extends beyond the chassis frame when deployed (meters). Derived from the
-     * X component of the rack-and-pinion linear extension.
-     */
+    /** Intake extension beyond chassis when deployed (m). */
     public static final double INTAKE_EXTENSION_METERS =
         MechanismVisualization.INTAKE_EXTENSION_X_M;
 
-    /** Maximum number of fuel the intake can hold at once. */
+    /** Max fuel the intake can hold. */
     public static final int INTAKE_CAPACITY = 20;
 
-    /** Minimum motor percent-output to consider the intake "running". */
+    /** Min motor output to consider intake running. */
     public static final double INTAKE_MOTOR_THRESHOLD = 0.05;
 
     // --- Shooter / Projectile ---
-    // Motor physics (acceleration, kV, current) come from ShooterConstants + WPILib DCMotorSim.
-    // Only projectile-specific tuning values live here.
-    // XY offset and height are derived from the real mechanism geometry
-    // (TurretConstants + MechanismVisualization) â€” no need to duplicate values here.
 
-    /**
-     * Height above floor at which the fuel leaves the shooter (meters). Derived from turret height
-     * + hood offset above turret.
-     */
+    /** Fuel launch height above floor (m). */
     public static final double PROJECTILE_INITIAL_HEIGHT_METERS =
         MechanismVisualization.TURRET_HEIGHT_M + MechanismVisualization.HOOD_Z_ABOVE_TURRET_M;
 
-    /**
-     * Launch-speed scaling factor. Actual launch speed (m/s) = flywheel RPS / 100 *
-     * LAUNCH_SPEED_SCALE. Example: 50 RPS â†’ 5 m/s at scale 10, 80 RPS â†’ 8 m/s.
-     */
+    /** Launch speed = flywheel RPS / 100 * scale. */
     public static final double LAUNCH_SPEED_SCALE = 10.0;
 
-    /**
-     * Compression / efficiency multiplier (0â€“1). On a real robot the ball compresses against the
-     * flywheel and hood, so exit speed is lower than ideal surface speed. 1.0 = no loss, 0.7 = 30%
-     * speed loss. Tune this until sim trajectories match real-robot shot distances.
-     */
+    /** Compression efficiency (0-1). Tune to match real shot distances. */
     public static final double FUEL_SPEED_EFFICIENCY = 1.15;
 
-    /** Minimum flywheel velocity (rot/s) before the sim will launch a projectile. */
+    /** Min flywheel velocity (rot/s) to launch. */
     public static final double MIN_LAUNCH_VELOCITY_RPS = 10.0;
 
-    /** Minimum allowed launch angle (degrees) â€” clamp for hood safety. */
+    /** Min launch angle (deg). */
     public static final double MIN_LAUNCH_ANGLE_DEG = 15.0;
 
-    /** Maximum allowed launch angle (degrees) â€” clamp for hood safety. */
+    /** Max launch angle (deg). */
     public static final double MAX_LAUNCH_ANGLE_DEG = 75.0;
 
     // --- Conveyor / Fuel Transfer ---
-    /**
-     * Conveyor velocity threshold (RPS) above which the sim considers the conveyor to be feeding
-     * toward the shooter. Must be positive — the conveyor feeds at +FEED_VELOCITY_RPS.
-     */
+    /** Conveyor velocity threshold (RPS) to consider feeding. */
     public static final double CONVEYOR_FEED_THRESHOLD = 0.5;
 
-    /** Cooldown ticks (Ã— 20 ms) between consecutive fuel transfers from intake â†’ shooter. */
+    /** Cooldown ticks (x20ms) between fuel transfers. */
     public static final int FEED_COOLDOWN_TICKS = 7;
   }
 
   // ==================== 3D Mechanism Visualization (AdvantageScope) ====================
-  // Component layout for articulated 3D rendering in AdvantageScope's 3D Field tab.
-  // Components (indexed 0â€“2 in the robot model config):
-  //   0 = Turret   â€” yaw rotation, mounted on frame
-  //   1 = Hood     â€” pitch rotation, mounted on turret
-  //   2 = IntakePivot â€” pitch rotation, mounted on frame rear
-  //
-  // All positions are robot-relative (origin = robot center at floor level).
-  // Units: meters for positions, used with Pose3d / Rotation3d.
+  // Robot-relative positions (m) for turret, hood, and intake pivot rendering.
   public static class MechanismVisualization {
-    /** Number of articulated components logged to AdvantageScope. */
+    /** Number of articulated components. */
     public static final int NUM_COMPONENTS = 3;
 
     // --- Component 0: Turret ---
-    /** Height of the turret rotation axis above the floor (meters). */
-    public static final double TURRET_HEIGHT_M = 0.3887;
-    /** X offset of turret pivot from robot center (forward-positive, meters). */
-    public static final double TURRET_X_M = 0.1909;
-    /** Y offset of turret pivot from robot center (left-positive, meters). */
-    public static final double TURRET_Y_M = 0;
+    public static final double TURRET_HEIGHT_M = 0.3887; // pivot height above floor (m)
+    public static final double TURRET_X_M = 0.1909; // forward offset from robot center (m)
+    public static final double TURRET_Y_M = 0; // lateral offset from robot center (m)
 
     // --- Component 1: Hood ---
-    /** Height of the hood pivot above the turret base (meters). Sits on top of turret. */
-    public static final double HOOD_Z_ABOVE_TURRET_M = 0.065;
-    /**
-     * Forward offset of the hood pivot from the turret axis (meters). The hood pitches at this
-     * point.
-     */
+    public static final double HOOD_Z_ABOVE_TURRET_M = 0.065; // above turret base (m)
+    /** Forward offset of hood pivot from turret axis (m). */
     public static final double HOOD_X_FROM_TURRET_M = 0.105;
-    /**
-     * Pitch offset (radians) added to the hood angle for visualization. Use this to align the 3D
-     * model with the actual mechanism â€” positive tilts the model further up.
-     */
+    /** Pitch offset (rad) for visualization alignment. */
     public static final double HOOD_PITCH_OFFSET_RAD = Units.degreesToRadians(-48.0);
 
-    // --- Component 2: Intake (rack-and-pinion linear extension) ---
-    /** Total linear travel of the intake rack when fully extended (meters). */
+    // --- Component 2: Intake (rack-and-pinion) ---
+    /** Total linear travel when fully extended (m). */
     public static final double INTAKE_FULL_TRAVEL_M = 0.28;
-    /**
-     * Tilt angle of the intake slide rail from horizontal (radians). 6.278Â° â†’ mostly rearward,
-     * slightly downward.
-     */
+    /** Tilt angle of intake slide rail from horizontal (rad). */
     public static final double INTAKE_TILT_RAD = Units.degreesToRadians(6.278);
-    /** Motor rotations at full extension (soft-limit forward). */
+    /** Motor rotations at full extension. */
     public static final double INTAKE_FULL_TRAVEL_ROTATIONS =
         IntakePivotConstants.SOFT_LIMIT_FORWARD;
 
-    /**
-     * X component of full intake extension (meters). 6.278Â° from horizontal â†’ cos is the large X
-     * part.
-     */
+    /** X component of full extension (m). */
     public static final double INTAKE_EXTENSION_X_M =
         INTAKE_FULL_TRAVEL_M * Math.cos(INTAKE_TILT_RAD);
-    /**
-     * Z component of full intake extension (meters). 6.278Â° from horizontal â†’ sin is the small Z
-     * part.
-     */
+    /** Z component of full extension (m). */
     public static final double INTAKE_EXTENSION_Z_M =
         INTAKE_FULL_TRAVEL_M * Math.sin(INTAKE_TILT_RAD);
   }

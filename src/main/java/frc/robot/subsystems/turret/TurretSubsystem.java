@@ -13,11 +13,8 @@ import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Turret subsystem that controls a rotating turret mechanism. Supports two states: STOW and AIMING.
- * Uses Team 254's wrapping logic for smooth continuous rotation.
- *
- * <p>Uses ShooterSetpoint utility for aim calculations, which handles smart target selection
- * including neutral zone detection and alliance-aware aiming.
+ * Turret subsystem — STOW and AIMING states. Uses 254-style wrapping for continuous rotation and
+ * ShooterSetpoint for coordinated aim calculations.
  */
 public class TurretSubsystem extends SubsystemBase {
   private final TurretIO io;
@@ -92,13 +89,7 @@ public class TurretSubsystem extends SubsystemBase {
         .withName("Turret Stow");
   }
 
-  /**
-   * Command to aim turret using ShooterSetpoint calculations. ShooterSetpoint now handles smart
-   * targeting logic including neutral zone detection and alliance-aware aiming.
-   *
-   * <p>Benefits: - Coordinated aiming with hood and shooter - Motion compensation with robot
-   * velocity - Smart target selection (hub or alliance wall) - No duplicate calculation logic
-   */
+  /** Aim using ShooterSetpoint (coordinated with hood/shooter, motion-compensated). */
   public Command aiming() {
     return runOnce(
             () -> {
@@ -156,14 +147,8 @@ public class TurretSubsystem extends SubsystemBase {
   }
 
   /**
-   * Adjusts setpoint to minimize rotation while respecting physical limits. Finds the 2π-equivalent
-   * of the target angle that is closest to the current turret position, then verifies it lies
-   * within the turret's travel range. If not, the closest in-bounds equivalent is used instead.
-   *
-   * <p>Key insight: the raw target from ShooterSetpoint is always in [-π, π], but the turret can
-   * physically travel [-2π, ~1.745 rad]. By picking the equivalent nearest the current position we
-   * allow the turret to take the shortest-path through the extended range instead of always staying
-   * within [-π, π].
+   * Find the 2pi-equivalent of targetAngle closest to current position, respecting travel limits.
+   * Allows shortest-path rotation through the extended range.
    */
   private double adjustSetpointForWrap(double targetAngle) {
     double currentPos = getCurrentPosition();
@@ -251,11 +236,7 @@ public class TurretSubsystem extends SubsystemBase {
         < Constants.TurretConstants.AIMING_TOLERANCE_RAD;
   }
 
-  /**
-   * Directly apply the stow position. Called by Superstructure.periodic() every cycle when the
-   * wanted state requires the turret to be stowed. Unlike the stow() command, this is a plain void
-   * method — no command scheduling overhead.
-   */
+  /** Apply stow position. Called by Superstructure.periodic() — void, no command overhead. */
   public void applyStow() {
     if (currentState != TurretState.STOW) {
       currentState = TurretState.STOW;
@@ -266,11 +247,7 @@ public class TurretSubsystem extends SubsystemBase {
     positionSetpointRad = setpoint;
   }
 
-  /**
-   * Directly apply the aiming position using ShooterSetpoint. Called by Superstructure.periodic()
-   * every cycle when the wanted state requires the turret to aim. Unlike the aiming() command, this
-   * is a plain void method — no command scheduling overhead.
-   */
+  /** Apply aiming position. Called by Superstructure.periodic() — void, no command overhead. */
   public void applyAiming() {
     if (currentState != TurretState.AIMING) {
       currentState = TurretState.AIMING;

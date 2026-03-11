@@ -26,10 +26,7 @@ public class RobotState {
   private ChassisSpeeds measuredFieldRelativeChassisSpeeds = new ChassisSpeeds();
   private ChassisSpeeds robotRelativeChassisSpeed = new ChassisSpeeds();
 
-  /**
-   * Counter to throttle cleanUpObservations() — runs once every N additions instead of every call.
-   * At 250Hz odometry + ~50Hz turret updates, cleanup runs ~6 times/sec instead of ~350.
-   */
+  /** Cleanup counter — runs trim every N additions instead of every call. */
   private int cleanupCounter = 0;
 
   private static final int CLEANUP_INTERVAL = 50;
@@ -104,12 +101,8 @@ public class RobotState {
   }
 
   /**
-   * Get an interpolated robot-to-turret rotation at a specific timestamp (raw radians, unwrapped).
-   *
-   * <p>Unlike {@link #getRobotToTurret(double)} which returns the floor entry (potentially stale by
-   * one update period), this method linearly interpolates between the two nearest entries that
-   * bracket the requested timestamp. Falls back to exact floor entry when only one side is
-   * available.
+   * Interpolated robot-to-turret rotation at a timestamp (raw rad, unwrapped). Linearly
+   * interpolates between bracketing entries. Falls back to floor entry if only one side available.
    */
   public synchronized Optional<Double> getInterpolatedRobotToTurret(double timestamp) {
     var floor = robotToTurretRad.floorEntry(timestamp);
@@ -139,19 +132,13 @@ public class RobotState {
     return entry.getValue();
   }
 
-  /**
-   * Get the maximum absolute turret angular velocity (rad/s) in a time range. Used to reject vision
-   * frames captured while the turret was spinning fast (heading mismatch is amplified).
-   */
+  /** Max abs turret angular velocity (rad/s) in a time range. For vision rejection. */
   public synchronized Optional<Double> getMaxAbsTurretAngularVelocityInRange(
       double minTime, double maxTime) {
     return getMaxAbsInRange(turretAngularVelocity, minTime, maxTime);
   }
 
-  /**
-   * Get the maximum absolute drive angular velocity (rad/s) in a time range. Used to reject vision
-   * frames captured while the chassis was spinning fast.
-   */
+  /** Max abs drive angular velocity (rad/s) in a time range. For vision rejection. */
   public synchronized Optional<Double> getMaxAbsDriveAngularVelocityInRange(
       double minTime, double maxTime) {
     return getMaxAbsInRange(driveAngularVelocity, minTime, maxTime);
@@ -228,11 +215,7 @@ public class RobotState {
     }
   }
 
-  /**
-   * Log the robot state for debugging. Uses direct TreeMap access instead of calling
-   * getLatestRobotToTurret()/getLatestTurretAngularVelocity() to avoid redundant synchronized lock
-   * re-acquisition (this method is already synchronized).
-   */
+  /** Log robot state for debugging. Uses direct TreeMap access (already synchronized). */
   public synchronized void log() {
     var latestPose = fieldToRobot.lastEntry();
     if (latestPose != null) {

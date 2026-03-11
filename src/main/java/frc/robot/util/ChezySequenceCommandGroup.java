@@ -7,14 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A command composition that runs a list of commands in sequence. But faster.
- *
- * <p>Based on Team 254's ChezySequenceCommandGroup, this optimized version runs multiple commands
- * per execute cycle instead of waiting for scheduler cycles.
- *
- * <p>The rules for command compositions apply: command instances that are passed to it cannot be
- * added to any other composition or scheduled individually, and the composition requires all
- * subsystems its components require.
+ * Optimized sequential command group (Team 254). Runs multiple commands per execute cycle instead
+ * of one per scheduler cycle. Standard composition rules apply.
  */
 public class ChezySequenceCommandGroup extends Command {
   private final List<Command> m_commands = new ArrayList<>();

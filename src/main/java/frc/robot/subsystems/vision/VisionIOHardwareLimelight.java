@@ -62,15 +62,8 @@ public class VisionIOHardwareLimelight implements VisionIO {
   }
 
   /**
-   * Set camerapose_robotspace_set for the turret-mounted camera (one-time at startup).
-   *
-   * <p>Because we send the turret's field heading via SetRobotOrientation, the Limelight treats the
-   * turret center as the "robot" origin. So camerapose_robotspace_set should describe the camera's
-   * position relative to the turret center — which is exactly TURRET_TO_CAMERA.
-   *
-   * <p>With this configured, MT2's botpose_wpiblue returns the <b>turret center's</b> field pose
-   * instead of the raw camera pose, so VisionSubsystem only needs to apply turret→robot (not the
-   * full camera→turret→robot chain).
+   * Set camerapose_robotspace_set for turret camera. Uses TURRET_TO_CAMERA since we send the
+   * turret's heading via SetRobotOrientation, making MT2 return turret-center field pose.
    */
   private void configureTurretCamera() {
     // camerapose_robotspace_set uses WPILib coordinates (x=forward, y=left, z=up) via NT API,
@@ -87,17 +80,9 @@ public class VisionIOHardwareLimelight implements VisionIO {
   }
 
   /**
-   * Send robot/turret orientation to all Limelights for MegaTag2.
-   *
-   * <p>Drivetrain cameras receive the robot's field heading. The turret camera receives the
-   * turret's field heading (robot heading + turret angle) so the Limelight can solve for the
-   * camera's field pose.
-   *
-   * <p>For the turret camera we estimate the image capture time (now − capture − pipeline latency)
-   * and look up the turret angle at that instant. This removes the heading timing mismatch that
-   * occurs because SetRobotOrientation is called "now" but the LL image was captured ~20-50 ms ago.
-   * The yaw-rate we send lets the LL refine further, but using a time-corrected heading as the
-   * starting point is significantly more accurate than relying on linear extrapolation alone.
+   * Send heading to all Limelights for MT2. Drivetrain cameras get robot heading. Turret camera
+   * gets time-corrected turret field heading (robot heading + turret angle at estimated capture
+   * time).
    */
   private void updateOrientations() {
     var latestEntry = robotState.getLatestFieldToRobot();

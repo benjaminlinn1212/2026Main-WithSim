@@ -23,42 +23,9 @@ import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Hardcoded upper-lane autonomous with L1 climb using pre-drawn PathPlanner paths.
- *
- * <p>All driving legs use {@link PathPlannerPath#fromPathFile} so heading profiles (especially
- * through the upper trench) are designed in the PathPlanner GUI rather than computed at runtime.
- * This eliminates trench collision issues caused by pathfindToPose generating unpredictable
- * rotation trajectories.
- *
- * <h3>Required Paths (draw/edit in PathPlanner GUI)</h3>
- *
- * <ul>
- *   <li>{@code "Upper Start To Hub"} — Start pose → HUB_UPPER scoring position
- *   <li>{@code "Upper Hub To Neutral 1"} — HUB_UPPER → NEUTRAL_ZONE_UPPER (through upper trench, 0°
- *       heading)
- *   <li>{@code "Upper Hub To Neutral 2"} — HUB_UPPER → NEUTRAL_ZONE_UPPER deeper (through upper
- *       trench, 0° heading, alternate cycle 2 path)
- *   <li>{@code "Upper Neutral To Hub"} — NEUTRAL_ZONE_UPPER → HUB_UPPER (through upper trench, 0°
- *       heading)
- *   <li>{@code "Upper Neutral To Climb"} — NEUTRAL_ZONE_UPPER → Climb standoff (through upper
- *       trench, SWD leg)
- * </ul>
- *
- * <h3>Sequence</h3>
- *
- * <ol>
- *   <li>Seed pose at {@link StartPose#UPPER} (alliance-corrected)
- *   <li>Follow "Upper Start To Hub", stop-and-shoot preload
- *   <li>Follow "Upper Hub To Neutral 1", intake FUEL (Cycle 1)
- *   <li>Follow "Upper Neutral To Hub", stop-and-shoot (Cycle 1)
- *   <li>Follow "Upper Hub To Neutral 2", intake FUEL (Cycle 2)
- *   <li>Follow "Upper Neutral To Climb" with shoot-while-driving (feed only in alliance zone)
- *   <li>Straight-line approach into tower, extend + retract L1 climb
- *   <li>Cleanup and idle
- * </ol>
- *
- * <p>This is a fully hardcoded auto — no dashboard timing system needed. Select "Upper Climb Auto"
- * in the auto chooser.
+ * Hardcoded upper-lane auto with L1 climb. Uses pre-drawn PathPlanner paths for trench traversal.
+ * Sequence: seed pose -> start-to-hub -> shoot preload -> 2x (hub-to-neutral intake, neutral-to-hub
+ * shoot) -> SWD to climb -> extend/retract L1.
  */
 public class UpperClimbAuto {
 

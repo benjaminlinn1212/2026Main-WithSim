@@ -19,20 +19,9 @@ import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Complete shooting solution that calculates shooter speed, turret angle, hood angle, and
- * feedforward velocities for shoot-while-driving.
- *
- * <p>Combines:
- *
- * <ul>
- *   <li>Distance-based interpolation maps for hood angle, flywheel speed, and time of flight
- *   <li>Motion compensation: predicts future robot pose and compensates for projectile travel time
- *   <li>Turret offset accounting: aims from the turret's physical position, not robot center
- *   <li>Feedforward velocities: filtered angular rates for turret and hood tracking
- * </ul>
- *
- * <p>Usage: Create a supplier via {@link #createSupplier(RobotState)}, then pass it to each aiming
- * subsystem (shooter, turret, hood) so they share a single coordinated setpoint.
+ * Complete shooting solution: speed, turret angle, hood angle, and feedforward for
+ * shoot-while-driving. Uses distance-based interp maps, motion compensation, and turret offset
+ * accounting. Create a shared supplier via {@link #createSupplier(RobotState)}.
  */
 public class ShooterSetpoint {
 
@@ -221,14 +210,7 @@ public class ShooterSetpoint {
 
   // ===== Calculation Methods (6328-style physics with current project's turret logic) =====
 
-  /**
-   * Determines if robot is outside the aiming zone (past the HUB zone boundary). Returns true if
-   * the robot should shoot back towards the alliance wall instead of at the hub.
-   *
-   * <p>Uses the same X=5.5m threshold (NEUTRAL_ZONE.minX) as AutoTuning's AIMING_ZONE_MAX_X. The
-   * robot's blue-origin X is compared against this boundary — if beyond it, the robot is in the
-   * neutral zone and should do a feedback shot towards the alliance wall.
-   */
+  /** Returns true if robot is past the aiming zone boundary (should shoot back, not at hub). */
   private static boolean isInNeutralZone(Pose2d robotPose, boolean isBlueAlliance) {
     // Convert to blue-origin X for consistent zone checking
     double blueX =
@@ -285,10 +267,7 @@ public class ShooterSetpoint {
     Optional<Alliance> alliance = DriverStation.getAlliance();
     boolean isBlueAlliance = alliance.isEmpty() || alliance.get() == Alliance.Blue;
 
-    // Predict future pose to compensate for system latency
-    // IMPORTANT: Pose2d.exp() expects a robot-relative Twist2d (dx = forward, dy = left),
-    // NOT field-relative velocities. Using field-relative here caused the predicted heading
-    // to diverge at high angular velocities, leading to aim errors.
+    // Predict future pose using robot-relative Twist2d (NOT field-relative)
     double phaseDelay = Constants.Aiming.PHASE_DELAY;
     Pose2d estimatedPose =
         robotPose.exp(
@@ -317,12 +296,8 @@ public class ShooterSetpoint {
   }
 
   /**
-   * Calculate a neutral-zone shot using projectile kinematics. Uses a fixed hood angle and computes
-   * the required flywheel speed from the range equation so the ball lands at the target regardless
-   * of distance. No interp maps needed — just physics + one efficiency fudge factor.
-   *
-   * <p>Range equation (projectile from height h, angle θ, to ground): v =
-   * sqrt(g·d²/(2·cos²θ·(d·tanθ+h)))
+   * Neutral-zone shot via projectile kinematics. Fixed hood angle, computed flywheel speed. Range
+   * eq: v = sqrt(g*d^2 / (2*cos^2(θ)*(d*tan(θ)+h)))
    */
   private static ShooterSetpoint calculateNeutralZoneShot(
       Translation2d turretPosition, Translation3d target, Rotation2d robotHeading) {
@@ -367,17 +342,8 @@ public class ShooterSetpoint {
   }
 
   /**
-   * Calculate a normal hub shot with full motion compensation.
-   *
-   * <p>Motion compensation flow:
-   *
-   * <ol>
-   *   <li>Calculate turret velocity in field frame (translation + rotation cross product)
-   *   <li>Look up time-of-flight for current distance
-   *   <li>Offset target by -velocity * timeOfFlight (where the target will "appear" to be)
-   *   <li>Compute turret angle and hood angle from corrected distance
-   *   <li>Compute feedforward angular velocities via filtered finite differences
-   * </ol>
+   * Hub shot with motion compensation: turret field velocity, iterative time-of-flight offset,
+   * interp maps for hood/flywheel, filtered feedforward angular velocities.
    */
   private static ShooterSetpoint calculateHubShot(
       Translation2d turretPosition,
@@ -392,22 +358,13 @@ public class ShooterSetpoint {
         new Translation2d(target.getX(), target.getY()).minus(turretPosition);
     double rawDistance = turretToTarget.getNorm();
 
-    // ── Turret velocity in field frame ──
-    // v_turret = v_robot + ω × R(θ) * turretOffset
-    // For 2D cross product ω × (x, y) = (-ωy, ωx):
-    //   rotated offset = R(θ) * turretOffset
-    //   v_turret_x = vx_robot + ω * (-rotatedOffset.y)
-    //   v_turret_y = vy_robot + ω * ( rotatedOffset.x)
+    // ── Turret velocity in field frame: v_turret = v_robot + ω × R(θ)*offset ──
     Translation2d rotatedOffset = turretOffset.rotateBy(robotHeading);
     double omega = robotVelocity.omegaRadiansPerSecond;
     double turretVelocityX = robotVelocity.vxMetersPerSecond - omega * rotatedOffset.getY();
     double turretVelocityY = robotVelocity.vyMetersPerSecond + omega * rotatedOffset.getX();
 
-    // ── Motion compensation (iterative) ──
-    // The game piece inherits the turret's velocity, so we offset the target
-    // by -turretVelocity * timeOfFlight to aim where the target will effectively be.
-    // We iterate because offsetting the target changes the distance, which changes the
-    // time-of-flight. 3 iterations is sufficient for convergence (used by 254/6328).
+    // ── Motion compensation: offset target by -turretVelocity * timeOfFlight (3 iterations) ──
     double compensatedDistance = rawDistance;
     Translation2d lookaheadTurretToTarget = turretToTarget;
     for (int i = 0; i < 3; i++) {

@@ -9,13 +9,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
-/**
- * Hood subsystem that controls the hood angle for shot trajectory adjustment. Supports two states:
- * stow and aimHub.
- *
- * <p>Uses ShooterSetpoint utility for aim calculations, which handles smart target selection
- * including neutral zone detection.
- */
+/** Hood subsystem — stow and aim states. Uses ShooterSetpoint for coordinated aiming. */
 public class HoodSubsystem extends SubsystemBase {
   private final HoodIO io;
   private final HoodIOInputsAutoLogged inputs = new HoodIOInputsAutoLogged();
@@ -63,13 +57,7 @@ public class HoodSubsystem extends SubsystemBase {
         .withName("Hood Stow");
   }
 
-  /**
-   * Command to aim hood using ShooterSetpoint calculations. ShooterSetpoint handles smart target
-   * selection including neutral zone detection.
-   *
-   * <p>Benefits: - Coordinated aiming with turret and shooter - Physics-based trajectory
-   * calculation - Distance-based angle interpolation - No duplicate calculation logic
-   */
+  /** Aim hood using ShooterSetpoint (coordinated with turret/shooter). */
   public Command aimHub() {
     return runOnce(
             () -> {
@@ -129,22 +117,14 @@ public class HoodSubsystem extends SubsystemBase {
         < Constants.HoodConstants.AIMING_TOLERANCE_RAD;
   }
 
-  /**
-   * Directly apply the stow position. Called by Superstructure.periodic() every cycle when the
-   * wanted state requires the hood to be stowed. Unlike the stow() command, this is a plain void
-   * method — no command scheduling overhead.
-   */
+  /** Apply stow position. Called by Superstructure.periodic(). */
   public void applyStow() {
     currentState = HoodState.STOW;
     setPositionSetpointImpl(Constants.HoodConstants.STOW_POSITION, 0.0);
     positionSetpointRad = Constants.HoodConstants.STOW_POSITION;
   }
 
-  /**
-   * Directly apply the aiming position using ShooterSetpoint. Called by Superstructure.periodic()
-   * every cycle when the wanted state requires the hood to aim. Unlike the aimHub() command, this
-   * is a plain void method — no command scheduling overhead.
-   */
+  /** Apply aiming position. Called by Superstructure.periodic(). */
   public void applyAiming() {
     currentState = HoodState.AIM_HUB;
     ShooterSetpoint setpoint = setpointSupplier.get();

@@ -56,11 +56,7 @@ public class IndexerSubsystem extends SubsystemBase {
     io.stop();
   }
 
-  /**
-   * Directly apply feed-to-shooter output. Called by Superstructure.periodic() every cycle when the
-   * wanted state requires the indexer to feed. Unlike toShooter() command, this is a plain void
-   * method.
-   */
+  /** Apply feed-to-shooter (void, for Superstructure.periodic()). */
   public void applyFeedToShooter() {
     io.setPercent(IndexerConstants.TO_SHOOTER_PERCENT);
   }

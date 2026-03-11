@@ -11,26 +11,9 @@ import frc.robot.auto.dashboard.FieldConstants;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Teleop trench assist controller. Helps the driver pass through the 22.25-inch-tall trench tunnels
- * with two PID controllers:
- *
- * <ol>
- *   <li><b>Orientation PID</b> (heading error &rarr; omega) &mdash; snaps the chassis heading to
- *       the nearest cardinal direction (0°, 90°, 180°, 270°).
- *   <li><b>Lateral PID</b> (Y-position error &rarr; vy) &mdash; centers the robot in the trench.
- * </ol>
- *
- * <h3>Driver-feel design</h3>
- *
- * <ul>
- *   <li><b>Blend, not add.</b> Both corrections use {@code MathUtil.interpolate} between the
- *       driver's raw input and the PID target, scaled by a proximity blend factor. This means the
- *       driver always has partial authority and the transition is smooth.
- *   <li><b>Soft activation ramps.</b> Speed and velocity-heading gates ramp linearly instead of
- *       switching on/off at a threshold, preventing jarring transitions.
- *   <li><b>Alliance-correct lateral.</b> The lateral correction is computed in blue-origin Y then
- *       sign-flipped for red alliance before being applied to field-relative vy.
- * </ul>
+ * Teleop trench assist controller. Blends driver input with two PIDs (heading snap to cardinal +
+ * lateral centering) to help pass through the 22.25in trench tunnels. Soft activation ramps for
+ * smooth transitions.
  */
 public class TrenchAssistController {
 

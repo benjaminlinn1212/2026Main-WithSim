@@ -3,39 +3,10 @@ package frc.robot.subsystems.climb.util;
 import frc.robot.Constants.ClimbConstants;
 
 /**
- * =========================================================================== Cable Drum Layer
- * Model — Step-Function Circumference
- * ===========================================================================
- *
- * <p>As cable winds onto the drum, it stacks in layers. Each full layer is {@link
- * ClimbConstants#ROTATIONS_PER_LAYER} rotations. When a layer is complete, the effective winding
- * circumference jumps by {@link ClimbConstants#CIRCUMFERENCE_PER_LAYER_METERS} because the next
- * layer wraps around the previous cable.
- *
- * <h3>Reference Point</h3>
- *
- * All rotations are expressed relative to the <b>bare drum</b> (zero cable wound). At the STOW pose
- * the drum has {@link ClimbConstants#STOW_ABSOLUTE_ROTATIONS} of cable already wound on. IK/FK
- * works in <i>rotations relative to stow</i>, so we convert:
- *
- * <pre>
- *   absoluteRot = stowAbsoluteRot − relativeRot
- *       (retracting = negative relative = more cable wound = larger absolute)
- *       (releasing  = positive relative = less cable wound = smaller absolute)
- * </pre>
- *
- * <h3>Sign Convention (matches ClimbIK)</h3>
- *
- * <ul>
- *   <li>Positive drum rotation = <b>release</b> cable (cable gets longer, delta &gt; 0)
- *   <li>Negative drum rotation = <b>retract</b> cable (cable gets shorter, delta &lt; 0)
- * </ul>
- *
- * <h3>Step-Function Model</h3>
- *
- * Within a single layer the circumference is constant. The cable length gained or lost during
- * rotations {@code n1..n2} that all fall within one layer is simply {@code (n2 − n1) ×
- * circumferenceOfThatLayer}. Transitions across layer boundaries are accumulated layer by layer.
+ * Step-function cable drum model. Cable stacks in layers on the drum; each full layer ({@link
+ * ClimbConstants#ROTATIONS_PER_LAYER} rotations) increases the effective circumference by {@link
+ * ClimbConstants#CIRCUMFERENCE_PER_LAYER_METERS}. All rotations are relative to bare drum; stow has
+ * {@link ClimbConstants#STOW_ABSOLUTE_ROTATIONS} already wound. Positive rotation = release cable.
  */
 public class CableDrumModel {
 
@@ -54,12 +25,7 @@ public class CableDrumModel {
     return C0 + layer * DC;
   }
 
-  /**
-   * Total cable length wound on the drum when exactly {@code absRot} rotations of cable are stored
-   * (measured from bare drum = 0).
-   *
-   * <p>Computed by summing full layers, then adding the partial layer.
-   */
+  /** Total cable length wound at {@code absRot} rotations. Sums full layers + partial layer. */
   private static double cableLengthAtAbsoluteRotation(double absRot) {
     if (absRot <= 0) return 0.0;
 
@@ -75,10 +41,7 @@ public class CableDrumModel {
     return length;
   }
 
-  /**
-   * Inverse of {@link #cableLengthAtAbsoluteRotation}: given a total cable length wound on the
-   * drum, return how many absolute rotations that corresponds to.
-   */
+  /** Inverse of {@link #cableLengthAtAbsoluteRotation}: cable length → absolute rotations. */
   private static double absoluteRotationAtCableLength(double cableLength) {
     if (cableLength <= 0) return 0.0;
 
@@ -105,15 +68,8 @@ public class CableDrumModel {
   private static final double STOW_CABLE_LENGTH = cableLengthAtAbsoluteRotation(STOW_ABS);
 
   /**
-   * Convert a cable length <b>delta</b> from stow (meters) to drum rotations from stow.
-   *
-   * <ul>
-   *   <li>{@code deltaCable > 0} → cable got longer → drum released → positive rotations
-   *   <li>{@code deltaCable < 0} → cable got shorter → drum retracted → negative rotations
-   * </ul>
-   *
-   * @param deltaCableMeters Change in cable length from stow (meters)
-   * @return Drum (mechanism) rotations relative to stow position
+   * Convert cable length delta from stow (m) to drum rotations from stow. Positive delta (longer
+   * cable) → positive rotations (release).
    */
   public static double cableDeltaToRotations(double deltaCableMeters) {
     // Target absolute cable on drum = stow cable − delta
@@ -130,15 +86,8 @@ public class CableDrumModel {
   }
 
   /**
-   * Convert drum rotations from stow to a cable length <b>delta</b> (meters).
-   *
-   * <ul>
-   *   <li>Positive rotations → cable released → positive delta
-   *   <li>Negative rotations → cable retracted → negative delta
-   * </ul>
-   *
-   * @param drumRotationsFromStow Drum rotations relative to stow (positive = release)
-   * @return Change in cable length from stow (meters)
+   * Convert drum rotations from stow to cable length delta (m). Positive rotations (release) →
+   * positive delta (longer cable).
    */
   public static double rotationsToCableDelta(double drumRotationsFromStow) {
     // absoluteRot = STOW_ABS − relativeRot
@@ -150,13 +99,7 @@ public class CableDrumModel {
     return STOW_CABLE_LENGTH - absCable;
   }
 
-  /**
-   * Effective circumference at the current drum rotation from stow. Useful for Jacobian scaling if
-   * needed.
-   *
-   * @param drumRotationsFromStow Drum rotations relative to stow
-   * @return Effective circumference (meters per rotation) at that position
-   */
+  /** Effective circumference (m/rot) at the given drum rotation from stow. */
   public static double circumferenceAtRotation(double drumRotationsFromStow) {
     double absRot = STOW_ABS - drumRotationsFromStow;
     if (absRot < 0) absRot = 0;

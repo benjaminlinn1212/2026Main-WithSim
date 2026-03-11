@@ -7,12 +7,8 @@ import edu.wpi.first.wpilibj.Timer;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Centralized robot health monitoring — battery voltage, brownout detection, and controller rumble
- * feedback. Intended to be called from robotPeriodic() every cycle.
- *
- * <p>Motor temperature monitoring and sticky fault detection are handled per-subsystem in their
- * respective IO implementations, since each subsystem already reads its own motor data via
- * updateInputs().
+ * Centralized health monitoring: battery voltage, brownout detection, controller rumble. Called
+ * from robotPeriodic() every cycle. Motor temps are handled per-subsystem in IO.
  */
 public class RobotMonitor {
   // ── Battery / Brownout ──

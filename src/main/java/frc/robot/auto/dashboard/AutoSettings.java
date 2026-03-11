@@ -17,21 +17,8 @@ import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * All dashboard-configurable autonomous settings for the 2026 REBUILT game. Before each match, the
- * drive team toggles these on Shuffleboard / AdvantageScope / SmartDashboard. The {@link
- * DashboardAutoManager} reads them and feeds them to the {@link AutoPlanner}.
- *
- * <p>REBUILT-specific settings:
- *
- * <ul>
- *   <li>Start pose — which DRIVER STATION side to start at
- *   <li>Shooting priority — preferred positions around the HUB to shoot FUEL
- *   <li>Preferred intake — OUTPOST (human player), DEPOT (floor bin), or NEUTRAL ZONE (ground)
- *   <li>Climb pose — which side of TOWER to approach (auto always climbs L1)
- *   <li>Risk level — conservative/balanced/aggressive time budgets
- * </ul>
- *
- * <p>Inspired by 254's pre-match configuration and 6328's dashboard-driven approach.
+ * Dashboard-configurable auto settings for REBUILT. Drive team selects start pose, scoring
+ * priority, intake preference, climb pose, and risk level on Shuffleboard before each match.
  */
 public class AutoSettings {
 

@@ -14,20 +14,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Manages a CTRE Phoenix 6 Orchestra instance for playing .chrp music files through Kraken / Talon
- * FX motors. Creates lightweight TalonFX references to the same CAN IDs used by the robot's
- * subsystems — Orchestra takes over MusicTone control while playing and releases the motors when
- * stopped.
- *
- * <p>Place your .chrp file in {@code src/main/deploy/} — it will be automatically deployed to the
- * roboRIO. Convert MIDI → CHRP using Phoenix Tuner X's CHRP Converter tool.
- *
- * <p>Usage:
- *
- * <pre>
- *   OrchestraManager orchestra = new OrchestraManager();
- *   autoChooser.addOption("Play Music", orchestra.playMusicCommand());
- * </pre>
+ * Manages a CTRE Phoenix 6 Orchestra for playing .chrp music through Kraken/TalonFX motors. Creates
+ * lightweight TalonFX references to the same CAN IDs used by subsystems — Orchestra takes MusicTone
+ * control while playing and releases on stop. Place .chrp files in {@code src/main/deploy/}.
  */
 public class OrchestraManager extends SubsystemBase {
 
@@ -72,11 +61,8 @@ public class OrchestraManager extends SubsystemBase {
     addMotor(32, drivetrainBus); // BL steer
     addMotor(33, drivetrainBus); // BR steer
 
-    // ── Add all instruments to the Orchestra ──
-    // Motors are distributed across tracks using modulo wrapping.
-    // With NUM_TRACKS=1: all 8 motors play the same part (loudest).
-    // With NUM_TRACKS=2: motors 0,2,4,6 → track 0, motors 1,3,5,7 → track 1.
-    // With NUM_TRACKS=4: 2 motors per track, etc.
+    // ── Add instruments to Orchestra with track distribution ──
+    // With NUM_TRACKS=1: all motors play same part. NUM_TRACKS=2: alternating tracks, etc.
     int numTracks = OrchestraConstants.NUM_TRACKS;
     for (int i = 0; i < instruments.size(); i++) {
       int track = i % numTracks;
@@ -118,10 +104,7 @@ public class OrchestraManager extends SubsystemBase {
     instruments.add(motor);
   }
 
-  /**
-   * Enables the AllowMusicDurDisable config on all instruments so music can play while the robot is
-   * disabled.
-   */
+  /** Enables AllowMusicDurDisable on all instruments for disabled-mode playback. */
   private void enableMusicDuringDisable() {
     for (TalonFX motor : instruments) {
       var config = new AudioConfigs();
@@ -179,11 +162,8 @@ public class OrchestraManager extends SubsystemBase {
   // ──────────────────────────── Command Factories ────────────────────────────
 
   /**
-   * Returns a Command that plays music for the entire autonomous period. The music starts on
-   * initialize, runs until the command is interrupted or the track finishes, then stops the
-   * orchestra so normal motor control resumes.
-   *
-   * <p>This command requires this subsystem to prevent other orchestra commands from conflicting.
+   * Command that plays music until interrupted or the track finishes, then stops the orchestra.
+   * Requires this subsystem to prevent conflicts.
    */
   public Command playMusicCommand() {
     return Commands.startEnd(this::play, this::stop, this)

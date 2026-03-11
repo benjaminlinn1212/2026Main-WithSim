@@ -9,20 +9,13 @@ import java.util.List;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Pre-match self-test that verifies system health during disabled. Run by pressing Back button on
- * the driver controller. Logs results to AdvantageKit and prints to console.
- *
- * <p>This does NOT move any mechanisms — it only checks battery, CAN bus, and system status.
- * Individual motor temperatures are already logged per-subsystem by their IO implementations.
+ * Pre-match self-test (disabled-safe). Checks battery, CAN bus, and system status. Run via Back
+ * button on driver controller. Logs results to AdvantageKit.
  */
 public class SelfTest {
   private static final double MIN_BATTERY_VOLTAGE = 12.0;
 
-  /**
-   * Create a self-test command that runs once and reports results.
-   *
-   * <p>Safe to run while disabled — does not actuate any mechanisms.
-   */
+  /** Create a disabled-safe self-test command that checks system health once. */
   public static Command selfTestCommand(Superstructure superstructure) {
     return Commands.runOnce(
             () -> {

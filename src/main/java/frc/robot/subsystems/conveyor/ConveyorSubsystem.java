@@ -56,11 +56,7 @@ public class ConveyorSubsystem extends SubsystemBase {
     io.stop();
   }
 
-  /**
-   * Directly apply feed-to-shooter output. Called by Superstructure.periodic() every cycle when the
-   * wanted state requires the conveyor to feed. Unlike goToShooter() command, this is a plain void
-   * method.
-   */
+  /** Apply feed-to-shooter (void, for Superstructure.periodic()). */
   public void applyFeedToShooter() {
     io.setVelocity(ConveyorConstants.FEED_VELOCITY_RPS);
   }
@@ -70,13 +66,7 @@ public class ConveyorSubsystem extends SubsystemBase {
     io.toggleDirection();
   }
 
-  /**
-   * Get the stator current of the conveyor motor (amps). Used for current-based shot completion
-   * detection — when the conveyor current drops below a threshold for a sustained period, no FUEL
-   * is being fed to the shooter.
-   *
-   * @return Conveyor stator current in amps
-   */
+  /** Stator current (amps). Sustained low = no FUEL being fed. */
   public double getCurrentAmps() {
     return inputs.currentAmps;
   }

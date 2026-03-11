@@ -29,27 +29,14 @@ import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Climb subsystem: ClimbState waypoints ClimbIK math TalonFX motors
- *
- * <p>CONTROL STRATEGY (Hybrid Position + Velocity): - VELOCITY CONTROL: Used during path following
- * for smooth dynamic motion - Numerical Jacobian converts end effector velocity → motor velocity -
- * Similar to drivetrain: chassis speeds → wheel speeds - Enables accurate trajectory tracking with
- * feedforward
- *
- * <p>- POSITION CONTROL: Used for holding static positions - Motion Magic to final positions after
- * path completes - Used for MANUAL and EMERGENCY_STOP states - Provides stable position hold at
- * target locations
+ * Climb subsystem: ClimbState waypoints -> ClimbIK -> TalonFX motors. Hybrid control: velocity
+ * (Jacobian) during path following, position (MotionMagic) for holds.
  */
 public class ClimbSubsystem extends SubsystemBase {
 
   /**
-   * Dashboard-selectable climb level. Determines which climb sequence is used by teleop
-   * nextClimbStep / previousClimbStep and the auto-climb command.
-   *
-   * <ul>
-   *   <li>{@code L1} — Uses the auto L1 sequence (EXTEND_L1_AUTO → RETRACT_L1_AUTO). Quick climb.
-   *   <li>{@code L2L3} — Uses the full teleop sequence through L1 → L2 → L3 with servo operations.
-   * </ul>
+   * Dashboard-selectable climb level. L1 = auto L1 sequence (2 presses). L2L3 = full teleop
+   * sequence through all levels.
    */
   public enum ClimbLevel {
     L1,
@@ -63,11 +50,7 @@ public class ClimbSubsystem extends SubsystemBase {
   private Translation2d leftTargetPosition = ClimbState.STOWED.getTargetPosition();
   private Translation2d rightTargetPosition = ClimbState.STOWED.getTargetPosition();
 
-  // ─── Last successful FK results (used as Newton solver initial guess) ───
-  // Using the previous measured position as the initial guess gives the Newton solver a
-  // much closer starting point than the target position, which may diverge from measured
-  // during velocity-controlled motions with tracking lag. This prevents the FK solve from
-  // failing mid-stow (or any path) and freezing the Mechanism2d measured arm.
+  // ─── Last successful FK results (Newton solver initial guess) ───
   private Translation2d lastMeasuredLeft = ClimbState.STOWED.getTargetPosition();
   private Translation2d lastMeasuredRight = ClimbState.STOWED.getTargetPosition();
 
@@ -502,12 +485,7 @@ public class ClimbSubsystem extends SubsystemBase {
   // STATE MANAGEMENT
   // =============================================================================
 
-  /**
-   * Reset the climb to STOWED — resets both the subsystem state, the IO-layer motor positions, and
-   * the Mechanism2d visualization. In SIM this teleports the simulated motors back to STOWED cable
-   * lengths; on real hardware this is a no-op at the IO layer (the real encoders already reflect
-   * reality).
-   */
+  /** Reset climb to STOWED — resets state, IO motor positions, FK guesses, and Mechanism2d. */
   public void resetToStowed() {
     io.resetToStowed();
     setState(ClimbState.STOWED);
@@ -603,27 +581,8 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
-   * Build the teleop auto-climb command. Deferred so the climb pose is read at press-time.
-   *
-   * <p><b>Sequence:</b>
-   *
-   * <ol>
-   *   <li>Idle superstructure (stows intake for arm clearance).
-   *   <li>Parallel: pathfind to standoff pose + (wait intake stowed → extend L1 arms).
-   *   <li>PID drive-to-pose into the tower.
-   *   <li>Stop drivetrain.
-   *   <li>If operator selected L1 → retract immediately. If L2L3 → stop (driver uses POV Right to
-   *       continue the manual sequence).
-   * </ol>
-   *
-   * <p>For L1 the auto-only states (EXTEND_L1_AUTO / RETRACT_L1_AUTO) are used. For L2L3 the teleop
-   * state (EXTEND_L1) is used so {@code nextClimbStep()} continues the teleop chain (EXTEND_L1 →
-   * RETRACT_L1 → RELEASE_ANGLE_L1 → …).
-   *
-   * @param drive the swerve drivetrain subsystem
-   * @param superstructure the superstructure coordinator
-   * @param climbTargetSupplier supplies the target climb {@link Pose2d} (read at command-creation
-   *     time inside {@code Commands.defer})
+   * Build deferred teleop auto-climb: idle -> pathfind to standoff -> extend arms -> PID approach
+   * -> stop. L1 retracts immediately; L2L3 waits for driver POV.
    */
   public Command buildTeleopAutoClimb(
       DriveSwerveDrivetrain drive,
@@ -688,13 +647,8 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
-   * Release from auto L1 climb by reversing RETRACT_L1_AUTO. After auto ends with the robot latched
-   * at RETRACT_L1_AUTO, this reverses the retract path back to the EXTEND_L1_AUTO position (arm
-   * extended, released from bar). Use {@link #stowFromCurrentState()} (POV Down) afterward to stow
-   * the arm back to STOWED.
-   *
-   * <p>Only takes effect when the current state is RETRACT_L1_AUTO. If the robot is in a different
-   * state, this is a no-op.
+   * Release from auto L1 by reversing RETRACT_L1_AUTO back to EXTEND_L1_AUTO. No-op if not in
+   * RETRACT_L1_AUTO state.
    */
   public Command releaseFromAutoL1() {
     return runPath(
@@ -926,17 +880,7 @@ public class ClimbSubsystem extends SubsystemBase {
   // VELOCITY CONTROL (Jacobian-based for path following)
   // ===========================================================================
 
-  /**
-   * Set motor velocities using numerical Jacobian transformation.
-   *
-   * <p>Flow: (x, y, xdot, ydot) → IK → (l1, l2) → Jacobian → (l1dot, l2dot) → motors
-   *
-   * @param leftPosition Current left end effector position (m)
-   * @param rightPosition Current right end effector position (m)
-   * @param leftVelocity Desired left end effector velocity (m/s)
-   * @param rightVelocity Desired right end effector velocity (m/s)
-   * @param isPulling Whether this is a pulling motion (adds extra feedforward)
-   */
+  /** Set motor velocities via numerical Jacobian: EE velocity -> motor velocity. */
   private void setTargetVelocitiesInternal(
       Translation2d leftPosition,
       Translation2d rightPosition,
@@ -1137,16 +1081,8 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
-   * Apply a velocity correction differentially while respecting velocity limits. Returns {leftVelY,
-   * rightVelY} with the relative speed difference preserved even when one side saturates at the
-   * limit.
-   *
-   * <p>Uses clamp-then-bias: if one side is clamped, the other side is shifted to maintain the
-   * relative speed difference (rather than losing the correction).
-   *
-   * @param nominalVelY Base trajectory Y velocity (m/s), same for both sides
-   * @param correction Desired speed difference (m/s). Positive = left faster.
-   * @param maxVel Maximum allowed Y velocity magnitude (m/s)
+   * Apply velocity correction differentially while respecting limits. Clamp-then-bias preserves
+   * relative speed difference when one side saturates.
    */
   private double[] applyClampedVelocityCorrection(
       double nominalVelY, double correction, double maxVel) {
@@ -1412,30 +1348,8 @@ public class ClimbSubsystem extends SubsystemBase {
   // ===========================================================================
 
   /**
-   * Advance climb by one operator-triggered step. Each POV-Right press runs exactly one action.
-   *
-   * <p><b>L1 mode</b> (operator chooser = L1): Uses the auto L1 sequence — only 2 presses.
-   *
-   * <pre>
-   *  Press 1 (STOWED)         → Extend L1 auto (path)
-   *  Press 2 (EXTEND_L1_AUTO) → Retract L1 auto (path)
-   * </pre>
-   *
-   * <p><b>L2L3 mode</b> (operator chooser = L2L3): Full teleop sequence — 11 presses.
-   *
-   * <pre>
-   *  Press  1 (STOWED)             → Extend L1 (path)
-   *  Press  2 (EXTEND_L1)          → Retract L1 (path)
-   *  Press  3 (RETRACT_L1)         → Release angle servos
-   *  Press  4 (RELEASE_ANGLE_L1)   → Release hardstop servos
-   *  Press  5 (RELEASE_HARDSTOP_L1)→ Extend L2 (path)
-   *  Press  6 (EXTEND_L2)          → Retract L2 (path)
-   *  Press  7 (RETRACT_L2)         → Stow hardstop then angle servos
-   *  Press  8 (STOW_SERVOS_L2)     → Release angle servos
-   *  Press  9 (RELEASE_ANGLE_L2)   → Release hardstop servos
-   *  Press 10 (RELEASE_HARDSTOP_L2)→ Extend L3 (path)
-   *  Press 11 (EXTEND_L3)          → Retract L3 (path)
-   * </pre>
+   * Advance climb by one operator-triggered step (POV-Right). L1 mode: 2 presses (extend/retract
+   * auto L1). L2L3 mode: 11 presses (extend/retract L1-L3 with servo operations between levels).
    */
   public Command nextClimbStep() {
     return Commands.defer(
@@ -1761,12 +1675,8 @@ public class ClimbSubsystem extends SubsystemBase {
   }
 
   /**
-   * Called repeatedly while in manual mode to command end-effector Cartesian velocities (m/s).
-   * LeftVel controls the left-side EE, rightVel the right-side EE. If not in manual mode this is a
-   * no-op.
-   *
-   * <p>Each cycle the target positions are integrated by vel * dt so the Jacobian always operates
-   * at the current (predicted) position, and the Mechanism2d / FK tracking stays in sync.
+   * Manual EE velocity control. Integrates vel*dt into target positions each cycle. No-op if not in
+   * manual mode.
    */
   public void manualControl(Translation2d leftVel, Translation2d rightVel) {
     if (!manualMode || calibrationMode || currentState == ClimbState.EMERGENCY_STOP) return;

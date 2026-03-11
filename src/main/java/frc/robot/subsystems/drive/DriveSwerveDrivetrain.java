@@ -40,10 +40,7 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   // Shuffleboard field visualization (works without AdvantageScope)
   private final Field2d field2d = new Field2d();
 
-  // SwerveRequest objects for different drive modes
-  // Use BlueAlliance perspective because teleop code already handles alliance flipping manually
-  // (negating vx/vy for red). OperatorPerspective (default) would apply an additional rotation
-  // via operatorForwardDirection, which is never set and can cause wrong headings in sim.
+  // BlueAlliance perspective — teleop code handles alliance flipping manually
   private final SwerveRequest.FieldCentric fieldCentricDrive =
       new SwerveRequest.FieldCentric().withForwardPerspective(ForwardPerspectiveValue.BlueAlliance);
   private final SwerveRequest.RobotCentric robotCentricDrive = new SwerveRequest.RobotCentric();
@@ -77,18 +74,10 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
   private double previousTimestamp = 0.0;
   private double linearAccelerationMagnitude = 0.0;
 
-  /**
-   * Cached pose from the latest periodic() cycle. Avoids repeatedly acquiring the synchronized lock
-   * on RobotState's TreeMap during the same 20ms cycle (teleop default command, TrenchAssist,
-   * Superstructure, ShooterSetpoint, etc. all read the pose).
-   */
+  /** Cached pose (lock-free read per cycle, avoids contention on RobotState's TreeMap). */
   private volatile Pose2d cachedPose = new Pose2d();
 
-  /**
-   * Exponential moving average of acceleration. Smooths out frame-to-frame noise so the zone-aware
-   * feeding gate doesn't stutter. Alpha controls responsiveness: lower = smoother but more lag,
-   * higher = noisier but faster response.
-   */
+  /** EMA of acceleration (smooths noise for feeding gate). */
   private static final double ACCEL_FILTER_ALPHA = 0.10;
 
   private double filteredAcceleration = 0.0;
@@ -108,10 +97,7 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
 
   @Override
   public void periodic() {
-    // Cache pose once per cycle to avoid repeated synchronized lock acquisitions on RobotState.
-    // The 250Hz odometry thread writes to RobotState's TreeMap under a lock; reading it multiple
-    // times per 20ms cycle (teleop command, TrenchAssist, Superstructure, ShooterSetpoint) causes
-    // unnecessary contention. One read per periodic() eliminates this.
+    // Cache pose once per cycle to avoid repeated lock acquisitions on RobotState
     var latestEntry = robotState.getLatestFieldToRobot();
     cachedPose = (latestEntry != null) ? latestEntry.getValue() : new Pose2d();
     // CTRE's SwerveDriveState.Speeds are robot-relative
@@ -177,30 +163,18 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     return driveIO.getState().Speeds;
   }
 
-  /**
-   * Get the robot's current linear (translational) speed in m/s. This is the magnitude of the
-   * velocity vector, ignoring rotation. Use this for gating decisions that depend on whether the
-   * robot is moving or stopped (e.g. stop-and-shoot feeding).
-   */
+  /** Linear speed (m/s), ignoring rotation. Used for stop/move gating. */
   public double getLinearSpeedMps() {
     ChassisSpeeds speeds = getChassisSpeeds();
     return Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
   }
 
-  /**
-   * Get the magnitude of the robot's linear acceleration (m/s²). Computed from field-relative speed
-   * deltas each periodic cycle. Used by the Superstructure to gate conveyor/indexer feeding — FUEL
-   * should only be fed to the shooter when the robot is at low acceleration (steady-state driving).
-   */
+  /** Raw linear acceleration magnitude (m/s²). Used for Superstructure feeding gate. */
   public double getLinearAccelerationMagnitude() {
     return linearAccelerationMagnitude;
   }
 
-  /**
-   * Get the filtered (smoothed) linear acceleration magnitude. Uses an exponential moving average
-   * to eliminate frame-to-frame noise. Use this for gating decisions (e.g. when to start feeding
-   * FUEL) to avoid stutter from noisy raw acceleration.
-   */
+  /** Smoothed acceleration (m/s²). Avoids stutter in gating decisions. */
   public double getFilteredAcceleration() {
     return filteredAcceleration;
   }
@@ -235,11 +209,7 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
         robotCentricDrive.withVelocityX(vx).withVelocityY(vy).withRotationalRate(omega));
   }
 
-  /**
-   * Drive using chassis speeds (robot-relative). Called by PathPlanner's AutoBuilder output.
-   * Delegates to robot-centric drive — PathPlanner's holonomic controller manages both translation
-   * and rotation.
-   */
+  /** Called by PathPlanner's AutoBuilder output. Robot-centric drive. */
   public void runVelocity(ChassisSpeeds chassisSpeeds) {
     driveRobotRelative(
         chassisSpeeds.vxMetersPerSecond,
@@ -285,15 +255,7 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     this.driveToPointActive = true;
   }
 
-  /**
-   * Activate drive-to-point mode with a custom max velocity and an angular velocity constraint.
-   * This is useful when the arm or mechanism needs time to settle before the robot can rotate
-   * freely.
-   *
-   * @param pose The target pose (translation + heading)
-   * @param maxVelocityOutput Maximum translation velocity (m/s)
-   * @param maxAngularVelocity Maximum angular velocity (rad/s); NaN = unconstrained
-   */
+  /** Activate drive-to-point with custom max velocity and angular velocity constraint. */
   public void setDesiredPoseForDriveToPointWithConstraints(
       Pose2d pose, double maxVelocityOutput, double maxAngularVelocity) {
     this.desiredPoseForDriveToPoint = pose;
@@ -345,11 +307,7 @@ public class DriveSwerveDrivetrain extends SubsystemBase {
     return desiredPoseForDriveToPoint.getTranslation().minus(cachedPose.getTranslation()).getNorm();
   }
 
-  /**
-   * Core drive-to-point logic (called from periodic when active). Mirrors FRC 2910's DRIVE_TO_POINT
-   * state: PID on scalar distance → velocity magnitude, decompose along direction, use CTRE's
-   * FieldCentricFacingAngle for 250 Hz heading control.
-   */
+  /** Core drive-to-point logic (2910-style PID on scalar distance, CTRE 250Hz heading). */
   private void applyDriveToPoint() {
     Translation2d translationToDesiredPoint =
         desiredPoseForDriveToPoint.getTranslation().minus(cachedPose.getTranslation());

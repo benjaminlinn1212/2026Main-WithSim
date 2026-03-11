@@ -7,29 +7,8 @@ import frc.robot.Constants.MechanismVisualization;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * Computes and logs 3D component poses for AdvantageScope's articulated robot visualization.
- *
- * <p>AdvantageScope uses two arrays of {@link Pose3d} to render articulated components on the 3D
- * field:
- *
- * <ul>
- *   <li><b>ZeroedComponentPoses</b> — an array of identity (all-zero) poses, one per component.
- *       Used during the AdvantageScope calibration step (step 4 in the setup process) to align each
- *       component model to the robot origin. Log this once at startup or every cycle (it never
- *       changes).
- *   <li><b>ComponentPoses</b> — the real robot-relative pose for each component, updated every
- *       cycle. AdvantageScope applies the config's {@code zeroedRotations}/{@code zeroedPosition}
- *       transforms first (from the robot's config.json), then applies these poses to place each
- *       component on the robot.
- * </ul>
- *
- * <p>Component index mapping (must match the robot model's config.json "components" array order):
- *
- * <ul>
- *   <li>0 = Turret (yaw)
- *   <li>1 = Hood (pitch, rides on turret)
- *   <li>2 = Intake (rack-and-pinion linear extension, on rear of frame)
- * </ul>
+ * Logs 3D component poses for AdvantageScope articulated visualization. Indices: 0=Turret(yaw),
+ * 1=Hood(pitch on turret), 2=Intake(linear extension).
  */
 public class MechanismVisualizer {
 

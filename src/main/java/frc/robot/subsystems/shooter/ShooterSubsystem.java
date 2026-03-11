@@ -7,10 +7,7 @@ import frc.robot.util.ShooterSetpoint;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
-/**
- * Shooter subsystem that controls the flywheel(s) for launching game pieces. Now supports
- * ShooterSetpoint for coordinated aiming.
- */
+/** Shooter subsystem: flywheel control with ShooterSetpoint for coordinated aiming. */
 public class ShooterSubsystem extends SubsystemBase {
 
   private final ShooterIO io;
@@ -27,20 +24,12 @@ public class ShooterSubsystem extends SubsystemBase {
     this.io = io;
   }
 
-  /**
-   * Set the shooter setpoint supplier for coordinated aiming. Call this from RobotContainer to
-   * connect all aiming subsystems through ShooterSetpoint.
-   */
+  /** Set the ShooterSetpoint supplier (wired from RobotContainer). */
   public void setShooterSetpointSupplier(Supplier<ShooterSetpoint> supplier) {
     this.setpointSupplier = supplier;
   }
 
-  /**
-   * Command to spin up the shooter using ShooterSetpoint calculations. This uses the coordinated
-   * setpoint for optimal shooting (hub or neutral zone).
-   *
-   * @return A command that spins the shooter to the calculated speed
-   */
+  /** Command to spin up using ShooterSetpoint (hub or neutral zone speed). */
   public Command spinUp() {
     return run(() -> {
           ShooterSetpoint setpoint = setpointSupplier.get();
@@ -112,23 +101,13 @@ public class ShooterSubsystem extends SubsystemBase {
     io.stop();
   }
 
-  /**
-   * Directly apply spin-up using ShooterSetpoint. Called by Superstructure.periodic() every cycle
-   * when the wanted state requires the shooter spinning. Unlike spinUp() command, this is a plain
-   * void method.
-   */
+  /** Apply spin-up via ShooterSetpoint (void, for Superstructure.periodic()). */
   public void applySpinUp() {
     ShooterSetpoint setpoint = setpointSupplier.get();
     setVelocity(setpoint.getShooterRPS());
   }
 
-  /**
-   * Get the stator current of the shooter motor (amps). Used for current-based shot detection in
-   * auto — when FUEL passes through the shooter, the current spikes. When current drops back below
-   * a threshold for sustained time, all FUEL has been fired.
-   *
-   * @return Shooter stator current in amps
-   */
+  /** Stator current (amps). Spikes when FUEL passes through — used for shot detection. */
   public double getCurrentAmps() {
     return inputs.currentAmps;
   }

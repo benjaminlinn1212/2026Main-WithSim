@@ -59,54 +59,30 @@ public class IntakeSubsystem extends SubsystemBase {
     io.stop();
   }
 
-  /**
-   * Directly apply intake motor output. Called by Superstructure.periodic() every cycle when the
-   * wanted state requires the intake to run. Unlike the intake() command, this is a plain void
-   * method — no command scheduling overhead.
-   */
+  /** Apply intake motors (void, for Superstructure.periodic()). */
   public void applyIntake() {
     io.setUpperVelocity(IntakeConstants.UPPER_INTAKE_VELOCITY_RPS);
     io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_VELOCITY_RPS);
   }
 
-  /**
-   * Directly apply deploy-reverse output. Called by Superstructure.periodic() while the intake
-   * pivot is still deploying (not yet at deployed position). Runs the lower roller in reverse to
-   * prevent FUEL from falling out of the intake as it swings down, while the upper roller runs
-   * normally.
-   */
+  /** Reverse lower roller during deploy (prevents FUEL falling out). Void for Superstructure. */
   public void applyDeployReverse() {
     io.setUpperVelocity(IntakeConstants.UPPER_INTAKE_VELOCITY_RPS);
     io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_EJECT_RPS);
   }
 
-  /**
-   * Directly apply intake motor output with the upper roller stopped. Called by
-   * Superstructure.periodic() when intake half-deploy is active — the pivot oscillates to dislodge
-   * stuck FUEL while the upper roller is disabled to avoid ejecting game pieces.
-   */
+  /** Lower roller only (upper stopped). Used during half-deploy jiggle. */
   public void applyIntakeLowerOnly() {
     io.setUpperVelocity(0.0);
     io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_VELOCITY_RPS);
   }
 
-  /**
-   * Get the stator current of the upper intake roller (amps). Used for current-based FUEL pickup
-   * detection in auto — a current spike above a threshold indicates FUEL has contacted the rollers.
-   *
-   * @return Upper roller stator current in amps
-   */
+  /** Upper roller stator current (amps). Spike = FUEL pickup detection in auto. */
   public double getUpperCurrentAmps() {
     return inputs.upperCurrentAmps;
   }
 
-  /**
-   * Get the stator current of the lower intake roller (amps). Used for current-based FUEL presence
-   * detection — when the lower roller current drops below a threshold for a sustained period, no
-   * FUEL is in the intake path.
-   *
-   * @return Lower roller stator current in amps
-   */
+  /** Lower roller stator current (amps). Sustained low = no FUEL in path. */
   public double getLowerCurrentAmps() {
     return inputs.lowerCurrentAmps;
   }

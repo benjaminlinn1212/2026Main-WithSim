@@ -74,19 +74,12 @@ public class IntakePivotSubsystem extends SubsystemBase {
     io.stop();
   }
 
-  /**
-   * Directly apply the deployed position. Called by Superstructure.periodic() for states that need
-   * intake deployed. Unlike the deploy() command, this is a plain void method.
-   */
+  /** Apply deployed position (void, for Superstructure.periodic()). */
   public void applyDeploy() {
     io.setPosition(IntakePivotConstants.DEPLOYED_POSITION);
   }
 
-  /**
-   * Directly apply the jiggle oscillation. Alternates between JIGGLE_POSITION_A and
-   * JIGGLE_POSITION_B at the configured period. Called every cycle by Superstructure.periodic()
-   * when feeding is active and the intake is deployed, to dislodge stuck FUEL.
-   */
+  /** Oscillate between JIGGLE_POSITION_A/B to dislodge stuck FUEL. Called every cycle. */
   public void applyJiggle() {
     double half = IntakePivotConstants.JIGGLE_PERIOD_SECONDS;
     double phase = Timer.getFPGATimestamp() % (2.0 * half);
@@ -97,20 +90,12 @@ public class IntakePivotSubsystem extends SubsystemBase {
     }
   }
 
-  /**
-   * Directly apply the outpost position. Used in auto when intaking at the OUTPOST — the pivot
-   * extends just enough to receive FUEL from the human player CHUTE without running rollers. This
-   * is a plain void method for Superstructure use.
-   */
+  /** Apply outpost position (partial extend for human player CHUTE). */
   public void applyOutpostDeploy() {
     io.setPosition(IntakePivotConstants.OUTPOST_POSITION);
   }
 
-  /**
-   * Directly apply the outpost jiggle oscillation. Alternates between OUTPOST_POSITION and
-   * OUTPOST_JIGGLE_POSITION at the configured jiggle period. Used in auto at the OUTPOST to
-   * dislodge FUEL from the CHUTE after an initial dwell at the outpost position.
-   */
+  /** Oscillate between OUTPOST_POSITION and OUTPOST_JIGGLE_POSITION to dislodge FUEL. */
   public void applyOutpostJiggle() {
     double half = IntakePivotConstants.JIGGLE_PERIOD_SECONDS;
     double phase = Timer.getFPGATimestamp() % (2.0 * half);
@@ -132,10 +117,7 @@ public class IntakePivotSubsystem extends SubsystemBase {
         && pos <= hi + IntakePivotConstants.POSITION_TOLERANCE;
   }
 
-  /**
-   * Directly apply the stowed position. Called by Superstructure.periodic() for states that need
-   * intake stowed. Unlike the stow() command, this is a plain void method.
-   */
+  /** Apply stowed position (void, for Superstructure.periodic()). */
   public void applyStow() {
     io.setPosition(IntakePivotConstants.STOWED_POSITION);
   }

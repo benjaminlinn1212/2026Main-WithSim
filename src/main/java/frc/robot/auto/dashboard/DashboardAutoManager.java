@@ -18,20 +18,9 @@ import java.util.Set;
 import org.littletonrobotics.junction.Logger;
 
 /**
- * The top-level manager for the dashboard-driven autonomous system. This class:
- *
- * <ul>
- *   <li>Owns the {@link AutoSettings} (dashboard configuration)
- *   <li>Runs the {@link AutoPlanner} whenever settings change
- *   <li>Builds a fresh {@link Command} via {@link AutoCommandBuilder}
- *   <li>Publishes a plan preview to the dashboard / AdvantageKit logs
- *   <li>Provides the autonomous command to {@code Robot.java}
- * </ul>
- *
- * <p>Call {@link #update()} every disabled periodic cycle. When autonomous starts, call {@link
- * #getAutoCommand()} to get the latest generated command.
- *
- * <p>Inspired by 254's AutoModeSelector and 6328's auto management approach.
+ * Top-level manager for dashboard-driven auto. Owns AutoSettings, runs AutoPlanner on changes,
+ * builds commands via AutoCommandBuilder, publishes plan preview. Call update() every disabled
+ * cycle.
  */
 public class DashboardAutoManager {
 

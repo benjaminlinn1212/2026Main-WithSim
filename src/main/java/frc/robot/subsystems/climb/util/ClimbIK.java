@@ -4,32 +4,8 @@ import edu.wpi.first.math.geometry.Translation2d;
 import frc.robot.Constants.ClimbConstants;
 
 /**
- * =========================================================================== INVERSE KINEMATICS -
- * Cable-Driven 2-Link Climb Mechanism
- * ===========================================================================
- *
- * <p>Converts end effector position (x, y) → motor rotations for all 4 motors.
- *
- * <p>MECHANISM GEOMETRY (all coords relative to back winch at origin):
- *
- * <pre>
- *   W_back  = (0, 0)             — Back winch (back cable drum)
- *   W_front = (wfx, wfy)         — Front winch (front cable drum)
- *   S       = (sx, sy)           — Shoulder joint (fixed pivot, link 1 base)
- *   J       = (jx, jy)           — Elbow joint (between links)
- *   E       = (ex, ey)           — End effector
- * </pre>
- *
- * <p>Rigid links: |S → J| = L1 (shoulder to elbow), |J → E| = L2 (elbow to end effector)
- *
- * <p>Cable attachment points:
- *
- * <ul>
- *   <li>P on link 1: BACK_CABLE_ATTACH meters from J toward S → back cable = |P − W_back|
- *   <li>Q on link 2: FRONT_CABLE_ATTACH meters from E toward J → front cable = |Q − W_front|
- * </ul>
- *
- * <p>COORDINATE SYSTEM: X = Forward (away from robot), Y = Up (vertical)
+ * Inverse kinematics for the cable-driven 2-link climb mechanism. Converts end-effector (x, y) →
+ * drum rotations for all 4 motors. Coordinate system: X = forward, Y = up. Back winch at origin.
  */
 public class ClimbIK {
 
@@ -261,12 +237,8 @@ public class ClimbIK {
   }
 
   /**
-   * Calculate IK from Translation2d, optionally skipping joint limits. Use enforceJointLimits=false
-   * for visualization (Mechanism2d) so the display always renders.
-   *
-   * @param endEffectorPosition Target position (x, y) in meters
-   * @param enforceJointLimits if true, applies joint angle limit checks
-   * @return IK solution with motor rotations
+   * Calculate IK from Translation2d, optionally skipping joint limits. Disable enforcement for
+   * Mechanism2d visualization so the display always renders.
    */
   public static ClimbSideIKResult calculateIK(
       Translation2d endEffectorPosition, boolean enforceJointLimits) {
@@ -313,10 +285,7 @@ public class ClimbIK {
   }
 
   /**
-   * Core cable length geometry calculation. Private so it can be used during static initialization
-   * (before the class is fully loaded) and by the public API.
-   *
-   * <p>Returns front cable length and back cable length for a given end effector (ex, ey).
+   * Core cable length geometry. Returns front/back cable lengths for a given end-effector (ex, ey).
    */
   private static CableLengths calculateCableLengthsInternal(double ex, double ey) {
     final double sx = ClimbConstants.SHOULDER_X_METERS;
@@ -380,9 +349,7 @@ public class ClimbIK {
     return new CableLengths(l1, l2, 0.0, 0.0);
   }
 
-  /**
-   * Forward kinematics using numeric solve (Newton) to estimate end effector from cable lengths.
-   */
+  /** Forward kinematics via Newton's method — estimates end-effector from cable drum rotations. */
   public static Translation2d estimateEndEffectorPosition(
       double frontRotations, double backRotations, Translation2d initialGuess) {
     CableLengths target = lengthsFromRotations(frontRotations, backRotations);
@@ -468,14 +435,11 @@ public class ClimbIK {
   }
 
   /**
-   * Calculate motor velocities from end effector velocity using numerical Jacobian.
+   * Calculate motor velocities from end-effector velocity using numerical Jacobian (finite
+   * differences with one-sided fallback near workspace boundaries).
    *
-   * <p>Uses finite difference method: J[i,j] = ∂(motor_i) / ∂(position_j)
-   *
-   * <p>Then: motor_velocity = J * end_effector_velocity
-   *
-   * @param position Current end effector position (m)
-   * @param velocity Desired end effector velocity (m/s)
+   * @param position Current end-effector position (m)
+   * @param velocity Desired end-effector velocity (m/s)
    * @return Motor velocities (rot/s)
    */
   public static ClimbSideVelocityResult calculateVelocityIK(
@@ -489,9 +453,7 @@ public class ClimbIK {
       return ClimbSideVelocityResult.invalid();
     }
 
-    // Calculate partial derivatives using central differences with one-sided fallback.
-    // Near workspace/joint boundaries, one side of the perturbation may be invalid.
-    // Fall back to one-sided (forward or backward) difference to keep the Jacobian valid.
+    // Central differences, one-sided fallback near workspace/joint boundaries
     double dFront_dx;
     double dBack_dx;
     {
@@ -563,15 +525,12 @@ public class ClimbIK {
   }
 
   /**
-   * Calculate gravity compensation feedforward for each motor using J^T * F_gravity.
+   * Gravity compensation feedforward via J^T * F_gravity. Distributes torque between front/back
+   * motors based on current mechanism geometry.
    *
-   * <p>When pulling (robot hanging), gravity acts downward on the end effector as F = (0, -weight).
-   * The required motor feedforward voltages are proportional to J^T * F_gravity. This ensures each
-   * motor contributes the correct amount of torque based on the current mechanism geometry.
-   *
-   * @param position Current end effector position (m)
-   * @param gravityVoltage Voltage scale factor representing gravitational load (V)
-   * @return Motor feedforward voltages [frontFF, backFF], or [0,0] if invalid
+   * @param position Current end-effector position (m)
+   * @param gravityVoltage Voltage scale factor for gravitational load (V)
+   * @return [frontFF, backFF] voltages, or [0,0] if invalid
    */
   public static double[] calculateGravityFeedforward(
       Translation2d position, double gravityVoltage) {

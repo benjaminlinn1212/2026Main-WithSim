@@ -35,32 +35,23 @@ public class Robot extends LoggedRobot {
   private RobotContainer robotContainer;
 
   /**
-   * 254-style: Track whether the robot has been enabled at least once this power cycle. Used for
-   * fallback heading reset in teleopInit() — if the robot goes directly to teleop without ever
-   * running auto, we reset heading to alliance wall orientation.
+   * Tracks whether the robot has been enabled at least once. Used for fallback heading reset in
+   * teleopInit() if auto was skipped.
    */
   private boolean hasBeenEnabled = false;
 
-  /**
-   * 254-style disabled periodic iteration counter. We only run the pose pre-seeding logic every N
-   * iterations to avoid overwhelming the CAN bus and dashboard with updates.
-   */
+  /** Disabled periodic iteration counter for throttled pose pre-seeding. */
   private int disabledPeriodicCount = 0;
 
   private static final int DISABLED_PERIODIC_CHECK_INTERVAL = 50; // every ~1 second (50 * 20ms)
 
   /**
-   * Last starting pose we pre-seeded to during disabled. Used to detect auto selection changes
-   * independently of dashboardAutoManager.didSettingsChange() (which only tracks the dashboard
-   * auto's own dropdown changes, not the top-level auto chooser).
+   * Last pre-seeded starting pose. Used to detect auto selection changes independently of
+   * dashboardAutoManager.didSettingsChange().
    */
   private Pose2d lastPreSeededPose = null;
 
-  /**
-   * FPGA timestamp captured at the start of autonomous. Used to compute a global auto countdown
-   * timer ({@code AUTO_DURATION - elapsed}) that works regardless of which auto routine is
-   * selected.
-   */
+  /** FPGA timestamp at auto start, for computing auto countdown timer. */
   private double autoStartTimestamp = 0.0;
 
   public Robot() {
@@ -114,10 +105,7 @@ public class Robot extends LoggedRobot {
     // Instantiate our RobotContainer
     robotContainer = new RobotContainer();
 
-    // Warm up PathPlanner commands. Java class loading + JIT compilation causes a
-    // significant delay on the first pathfinding/path-following call. These warmup
-    // commands run a dummy path in the background (no robot output) during disabled
-    // so subsequent real commands execute instantly.
+    // Warm up PathPlanner to avoid first-call JIT delay
     CommandScheduler.getInstance().schedule(FollowPathCommand.warmupCommand());
     CommandScheduler.getInstance().schedule(PathfindingCommand.warmupCommand());
   }
@@ -142,8 +130,7 @@ public class Robot extends LoggedRobot {
       autonomousCommand = null;
     }
 
-    // Throttle Limelight frame processing while disabled to reduce thermal output.
-    // The LL4 skips N frames between each processed frame — 100-200 is recommended by the docs.
+    // Throttle Limelight frame processing while disabled to reduce thermal load
     LimelightHelpers.SetThrottle(Constants.Vision.FRONT_LIMELIGHT_NAME, 150);
     LimelightHelpers.SetThrottle(Constants.Vision.TURRET_LIMELIGHT_NAME, 150);
 
@@ -153,9 +140,8 @@ public class Robot extends LoggedRobot {
   }
 
   /**
-   * 254-style pose pre-seeding: periodically check if auto settings changed (either the dashboard
-   * auto settings or the top-level auto chooser selection), and when they do, pre-seed odometry
-   * with the selected auto's starting pose (alliance-corrected).
+   * Periodically check if auto settings changed and pre-seed odometry with the starting pose
+   * (alliance-corrected).
    */
   @Override
   public void disabledPeriodic() {
@@ -195,8 +181,7 @@ public class Robot extends LoggedRobot {
   }
 
   /**
-   * 254-style: No hard pose reset here. The pose was pre-seeded during disabled and refined by
-   * vision. In SIM, hard-reset since there is no physical placement or vision.
+   * No hard pose reset -- pre-seeded during disabled. SIM hard-resets since no physical placement.
    */
   @Override
   public void autonomousInit() {
@@ -248,10 +233,7 @@ public class Robot extends LoggedRobot {
   @Override
   public void autonomousPeriodic() {}
 
-  /**
-   * 254-style: If the robot has never been enabled (skipped auto), reset heading to alliance wall
-   * orientation for correct field-relative driving.
-   */
+  /** If auto was skipped, reset heading to alliance wall orientation for field-relative driving. */
   @Override
   public void teleopInit() {
     // Cancel any running autonomous command

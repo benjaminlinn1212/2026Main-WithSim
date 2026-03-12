@@ -20,24 +20,15 @@ import org.littletonrobotics.junction.Logger;
 
 /**
  * Hardcoded outpost auto using pre-drawn PathPlanner paths for trench traversal. Sequence: seed
- * pose -> start-to-hub -> shoot preload -> 2x (hub-to-neutral intake, neutral-to-hub shoot) -> SWD
- * to outpost -> dwell/jiggle -> final shoot -> idle.
+ * pose -> start-to-hub -> (hub-to-neutral intake, neutral-to-hub shoot) -> SWD to outpost ->
+ * dwell/jiggle -> final shoot -> idle.
  */
 public class OutpostAuto {
 
   // ==================== Path Names (must match files in deploy/pathplanner/paths/) ==============
 
-  /** Path: Start position → HUB_LOWER scoring position. */
-  private static final String PATH_START_TO_HUB = "Outpost Start To Hub";
-
-  /** Path: HUB_LOWER → NEUTRAL_ZONE_LOWER (outbound through trench). */
+  /** Path: HUB_LOWER → NEUTRAL_ZONE_LOWER (outbound intake leg). */
   private static final String PATH_HUB_TO_NEUTRAL = "Outpost Hub To Neutral 1";
-
-  /** Alternate HUB -> NEUTRAL path to use on the second intake pass (edit in GUI as needed). */
-  private static final String PATH_HUB_TO_NEUTRAL_ALT = "Outpost Hub To Neutral 2";
-
-  /** Path: NEUTRAL_ZONE_LOWER → HUB_LOWER (inbound through trench). */
-  private static final String PATH_NEUTRAL_TO_HUB = "Outpost Neutral To Hub";
 
   /** Path: NEUTRAL_ZONE_LOWER → OUTPOST (inbound through trench, final leg). */
   private static final String PATH_NEUTRAL_TO_OUTPOST = "Outpost Neutral To Outpost";
@@ -51,9 +42,6 @@ public class OutpostAuto {
 
   /** Dwell at the intake location to collect FUEL before leaving (seconds). */
   private static final double INTAKE_DWELL_SECONDS = 0.0;
-
-  /** Feed duration for normal stop-and-shoot cycles (seconds). */
-  private static final double SHOOT_DURATION_SECONDS = 1.7;
 
   /**
    * Feed duration for the outpost stop-and-shoot (seconds). Much longer than a normal cycle because
@@ -100,12 +88,7 @@ public class OutpostAuto {
   public Command buildCommand() {
     return Commands.deadline(
             Commands.sequence(
-                buildInit(),
-                buildScorePreload(),
-                buildNeutralZoneCycle("Cycle 1"),
-                buildIntakeThenSWDToOutpost(),
-                buildOutpostSequence(),
-                buildCleanup()),
+                buildInit(), buildIntakeThenSWDToOutpost(), buildOutpostSequence(), buildCleanup()),
             // Continuous timer logging — runs every 20ms for the entire auto so AdvantageScope
             // never sees gaps in the time-remaining signal.
             Commands.run(
@@ -127,44 +110,22 @@ public class OutpostAuto {
         Commands.print("[OutpostAuto] Starting — Lower start, outpost finish"));
   }
 
-  /** Phase 1: Follow path to HUB_LOWER and stop-and-shoot the preloaded FUEL. */
-  private Command buildScorePreload() {
-    return Commands.sequence(
-            Commands.print("[OutpostAuto] Scoring preload"),
-            Commands.deadline(followPath(PATH_START_TO_HUB), zoneAwareIntake()),
-            buildStopAndShootSequence())
-        .withName("ScorePreload");
-  }
-
   /**
-   * Phase 2/3: Follow path to neutral zone, collect FUEL, follow path back to HUB_LOWER,
-   * stop-and-shoot.
-   *
-   * @param label Human-readable cycle label for logging (e.g. "Cycle 1")
-   */
-  private Command buildNeutralZoneCycle(String label) {
-    return Commands.sequence(
-            // Intake leg
-            Commands.print("[OutpostAuto] " + label + " — intaking at NEUTRAL_ZONE_LOWER"),
-            Commands.deadline(followPath(PATH_HUB_TO_NEUTRAL), zoneAwareIntake()),
-            Commands.waitSeconds(INTAKE_DWELL_SECONDS),
-            // Scoring leg
-            Commands.print("[OutpostAuto] " + label + " — scoring at HUB_LOWER"),
-            Commands.deadline(followPath(PATH_NEUTRAL_TO_HUB), zoneAwareIntake()),
-            buildStopAndShootSequence())
-        .withName("NeutralZoneCycle_" + label.replace(" ", ""));
-  }
-
-  /**
-   * Phase 3: Follow path to the neutral zone to intake FUEL, then follow drawn path directly to the
+   * Phase 1: Follow path to the neutral zone to intake FUEL, then follow drawn path directly to the
    * outpost with shoot-while-driving (no return to HUB for a stop-and-shoot). Feeds only while
    * inside the alliance zone.
    */
   private Command buildIntakeThenSWDToOutpost() {
     return Commands.sequence(
-            // Intake leg (use alternate pre-drawn intake path on the second pass)
-            Commands.print("[OutpostAuto] Cycle 2 — intaking at NEUTRAL_ZONE_LOWER (alt path)"),
-            Commands.deadline(followPath(PATH_HUB_TO_NEUTRAL_ALT), zoneAwareIntake()),
+            // Intake leg — follow Hub To Neutral 1 path immediately
+            Commands.print("[OutpostAuto] Intaking at NEUTRAL_ZONE_LOWER"),
+            Commands.deadline(followPath(PATH_HUB_TO_NEUTRAL), zoneAwareIntake()),
+            // Stow intake and switch to outpost pivot pose immediately after intake path
+            Commands.runOnce(
+                () -> {
+                  superstructure.forceWantedState(SuperstructureState.ONLY_AIMING);
+                  superstructure.setIntakeOutpostMode(true);
+                }),
             Commands.waitSeconds(INTAKE_DWELL_SECONDS),
             // SWD leg — shoot on the move to outpost
             Commands.print("[OutpostAuto] Cycle 2 — SWD to outpost"),
@@ -214,11 +175,6 @@ public class OutpostAuto {
   }
 
   // ==================== Reusable Command Helpers ====================
-
-  /** Stop-and-shoot with the default {@link #SHOOT_DURATION_SECONDS}. */
-  private Command buildStopAndShootSequence() {
-    return buildStopAndShootSequence(SHOOT_DURATION_SECONDS);
-  }
 
   /**
    * Stop-and-shoot: aim at the HUB, feed for a fixed duration, then return to zone-aware default

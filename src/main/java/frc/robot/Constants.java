@@ -229,6 +229,7 @@ public final class Constants {
 
     // Velocity Setpoints (rotations per second)
     public static final double UPPER_INTAKE_VELOCITY_RPS = 67.0;
+    public static final double UPPER_INTAKE_EJECT_RPS = -67.0;
     public static final double LOWER_INTAKE_VELOCITY_RPS = 15.0;
     public static final double LOWER_INTAKE_EJECT_RPS = -20.0;
   }
@@ -350,7 +351,7 @@ public final class Constants {
      * Flywheel RPS per m/s of required launch speed. Increase if balls fall short, decrease if
      * overshoot.
      */
-    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 8.0;
+    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 9.5;
   }
 
   public static class TurretConstants {

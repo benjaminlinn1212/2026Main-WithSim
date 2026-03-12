@@ -20,12 +20,13 @@ import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
 /**
  * Hardcoded upper-lane auto with L1 climb. Uses pre-drawn PathPlanner paths for trench traversal.
- * Sequence: seed pose -> start-to-hub -> shoot preload -> 2x (hub-to-neutral intake, neutral-to-hub
- * shoot) -> SWD to climb -> extend/retract L1.
+ * Sequence: seed pose -> start-to-hub -> shoot preload -> hub-to-climb (intake + SWD in one path)
+ * -> extend/retract L1.
  */
 public class UpperClimbAuto {
 
@@ -34,39 +35,25 @@ public class UpperClimbAuto {
   /** Path: Start position → HUB_UPPER scoring position. */
   private static final String PATH_START_TO_HUB = "Upper Start To Hub";
 
-  /** Path: HUB_UPPER → NEUTRAL_ZONE_UPPER (outbound through upper trench). */
-  private static final String PATH_HUB_TO_NEUTRAL = "Upper Hub To Neutral 1";
-
-  /** Alternate HUB → NEUTRAL path for the second intake pass (deeper endpoint). */
-  private static final String PATH_HUB_TO_NEUTRAL_ALT = "Upper Hub To Neutral 2";
-
-  /** Path: NEUTRAL_ZONE_UPPER → HUB_UPPER (inbound through upper trench). */
-  private static final String PATH_NEUTRAL_TO_HUB = "Upper Neutral To Hub";
-
-  /** Path: NEUTRAL_ZONE_UPPER → Climb standoff (SWD leg through upper trench to tower). */
-  private static final String PATH_NEUTRAL_TO_CLIMB = "Upper Neutral To Climb";
+  /** Path: HUB_UPPER → neutral zone (intake) → Climb standoff (SWD). Single continuous path. */
+  private static final String PATH_HUB_TO_CLIMB = "Upper Hub To Climb";
 
   // ==================== Route Constants ====================
 
   /** Starting pose for this auto. Also used by RobotContainer.getAutoStartingPose(). */
   public static final StartPose START_POSE = StartPose.UPPER;
 
-  /** Which TOWER face to approach for climb. */
-  private static final ClimbPose CLIMB_POSE = ClimbPose.OUTPOST_SIDE;
-
   // ==================== Timing Constants ====================
 
-  /** Dwell at the intake location to collect FUEL before leaving (seconds). */
-  private static final double INTAKE_DWELL_SECONDS = 0.0;
-
   /** Feed duration for stop-and-shoot cycles (seconds). */
-  private static final double SHOOT_DURATION_SECONDS = 1.7;
+  private static final double SHOOT_DURATION_SECONDS = 1.2;
 
   // ==================== Dependencies ====================
 
   private final DriveSwerveDrivetrain drive;
   private final Superstructure superstructure;
   private final ClimbSubsystem climb;
+  private final Supplier<ClimbPose> climbPoseSupplier;
 
   // ==================== Runtime State ====================
 
@@ -75,10 +62,14 @@ public class UpperClimbAuto {
   // ==================== Constructor ====================
 
   public UpperClimbAuto(
-      DriveSwerveDrivetrain drive, Superstructure superstructure, ClimbSubsystem climb) {
+      DriveSwerveDrivetrain drive,
+      Superstructure superstructure,
+      ClimbSubsystem climb,
+      Supplier<ClimbPose> climbPoseSupplier) {
     this.drive = drive;
     this.superstructure = superstructure;
     this.climb = climb;
+    this.climbPoseSupplier = climbPoseSupplier;
   }
 
   // ==================== Public Entry Points ====================
@@ -94,8 +85,7 @@ public class UpperClimbAuto {
             Commands.sequence(
                 buildInit(),
                 buildScorePreload(),
-                buildNeutralZoneCycle("Cycle 1"),
-                buildIntakeThenSWDToClimb(),
+                buildSWDToClimb(),
                 buildClimbSequence(),
                 buildCleanup()),
             Commands.run(
@@ -129,48 +119,24 @@ public class UpperClimbAuto {
   }
 
   /**
-   * Phase 2: Follow path to neutral zone, collect FUEL, follow path back to HUB_UPPER,
-   * stop-and-shoot.
-   *
-   * @param label Human-readable cycle label for logging (e.g. "Cycle 1")
-   */
-  private Command buildNeutralZoneCycle(String label) {
-    return Commands.sequence(
-            // Intake leg
-            Commands.print("[UpperClimbAuto] " + label + " — intaking at NEUTRAL_ZONE_UPPER"),
-            Commands.deadline(followPath(PATH_HUB_TO_NEUTRAL), zoneAwareIntake()),
-            Commands.waitSeconds(INTAKE_DWELL_SECONDS),
-            // Scoring leg
-            Commands.print("[UpperClimbAuto] " + label + " — scoring at HUB_UPPER"),
-            Commands.deadline(followPath(PATH_NEUTRAL_TO_HUB), zoneAwareIntake()),
-            buildStopAndShootSequence())
-        .withName("NeutralZoneCycle_" + label.replace(" ", ""));
-  }
-
-  /**
-   * Phase 3: Follow alternate path to the neutral zone to intake FUEL, then follow drawn path
-   * directly to the climb standoff with shoot-while-driving. Climb arms extend in parallel
-   * mid-transit (once intake is stowed). Feeds only while inside the alliance zone.
+   * Phase 2: Follow a single continuous path from HUB through the neutral zone (intake FUEL) to the
+   * climb standoff (shoot-while-driving). Climb arms extend in parallel once the robot enters the
+   * alliance zone on the return leg. Feeds only while inside the alliance zone.
    *
    * <p>Uses the same pattern as {@code AutoCommandBuilder.buildDriveAndClimb}: the SWD path and
    * climb extend run in {@code Commands.parallel()}, so both must complete before the PID approach
    * begins. If the path finishes before the extend, the robot waits at the standoff for the arms.
    */
-  private Command buildIntakeThenSWDToClimb() {
+  private Command buildSWDToClimb() {
     return Commands.sequence(
-            // Intake leg (use alternate pre-drawn intake path on the second pass)
-            Commands.print("[UpperClimbAuto] Cycle 2 — intaking at NEUTRAL_ZONE_UPPER (alt path)"),
-            Commands.deadline(followPath(PATH_HUB_TO_NEUTRAL_ALT), zoneAwareIntake()),
-            Commands.waitSeconds(INTAKE_DWELL_SECONDS),
-            // SWD leg — shoot on the move to climb standoff with climb extending in parallel
-            Commands.print("[UpperClimbAuto] Cycle 2 — SWD to climb standoff"),
+            Commands.print("[UpperClimbAuto] Hub to climb (intake + SWD)"),
             Commands.parallel(
-                // Group 1: Drive to standoff with zone-aware SWD
-                // Uses ONLY_AIMING (intake stowed, turret active) inside the aiming zone
-                // so the intake retracts and the climb arms can start extending mid-transit.
-                // This matches AutoCommandBuilder.buildDriveAndClimb() behavior.
+                // Group 1: Follow single hub → neutral → climb path with zone-aware states.
+                // Outside aiming zone (neutral) → ONLY_INTAKE (collect FUEL).
+                // Inside aiming zone → ONLY_AIMING (turret active, intake stows so arms can
+                // extend). Feeds when inside the alliance zone (close to hub).
                 Commands.deadline(
-                    followPath(PATH_NEUTRAL_TO_CLIMB),
+                    followPath(PATH_HUB_TO_CLIMB),
                     Commands.run(
                         () -> {
                           boolean outsideAimingZone = isOutsideAimingZone();
@@ -185,10 +151,13 @@ public class UpperClimbAuto {
                           Logger.recordOutput("UpperClimbAuto/SWD/Feeding", isInAllianceZone());
                         },
                         superstructure)),
-                // Group 2: Extend climb arms once intake is stowed (mid-transit)
+                // Group 2: Extend climb arms when re-entering the alliance zone on the return
+                // leg. Must first leave the alliance zone (outbound to neutral), then wait to
+                // re-enter it (inbound toward climb standoff).
                 Commands.sequence(
-                    Commands.waitUntil(() -> superstructure.isIntakeStowed()),
-                    Commands.print("[UpperClimbAuto] Intake stowed — extending climb"),
+                    Commands.waitUntil(() -> !isInAllianceZone()),
+                    Commands.waitUntil(() -> isInAllianceZone()),
+                    Commands.print("[UpperClimbAuto] Re-entered alliance zone — extending climb"),
                     climb.setStateCommand(ClimbState.EXTEND_L1_AUTO))),
             // Both path and extend done — idle superstructure for final approach
             Commands.runOnce(
@@ -197,19 +166,20 @@ public class UpperClimbAuto {
                   superstructure.forceWantedState(SuperstructureState.IDLE);
                   Logger.recordOutput("UpperClimbAuto/SWD/Active", false);
                 }))
-        .withName("IntakeThenSWD_ToClimb");
+        .withName("SWD_ToClimb");
   }
 
   /**
-   * Phase 4: Arms extended, robot at standoff — PID straight-line approach into the tower, then
+   * Phase 3: Arms extended, robot at standoff — PID straight-line approach into the tower, then
    * retract to pull the robot up.
    */
   private Command buildClimbSequence() {
+    ClimbPose climbPose = climbPoseSupplier.get();
     return Commands.sequence(
             Commands.print("[UpperClimbAuto] At standoff — approaching tower"),
             // Straight-line approach into tower
             buildDriveToPose(
-                CLIMB_POSE.getPose(),
+                climbPose.getPose(),
                 Constants.AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS,
                 Constants.AutoConstants.CLIMB_APPROACH_TOLERANCE_M,
                 Constants.AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD),

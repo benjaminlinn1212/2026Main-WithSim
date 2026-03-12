@@ -71,6 +71,12 @@ public class IntakeSubsystem extends SubsystemBase {
     io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_EJECT_RPS);
   }
 
+  /** Reverse both rollers to eject FUEL out of the intake. Void for Superstructure. */
+  public void applyEject() {
+    io.setUpperVelocity(IntakeConstants.UPPER_INTAKE_EJECT_RPS);
+    io.setLowerVelocity(IntakeConstants.LOWER_INTAKE_EJECT_RPS);
+  }
+
   /** Lower roller only (upper stopped). Used during half-deploy jiggle. */
   public void applyIntakeLowerOnly() {
     io.setUpperVelocity(0.0);

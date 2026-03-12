@@ -51,6 +51,9 @@ public class Superstructure extends SubsystemBase {
   /** Whether feeding is active (conveyor+indexer push FUEL to shooter). */
   private boolean feedingRequested = false;
 
+  /** Whether the driver is requesting intake roller eject (reverse rollers while deployed). */
+  private boolean intakeEjectRequested = false;
+
   /** Use outpost pivot position instead of full deploy. Auto-only, cleared on forceIdleState(). */
   private boolean intakeOutpostMode = false;
 
@@ -131,6 +134,7 @@ public class Superstructure extends SubsystemBase {
     }
 
     Logger.recordOutput("Superstructure/FeedingRequested", feedingRequested);
+    Logger.recordOutput("Superstructure/IntakeEjectRequested", intakeEjectRequested);
     Logger.recordOutput("Superstructure/State", currentState.toString());
 
     // ===== Trench Zone Detection (with exit hysteresis) =====
@@ -293,11 +297,13 @@ public class Superstructure extends SubsystemBase {
   }
 
   /**
-   * Apply correct intake roller output. Priority: outpost (stop) > jiggle (lower only) > deploying
-   * (upper fwd, lower rev) > full intake.
+   * Apply correct intake roller output. Priority: eject (driver LT) > outpost (stop) > jiggle
+   * (lower only) > deploying (upper fwd, lower rev) > full intake.
    */
   private void applyIntakeRollers(boolean shouldJiggle) {
-    if (intakeOutpostMode) {
+    if (intakeEjectRequested) {
+      intake.applyEject();
+    } else if (intakeOutpostMode) {
       intake.stopMotor();
     } else if (shouldJiggle) {
       intake.applyIntakeLowerOnly();
@@ -331,6 +337,12 @@ public class Superstructure extends SubsystemBase {
   /** Get whether the driver is currently requesting feeding. */
   public boolean isFeedingRequested() {
     return feedingRequested;
+  }
+
+  /** Set whether the driver is requesting intake roller eject (reverse while deployed). */
+  public void setIntakeEjectRequested(boolean requested) {
+    this.intakeEjectRequested = requested;
+    Logger.recordOutput("Superstructure/IntakeEjectRequested", requested);
   }
 
   /** Enable/disable outpost intake mode (outpost pivot position, rollers stopped). Auto-only. */

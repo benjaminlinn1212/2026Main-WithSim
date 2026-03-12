@@ -43,7 +43,7 @@ public class Robot extends LoggedRobot {
   /** Disabled periodic iteration counter for throttled pose pre-seeding. */
   private int disabledPeriodicCount = 0;
 
-  private static final int DISABLED_PERIODIC_CHECK_INTERVAL = 50; // every ~1 second (50 * 20ms)
+  private static final int DISABLED_PERIODIC_CHECK_INTERVAL = 250; // every ~5 seconds (250 * 20ms)
 
   /**
    * Last pre-seeded starting pose. Used to detect auto selection changes independently of

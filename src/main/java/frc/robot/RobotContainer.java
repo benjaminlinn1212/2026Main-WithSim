@@ -253,13 +253,13 @@ public class RobotContainer {
     trenchAssist = new TrenchAssistController();
 
     // Climb level chooser (L1 quick climb vs L2L3 full sequence)
-    climbLevelChooser.setDefaultOption("L2L3", ClimbSubsystem.ClimbLevel.L2L3);
-    climbLevelChooser.addOption("L1", ClimbSubsystem.ClimbLevel.L1);
+    climbLevelChooser.setDefaultOption("L1", ClimbSubsystem.ClimbLevel.L1);
+    climbLevelChooser.addOption("L2L3", ClimbSubsystem.ClimbLevel.L2L3);
     SmartDashboard.putData("Climb/Level", climbLevelChooser);
     climb.setClimbLevelSupplier(
         () -> {
           var selected = climbLevelChooser.getSelected();
-          return selected != null ? selected : ClimbSubsystem.ClimbLevel.L2L3;
+          return selected != null ? selected : ClimbSubsystem.ClimbLevel.L1;
         });
 
     // Wire IMU roll supplier for auto-level climb assist
@@ -307,7 +307,9 @@ public class RobotContainer {
         "Outpost Auto", Commands.defer(() -> outpostAuto.buildCommand(), Set.of(drive)));
 
     // Hardcoded auto — UpperClimbAuto (upper lane, 2 cycles, SWD to L1 climb)
-    upperClimbAuto = new UpperClimbAuto(drive, superstructure, climb);
+    upperClimbAuto =
+        new UpperClimbAuto(
+            drive, superstructure, climb, dashboardAutoManager.getSettings()::getClimbPose);
     autoChooser.addOption(
         "Upper Climb Auto", Commands.defer(() -> upperClimbAuto.buildCommand(), Set.of(drive)));
 
@@ -459,6 +461,13 @@ public class RobotContainer {
         .rightTrigger(0.2)
         .onTrue(Commands.runOnce(() -> superstructure.setFeedingRequested(true)))
         .onFalse(Commands.runOnce(() -> superstructure.setFeedingRequested(false)));
+
+    // Left trigger: Reverse intake rollers while held (eject FUEL). Only effective when
+    // the intake is deployed (ONLY_INTAKE or AIMING_WHILE_INTAKING states).
+    controller
+        .leftTrigger(0.2)
+        .onTrue(Commands.runOnce(() -> superstructure.setIntakeEjectRequested(true)))
+        .onFalse(Commands.runOnce(() -> superstructure.setIntakeEjectRequested(false)));
 
     // ===== CLIMB STATE CONTROLS (driver POV) =====
     // POV Left: Previous climb step (handles release, stow, and all reverse transitions)

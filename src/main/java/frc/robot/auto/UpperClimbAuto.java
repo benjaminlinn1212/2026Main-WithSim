@@ -151,14 +151,32 @@ public class UpperClimbAuto {
                           Logger.recordOutput("UpperClimbAuto/SWD/Feeding", isInAllianceZone());
                         },
                         superstructure)),
-                // Group 2: Extend climb arms when re-entering the alliance zone on the return
-                // leg. Must first leave the alliance zone (outbound to neutral), then wait to
-                // re-enter it (inbound toward climb standoff).
-                Commands.sequence(
-                    Commands.waitUntil(() -> !isInAllianceZone()),
-                    Commands.waitUntil(() -> isInAllianceZone()),
-                    Commands.print("[UpperClimbAuto] Re-entered alliance zone — extending climb"),
-                    climb.setStateCommand(ClimbState.EXTEND_L1_AUTO))),
+                // Group 2: Extend climb arms when entering the alliance zone for the SECOND
+                // time. The robot starts in the alliance zone (1st), drives out to the neutral
+                // zone, and returns (2nd). We track rising-edge transitions into the zone so
+                // that a brief pose glitch cannot trigger an early extend.
+                Commands.defer(
+                    () -> {
+                      final int[] allianceZoneEntryCount = {isInAllianceZone() ? 1 : 0};
+                      final boolean[] wasInAllianceZone = {isInAllianceZone()};
+                      return Commands.sequence(
+                          Commands.waitUntil(
+                              () -> {
+                                boolean inZone = isInAllianceZone();
+                                if (inZone && !wasInAllianceZone[0]) {
+                                  allianceZoneEntryCount[0]++;
+                                }
+                                wasInAllianceZone[0] = inZone;
+                                Logger.recordOutput(
+                                    "UpperClimbAuto/Climb/AllianceZoneEntries",
+                                    allianceZoneEntryCount[0]);
+                                return allianceZoneEntryCount[0] >= 2;
+                              }),
+                          Commands.print(
+                              "[UpperClimbAuto] Entered alliance zone 2nd time — extending climb"),
+                          climb.setStateCommand(ClimbState.EXTEND_L1_AUTO));
+                    },
+                    Set.of())),
             // Both path and extend done — idle superstructure for final approach
             Commands.runOnce(
                 () -> {

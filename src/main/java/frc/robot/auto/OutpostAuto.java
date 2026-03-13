@@ -117,27 +117,39 @@ public class OutpostAuto {
    */
   private Command buildIntakeThenSWDToOutpost() {
     return Commands.sequence(
-            // Intake leg — follow Hub To Neutral 1 path immediately
+            // Intake leg — follow Hub To Neutral 1 path. ONLY_INTAKE the entire way out
+            // (no aiming on the outbound leg — shooter should not aim until coming back).
             Commands.print("[OutpostAuto] Intaking at NEUTRAL_ZONE_LOWER"),
-            Commands.deadline(followPath(PATH_HUB_TO_NEUTRAL), zoneAwareIntake()),
-            // Stow intake and switch to outpost pivot pose immediately after intake path
+            Commands.deadline(
+                followPath(PATH_HUB_TO_NEUTRAL),
+                Commands.run(
+                    () -> superstructure.forceWantedState(SuperstructureState.ONLY_INTAKE),
+                    superstructure)),
+            // Enable outpost pivot pose for the return leg (no aiming yet — stays ONLY_INTAKE
+            // until the robot reaches the alliance zone).
             Commands.runOnce(
                 () -> {
-                  superstructure.forceWantedState(SuperstructureState.ONLY_AIMING);
                   superstructure.setIntakeOutpostMode(true);
                 }),
             Commands.waitSeconds(INTAKE_DWELL_SECONDS),
-            // SWD leg — shoot on the move to outpost
+            // SWD leg — drive to outpost, but only start aiming + feeding once inside the
+            // alliance zone. Stay in ONLY_INTAKE while still in the neutral/aiming zone so
+            // the shooter doesn't spin up prematurely on the return from neutral intake.
             Commands.print("[OutpostAuto] Cycle 2 — SWD to outpost"),
             Commands.deadline(
                 followPath(PATH_NEUTRAL_TO_OUTPOST),
                 Commands.run(
                     () -> {
-                      superstructure.forceWantedState(SuperstructureState.AIMING_WHILE_INTAKING);
-                      boolean shouldFeed = isInAllianceZone();
-                      superstructure.setFeedingRequested(shouldFeed);
+                      boolean inAllianceZone = isInAllianceZone();
+                      if (inAllianceZone) {
+                        superstructure.forceWantedState(SuperstructureState.AIMING_WHILE_INTAKING);
+                        superstructure.setFeedingRequested(true);
+                      } else {
+                        superstructure.forceWantedState(SuperstructureState.ONLY_INTAKE);
+                        superstructure.setFeedingRequested(false);
+                      }
                       Logger.recordOutput("OutpostAuto/SWD/Active", true);
-                      Logger.recordOutput("OutpostAuto/SWD/Feeding", shouldFeed);
+                      Logger.recordOutput("OutpostAuto/SWD/Feeding", inAllianceZone);
                     },
                     superstructure)),
             Commands.runOnce(
@@ -190,30 +202,6 @@ public class OutpostAuto {
         Commands.waitSeconds(durationSeconds),
         Commands.runOnce(() -> superstructure.setFeedingRequested(false)),
         zoneAwareDefaultState());
-  }
-
-  /**
-   * Continuous zone-aware intake. Every cycle, sets the superstructure state based on field
-   * position:
-   *
-   * <ul>
-   *   <li>Outside aiming zone (neutral zone) → {@link SuperstructureState#ONLY_INTAKE}
-   *   <li>Inside aiming zone (alliance/HUB zone) → {@link
-   *       SuperstructureState#AIMING_WHILE_INTAKING}
-   * </ul>
-   */
-  private Command zoneAwareIntake() {
-    return Commands.run(
-            () -> {
-              boolean outsideAimingZone = isOutsideAimingZone();
-              superstructure.forceWantedState(
-                  outsideAimingZone
-                      ? SuperstructureState.ONLY_INTAKE
-                      : SuperstructureState.AIMING_WHILE_INTAKING);
-              Logger.recordOutput("OutpostAuto/ZoneAware/OutsideAimingZone", outsideAimingZone);
-            },
-            superstructure)
-        .withName("ZoneAwareIntake");
   }
 
   /** Instant zone-aware state set (used after stop-and-shoot to pick the correct idle state). */

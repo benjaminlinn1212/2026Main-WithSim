@@ -78,8 +78,8 @@ public class ShooterSetpoint {
     flywheelSpeedMap.put(3.0, 53.0);
     flywheelSpeedMap.put(3.5, 58.0);
     flywheelSpeedMap.put(4.0, 63.0);
-    flywheelSpeedMap.put(4.5, 63.0);
-    flywheelSpeedMap.put(4.83, 63.0);
+    flywheelSpeedMap.put(4.5, 64.0);
+    flywheelSpeedMap.put(4.83, 64.0);
 
     // Time of flight vs distance (seconds) — for motion compensation
     timeOfFlightMap.put(1.25, 1.0);

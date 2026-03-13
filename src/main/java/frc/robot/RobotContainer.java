@@ -605,6 +605,11 @@ public class RobotContainer {
     return drive;
   }
 
+  /** Get the superstructure (for Robot.java lifecycle access). */
+  public Superstructure getSuperstructure() {
+    return superstructure;
+  }
+
   /** Get the climb subsystem (for Robot.java sim-reset access). */
   public ClimbSubsystem getClimbSubsystem() {
     return climb;

@@ -24,7 +24,7 @@ public final class Constants {
   public static final Mode currentMode = RobotBase.isReal() ? Mode.REAL : simMode;
 
   /** Whether to write .wpilog files to USB/roboRIO. */
-  public static final boolean ENABLE_FILE_LOGGING = false;
+  public static final boolean ENABLE_FILE_LOGGING = true;
 
   public static final CANBus SUPERSTRUCTURE_CAN_BUS = new CANBus("Superstructure");
 
@@ -351,7 +351,7 @@ public final class Constants {
      * Flywheel RPS per m/s of required launch speed. Increase if balls fall short, decrease if
      * overshoot.
      */
-    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 9.5;
+    public static final double NEUTRAL_ZONE_RPS_PER_MPS = 10.5;
   }
 
   public static class TurretConstants {

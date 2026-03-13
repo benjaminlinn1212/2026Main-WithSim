@@ -241,6 +241,9 @@ public class Robot extends LoggedRobot {
       autonomousCommand.cancel();
     }
 
+    // Clear outpost intake mode — auto may have left it enabled
+    robotContainer.getSuperstructure().clearIntakeOutpostMode();
+
     // Remove Limelight throttle — full framerate for match
     LimelightHelpers.SetThrottle(Constants.Vision.FRONT_LIMELIGHT_NAME, 0);
     LimelightHelpers.SetThrottle(Constants.Vision.TURRET_LIMELIGHT_NAME, 0);

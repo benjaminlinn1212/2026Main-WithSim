@@ -343,7 +343,7 @@ public class Superstructure extends SubsystemBase {
   public void setIntakeEjectRequested(boolean requested) {
     this.intakeEjectRequested = requested;
     Logger.recordOutput("Superstructure/IntakeEjectRequested", requested);
-  } 
+  }
 
   /** Clear all outpost intake flags. Called on teleop init to ensure a clean slate. */
   public void clearIntakeOutpostMode() {

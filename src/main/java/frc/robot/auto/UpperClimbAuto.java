@@ -10,13 +10,11 @@ import com.pathplanner.lib.path.PathPlannerPath;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import frc.robot.Constants;
 import frc.robot.auto.dashboard.FieldConstants;
 import frc.robot.auto.dashboard.FieldConstants.ClimbPose;
 import frc.robot.auto.dashboard.FieldConstants.StartPose;
 import frc.robot.subsystems.Superstructure;
 import frc.robot.subsystems.Superstructure.SuperstructureState;
-import frc.robot.subsystems.climb.ClimbState;
 import frc.robot.subsystems.climb.ClimbSubsystem;
 import frc.robot.subsystems.drive.DriveSwerveDrivetrain;
 import java.util.Set;
@@ -35,8 +33,8 @@ public class UpperClimbAuto {
   /** Path: Start position → HUB_UPPER scoring position. */
   private static final String PATH_START_TO_HUB = "Upper Start To Hub";
 
-  /** Path: HUB_UPPER → neutral zone (intake) → Climb standoff (SWD). Single continuous path. */
-  private static final String PATH_HUB_TO_CLIMB = "Upper Hub To Climb";
+  /** Path: HUB_UPPER → neutral zone (intake) → back to HUB (stop-and-shoot). Round trip. */
+  private static final String PATH_HUB_ROUND_TRIP = "Upper Hub";
 
   // ==================== Route Constants ====================
 
@@ -46,7 +44,7 @@ public class UpperClimbAuto {
   // ==================== Timing Constants ====================
 
   /** Feed duration for stop-and-shoot cycles (seconds). */
-  private static final double SHOOT_DURATION_SECONDS = 1.2;
+  private static final double SHOOT_DURATION_SECONDS = 2.0;
 
   // ==================== Dependencies ====================
 
@@ -85,8 +83,9 @@ public class UpperClimbAuto {
             Commands.sequence(
                 buildInit(),
                 buildScorePreload(),
-                buildSWDToClimb(),
-                buildClimbSequence(),
+                buildIntakeThenStopAndShoot(),
+                // buildSWDToClimb(),
+                // buildClimbSequence(),
                 buildCleanup()),
             Commands.run(
                 () ->
@@ -119,94 +118,91 @@ public class UpperClimbAuto {
   }
 
   /**
-   * Phase 2: Follow a single continuous path from HUB through the neutral zone (intake FUEL) to the
-   * climb standoff (shoot-while-driving). Climb arms extend in parallel once the robot enters the
-   * alliance zone on the return leg. Feeds only while inside the alliance zone.
-   *
-   * <p>Uses the same pattern as {@code AutoCommandBuilder.buildDriveAndClimb}: the SWD path and
-   * climb extend run in {@code Commands.parallel()}, so both must complete before the PID approach
-   * begins. If the path finishes before the extend, the robot waits at the standoff for the arms.
+   * Phase 2 (simplified): Follow hub → neutral → hub round trip with intake, then stop-and-shoot.
+   * Only 2 total paths in this auto (start→hub from preload, hub round trip here).
    */
-  private Command buildSWDToClimb() {
+  private Command buildIntakeThenStopAndShoot() {
     return Commands.sequence(
-            Commands.print("[UpperClimbAuto] Hub to climb (intake + SWD)"),
-            Commands.parallel(
-                // Group 1: Follow single hub → neutral → climb path with zone-aware states.
-                // Outside aiming zone (neutral) → ONLY_INTAKE (collect FUEL).
-                // Inside aiming zone → ONLY_AIMING (turret active, intake stows so arms can
-                // extend). Feeds when inside the alliance zone (close to hub).
-                Commands.deadline(
-                    followPath(PATH_HUB_TO_CLIMB),
-                    Commands.run(
-                        () -> {
-                          boolean outsideAimingZone = isOutsideAimingZone();
-                          if (outsideAimingZone) {
-                            superstructure.forceWantedState(SuperstructureState.ONLY_INTAKE);
-                            superstructure.setFeedingRequested(false);
-                          } else {
-                            superstructure.forceWantedState(SuperstructureState.ONLY_AIMING);
-                            superstructure.setFeedingRequested(isInAllianceZone());
-                          }
-                          Logger.recordOutput("UpperClimbAuto/SWD/Active", true);
-                          Logger.recordOutput("UpperClimbAuto/SWD/Feeding", isInAllianceZone());
-                        },
-                        superstructure)),
-                // Group 2: Extend climb arms when entering the alliance zone for the SECOND
-                // time. The robot starts in the alliance zone (1st), drives out to the neutral
-                // zone, and returns (2nd). We track rising-edge transitions into the zone so
-                // that a brief pose glitch cannot trigger an early extend.
-                Commands.defer(
-                    () -> {
-                      final int[] allianceZoneEntryCount = {isInAllianceZone() ? 1 : 0};
-                      final boolean[] wasInAllianceZone = {isInAllianceZone()};
-                      return Commands.sequence(
-                          Commands.waitUntil(
-                              () -> {
-                                boolean inZone = isInAllianceZone();
-                                if (inZone && !wasInAllianceZone[0]) {
-                                  allianceZoneEntryCount[0]++;
-                                }
-                                wasInAllianceZone[0] = inZone;
-                                Logger.recordOutput(
-                                    "UpperClimbAuto/Climb/AllianceZoneEntries",
-                                    allianceZoneEntryCount[0]);
-                                return allianceZoneEntryCount[0] >= 2;
-                              }),
-                          Commands.print(
-                              "[UpperClimbAuto] Entered alliance zone 2nd time — extending climb"),
-                          climb.setStateCommand(ClimbState.EXTEND_L1_AUTO));
-                    },
-                    Set.of())),
-            // Both path and extend done — idle superstructure for final approach
-            Commands.runOnce(
-                () -> {
-                  superstructure.setFeedingRequested(false);
-                  superstructure.forceWantedState(SuperstructureState.IDLE);
-                  Logger.recordOutput("UpperClimbAuto/SWD/Active", false);
-                }))
-        .withName("SWD_ToClimb");
+            Commands.print("[UpperClimbAuto] Hub round trip (intake)"),
+            // Round trip: intake while driving hub → neutral → hub
+            Commands.deadline(
+                followPath(PATH_HUB_ROUND_TRIP),
+                Commands.run(
+                    () -> superstructure.forceWantedState(SuperstructureState.ONLY_INTAKE),
+                    superstructure)),
+            // Stop and shoot
+            buildStopAndShootSequence(),
+            // Wait 1 second then stow intake (idle)
+            Commands.waitSeconds(1.0),
+            Commands.runOnce(() -> superstructure.forceWantedState(SuperstructureState.IDLE)))
+        .withName("IntakeThenStopAndShoot");
   }
 
-  /**
-   * Phase 3: Arms extended, robot at standoff — PID straight-line approach into the tower, then
-   * retract to pull the robot up.
+  /*
+   * Phase 2 (original — SWD to climb, commented out):
+   *
+   * private Command buildSWDToClimb() {
+   *   return Commands.sequence(
+   *           Commands.print("[UpperClimbAuto] Hub to climb (intake + SWD)"),
+   *           Commands.parallel(
+   *               Commands.deadline(
+   *                   followPath(PATH_HUB_TO_CLIMB),
+   *                   Commands.run(
+   *                       () -> {
+   *                         boolean outsideAimingZone = isOutsideAimingZone();
+   *                         if (outsideAimingZone) {
+   *                           superstructure.forceWantedState(SuperstructureState.ONLY_INTAKE);
+   *                           superstructure.setFeedingRequested(false);
+   *                         } else {
+   *                           superstructure.forceWantedState(SuperstructureState.ONLY_AIMING);
+   *                           superstructure.setFeedingRequested(isInAllianceZone());
+   *                         }
+   *                       },
+   *                       superstructure)),
+   *               Commands.defer(
+   *                   () -> {
+   *                     final int[] allianceZoneEntryCount = {isInAllianceZone() ? 1 : 0};
+   *                     final boolean[] wasInAllianceZone = {isInAllianceZone()};
+   *                     return Commands.sequence(
+   *                         Commands.waitUntil(
+   *                             () -> {
+   *                               boolean inZone = isInAllianceZone();
+   *                               if (inZone && !wasInAllianceZone[0]) {
+   *                                 allianceZoneEntryCount[0]++;
+   *                               }
+   *                               wasInAllianceZone[0] = inZone;
+   *                               return allianceZoneEntryCount[0] >= 2;
+   *                             }),
+   *                         climb.setStateCommand(ClimbState.EXTEND_L1_AUTO));
+   *                   },
+   *                   Set.of())),
+   *           Commands.runOnce(
+   *               () -> {
+   *                 superstructure.setFeedingRequested(false);
+   *                 superstructure.forceWantedState(SuperstructureState.IDLE);
+   *               }))
+   *       .withName("SWD_ToClimb");
+   * }
    */
-  private Command buildClimbSequence() {
-    ClimbPose climbPose = climbPoseSupplier.get();
-    return Commands.sequence(
-            Commands.print("[UpperClimbAuto] At standoff — approaching tower"),
-            // Straight-line approach into tower
-            buildDriveToPose(
-                climbPose.getPose(),
-                Constants.AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS,
-                Constants.AutoConstants.CLIMB_APPROACH_TOLERANCE_M,
-                Constants.AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD),
-            Commands.runOnce(() -> drive.stop(), drive),
-            // Retract to pull robot up
-            Commands.print("[UpperClimbAuto] Reached tower — retracting"),
-            climb.setStateCommand(ClimbState.RETRACT_L1_AUTO))
-        .withName("ClimbSequence");
-  }
+
+  /*
+   * Phase 3 (original — climb sequence, commented out):
+   *
+   * private Command buildClimbSequence() {
+   *   ClimbPose climbPose = climbPoseSupplier.get();
+   *   return Commands.sequence(
+   *           Commands.print("[UpperClimbAuto] At standoff — approaching tower"),
+   *           buildDriveToPose(
+   *               climbPose.getPose(),
+   *               Constants.AutoConstants.CLIMB_APPROACH_MAX_VELOCITY_MPS,
+   *               Constants.AutoConstants.CLIMB_APPROACH_TOLERANCE_M,
+   *               Constants.AutoConstants.CLIMB_APPROACH_THETA_TOLERANCE_RAD),
+   *           Commands.runOnce(() -> drive.stop(), drive),
+   *           Commands.print("[UpperClimbAuto] Reached tower — retracting"),
+   *           climb.setStateCommand(ClimbState.RETRACT_L1_AUTO))
+   *       .withName("ClimbSequence");
+   * }
+   */
 
   /** Final phase: idle everything. */
   private Command buildCleanup() {
@@ -285,26 +281,26 @@ public class UpperClimbAuto {
   // ==================== Path Following Helpers ====================
 
   /**
-   * Load a pre-drawn PathPlanner path by name and return a deferred follow command. PathPlanner
-   * handles alliance flipping automatically based on the {@code shouldFlipPath} supplier configured
-   * in {@code AutoBuilder.configure()}.
+   * Load a pre-drawn PathPlanner path by name and return a follow command. PathPlanner handles
+   * alliance flipping automatically based on the {@code shouldFlipPath} supplier configured in
+   * {@code AutoBuilder.configure()}.
+   *
+   * <p>Paths are loaded eagerly (not deferred) since {@code buildCommand()} is already called
+   * inside a {@code Commands.defer()}. This avoids a single-cycle drive gap between sequential
+   * path-follow commands that causes drivetrain stutter.
    *
    * @param pathName The path file name (without extension) in deploy/pathplanner/paths/
-   * @return A deferred command that follows the path
+   * @return A command that follows the path
    */
   private Command followPath(String pathName) {
-    return Commands.defer(
-        () -> {
-          try {
-            PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.followPath(path);
-          } catch (Exception e) {
-            System.err.println("[UpperClimbAuto] Failed to load path: " + pathName);
-            e.printStackTrace();
-            return Commands.print("[UpperClimbAuto] ERROR: Path not found: " + pathName);
-          }
-        },
-        Set.of(drive));
+    try {
+      PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
+      return AutoBuilder.followPath(path);
+    } catch (Exception e) {
+      System.err.println("[UpperClimbAuto] Failed to load path: " + pathName);
+      e.printStackTrace();
+      return Commands.print("[UpperClimbAuto] ERROR: Path not found: " + pathName);
+    }
   }
 
   /** PID drive-to-pose for final approach (same as AutoCommandBuilder). */

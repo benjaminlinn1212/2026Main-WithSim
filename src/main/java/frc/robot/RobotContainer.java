@@ -22,7 +22,9 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import frc.robot.auto.MidToOutpostAuto;
 import frc.robot.auto.OutpostAuto;
+import frc.robot.auto.RunPathAuto;
 import frc.robot.auto.UpperClimbAuto;
 import frc.robot.auto.dashboard.DashboardAutoManager;
 import frc.robot.generated.TunerConstants;
@@ -110,7 +112,11 @@ public class RobotContainer {
 
   // Hardcoded auto instance (built once, getCommand() defers internally)
   private OutpostAuto outpostAuto;
+  private MidToOutpostAuto midToOutpostAuto;
   private UpperClimbAuto upperClimbAuto;
+
+  // Run-path autos — one per pre-drawn path, keyed by chooser label "Run: <pathName>"
+  private final java.util.Map<String, RunPathAuto> runPathAutos = new java.util.HashMap<>();
 
   // Orchestra manager for playing music through Kraken motors
   private OrchestraManager orchestraManager;
@@ -306,12 +312,26 @@ public class RobotContainer {
     autoChooser.addOption(
         "Outpost Auto", Commands.defer(() -> outpostAuto.buildCommand(), Set.of(drive)));
 
+    // Hardcoded auto — MidToOutpostAuto (center start, drive to outpost, shoot + jiggle)
+    midToOutpostAuto = new MidToOutpostAuto(drive, superstructure);
+    autoChooser.addOption(
+        "Mid To Outpost Auto",
+        Commands.defer(() -> midToOutpostAuto.buildCommand(), Set.of(drive)));
+
     // Hardcoded auto — UpperClimbAuto (upper lane, 2 cycles, SWD to L1 climb)
     upperClimbAuto =
         new UpperClimbAuto(
             drive, superstructure, climb, dashboardAutoManager.getSettings()::getClimbPose);
     autoChooser.addOption(
         "Upper Climb Auto", Commands.defer(() -> upperClimbAuto.buildCommand(), Set.of(drive)));
+
+    // Utility autos — one per pre-drawn path (no superstructure, just path following)
+    for (String pathName : new String[] {"SweepUp", "SweepDown", "HalfSweepUp", "HalfSweepDown"}) {
+      RunPathAuto rpa = new RunPathAuto(drive, pathName);
+      String label = "Run: " + pathName;
+      runPathAutos.put(label, rpa);
+      autoChooser.addOption(label, Commands.defer(() -> rpa.buildCommand(), Set.of(drive)));
+    }
 
     // ===== ORCHESTRA (Play Music) AUTO =====
     if (Constants.currentMode == Constants.Mode.REAL) {
@@ -632,7 +652,9 @@ public class RobotContainer {
    * <ul>
    *   <li>"Outpost Auto" → {@code OutpostAuto.START_POSE}
    *   <li>"Upper Climb Auto" → {@code UpperClimbAuto.START_POSE}
+   *   <li>"Mid To Outpost Auto" → {@code MidToOutpostAuto.START_POSE}
    *   <li>"Dashboard Auto" → {@code dashboardAutoManager.getStartingPose()}
+   *   <li>"Run: ..." → starting holonomic pose from the selected path
    *   <li>Otherwise → {@code null} (no pre-seeding for Do Nothing, Music, etc.)
    * </ul>
    */
@@ -640,10 +662,14 @@ public class RobotContainer {
     String selected = autoChooser.getSendableChooser().getSelected();
     if ("Outpost Auto".equals(selected)) {
       return OutpostAuto.START_POSE.getPose();
+    } else if ("Mid To Outpost Auto".equals(selected)) {
+      return MidToOutpostAuto.START_POSE.getPose();
     } else if ("Upper Climb Auto".equals(selected)) {
       return UpperClimbAuto.START_POSE.getPose();
     } else if ("Dashboard Auto".equals(selected)) {
       return dashboardAutoManager.getStartingPose();
+    } else if (selected != null && runPathAutos.containsKey(selected)) {
+      return runPathAutos.get(selected).getStartingPose();
     }
     return null;
   }

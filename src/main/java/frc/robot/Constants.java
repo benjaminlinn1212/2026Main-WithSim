@@ -267,7 +267,7 @@ public final class Constants {
     // Position Setpoints (rotations)
     public static final double STOWED_POSITION = 0.0;
     public static final double OUTPOST_POSITION = 7.784;
-    public static final double OUTPOST_JIGGLE_POSITION = 4.784;
+    public static final double OUTPOST_JIGGLE_POSITION = 3.584;
     public static final double DEPLOYED_POSITION = 27.0;
 
     // Jiggle positions -- pivot alternates between these two during feeding to dislodge FUEL
